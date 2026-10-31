@@ -33,7 +33,7 @@ async def test_live_rdap_known_registered(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_live_s3_bucket_from_env(tmp_path):
+async def test_live_s3_bucket_from_env(tmp_path, capsys):
     live = os.environ.get("TRUSTMAP_BUCKET_LIVE")
     gone = os.environ.get("TRUSTMAP_BUCKET_GONE")
     if not live or not gone:
@@ -41,5 +41,7 @@ async def test_live_s3_bucket_from_env(tmp_path):
     cache = LookupCache(tmp_path / "c.db")
     exists = await bucket_probe(live, "s3", cache=cache)
     missing = await bucket_probe(gone, "s3", cache=cache)
-    assert exists.status in {"exists", "access_denied"}
+    print(f"LIVE {live}: status={exists.status} http_status={exists.http_status}")
+    print(f"GONE {gone}: status={missing.status} http_status={missing.http_status}")
+    assert exists.status == "exists"
     assert missing.status == "NoSuchBucket"

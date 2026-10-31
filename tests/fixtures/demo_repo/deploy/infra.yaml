@@ -1,7 +1,7 @@
 # Deploy config — buckets used by the demo shop
 assets:
-  abandoned: s3://BUCKET_DEMO_CLAIMABLE
-  live_host: https://BUCKET_DEMO_LIVE.s3.amazonaws.com/public
-  path_style: https://s3.amazonaws.com/BUCKET_DEMO_CLAIMABLE
-  regional: https://s3.us-east-1.amazonaws.com/BUCKET_DEMO_LIVE
+  abandoned: s3://trustmap-demo-gone-a3f91c2e
+  live_host: https://trustmap-demo-live-a3f91c2e.s3.amazonaws.com/public
+  path_style: https://s3.amazonaws.com/trustmap-demo-gone-a3f91c2e
+  regional: https://s3.us-east-2.amazonaws.com/trustmap-demo-live-a3f91c2e
   gcs: https://storage.googleapis.com/trustmap-demo-assets

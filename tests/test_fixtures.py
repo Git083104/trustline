@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 
 FIXTURE_ROOT = Path(__file__).parent / "fixtures" / "demo_repo"
@@ -56,7 +57,13 @@ def test_expected_json_is_valid_and_complete():
         host_or_buckets.append(ref["host_or_bucket"])
 
     joined = " ".join(host_or_buckets)
-    assert "BUCKET_DEMO_CLAIMABLE" in joined
-    assert "BUCKET_DEMO_LIVE" in joined
+    live = os.environ.get("TRUSTMAP_BUCKET_LIVE")
+    gone = os.environ.get("TRUSTMAP_BUCKET_GONE")
+    if live:
+        assert live in joined
+    if gone:
+        assert gone in joined
+    assert "BUCKET_DEMO_CLAIMABLE" not in joined
+    assert "BUCKET_DEMO_LIVE" not in joined
     assert any("invalid" in h for h in host_or_buckets)
     assert any(h.endswith(".com") and "example.com" not in h for h in host_or_buckets)

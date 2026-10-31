@@ -321,12 +321,12 @@ def _bucket_url(name: str, provider: str) -> str:
 
 def _bucket_status(provider: str, response: httpx.Response) -> str:
     body = response.text
-    if provider == "s3" and S3_NOSUCH in body:
+    if S3_NOSUCH in body:
         return S3_NOSUCH
-    if response.status_code in {200, 204, 206}:
+    if "PermanentRedirect" in body or "AccessDenied" in body:
         return "exists"
-    if response.status_code in {401, 403}:
-        return "access_denied"
+    if response.status_code in {200, 204, 206, 301, 302, 307, 308, 401, 403}:
+        return "exists"
     if response.status_code == 404:
         return S3_NOSUCH
     return "error"

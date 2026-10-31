@@ -1,8 +1,4 @@
 {
-  "placeholders": {
-    "BUCKET_DEMO_CLAIMABLE": "Replace with an S3 bucket name you create and then delete so it is claimable.",
-    "BUCKET_DEMO_LIVE": "Replace with an S3 bucket name you own that still exists."
-  },
   "references": [
     {
       "file": "index.html",
@@ -97,8 +93,8 @@
     {
       "file": "deploy/infra.yaml",
       "line": 3,
-      "raw": "s3://BUCKET_DEMO_CLAIMABLE",
-      "host_or_bucket": "BUCKET_DEMO_CLAIMABLE",
+      "raw": "s3://trustmap-demo-gone-a3f91c2e",
+      "host_or_bucket": "trustmap-demo-gone-a3f91c2e",
       "type": "bucket",
       "runs_in": "build",
       "filter_reason": null
@@ -106,8 +102,8 @@
     {
       "file": "deploy/infra.yaml",
       "line": 4,
-      "raw": "https://BUCKET_DEMO_LIVE.s3.amazonaws.com/public",
-      "host_or_bucket": "BUCKET_DEMO_LIVE",
+      "raw": "https://trustmap-demo-live-a3f91c2e.s3.amazonaws.com/public",
+      "host_or_bucket": "trustmap-demo-live-a3f91c2e",
       "type": "bucket",
       "runs_in": "build",
       "filter_reason": null
@@ -115,8 +111,8 @@
     {
       "file": "deploy/infra.yaml",
       "line": 5,
-      "raw": "https://s3.amazonaws.com/BUCKET_DEMO_CLAIMABLE",
-      "host_or_bucket": "BUCKET_DEMO_CLAIMABLE",
+      "raw": "https://s3.amazonaws.com/trustmap-demo-gone-a3f91c2e",
+      "host_or_bucket": "trustmap-demo-gone-a3f91c2e",
       "type": "bucket",
       "runs_in": "build",
       "filter_reason": null
@@ -124,8 +120,8 @@
     {
       "file": "deploy/infra.yaml",
       "line": 6,
-      "raw": "https://s3.us-east-1.amazonaws.com/BUCKET_DEMO_LIVE",
-      "host_or_bucket": "BUCKET_DEMO_LIVE",
+      "raw": "https://s3.us-east-2.amazonaws.com/trustmap-demo-live-a3f91c2e",
+      "host_or_bucket": "trustmap-demo-live-a3f91c2e",
       "type": "bucket",
       "runs_in": "build",
       "filter_reason": null

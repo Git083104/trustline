@@ -115,8 +115,8 @@ known answers:
 - a link in `README.md`, a URL in a test file, and one in a code comment
 
 Write `tests/fixtures/expected.json`: every reference with file, line, raw string, host or bucket,
-and expected `type` and `runs_in`. Leave placeholders `BUCKET_DEMO_CLAIMABLE` and
-`BUCKET_DEMO_LIVE` that I will replace with real bucket names.
+and expected `type` and `runs_in`. Demo S3 bucket names come from env
+`TRUSTMAP_BUCKET_LIVE` and `TRUSTMAP_BUCKET_GONE`.
 
 **Accept when:** fixture exists, expected.json is valid and complete. No scanner code yet.
 

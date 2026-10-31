@@ -120,6 +120,10 @@ async def test_bucket_probe_s3_and_gcs_get_only(tmp_path):
             )
         if "private.s3.amazonaws.com" in url:
             return httpx.Response(403, text="<Error><Code>AccessDenied</Code></Error>")
+        if "redirect.s3.amazonaws.com" in url:
+            return httpx.Response(
+                301, text="<Error><Code>PermanentRedirect</Code></Error>"
+            )
         if "storage.googleapis.com/gone-gcs" in url:
             return httpx.Response(404, text="Not Found")
         if "storage.googleapis.com/live-gcs" in url:
@@ -129,11 +133,13 @@ async def test_bucket_probe_s3_and_gcs_get_only(tmp_path):
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
         missing = await bucket_probe("missing", "s3", client=client, cache=cache)
         denied = await bucket_probe("private", "s3", client=client, cache=cache)
+        redirected = await bucket_probe("redirect", "s3", client=client, cache=cache)
         gcs_gone = await bucket_probe("gone-gcs", "gcs", client=client, cache=cache)
         gcs_live = await bucket_probe("live-gcs", "gcs", client=client, cache=cache)
     assert set(methods) == {"GET"}
     assert missing.status == "NoSuchBucket"
-    assert denied.status == "access_denied"
+    assert denied.status == "exists"
+    assert redirected.status == "exists"
     assert gcs_gone.status == "NoSuchBucket"
     assert gcs_live.status == "exists"
 
