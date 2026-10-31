@@ -189,7 +189,7 @@ class LiveModelClient:
             messages=[{"role": "system", "content": system}, *messages],
             tools=tools,
             reasoning_effort=reasoning_effort,
-            tool_choice="required",
+            tool_choice="auto",
         )
         usage = _usage_dict(response)
         calls = response.choices[0].message.tool_calls or []
