@@ -5,14 +5,16 @@ from pathlib import Path
 import pytest
 
 from eval.label import (
+    auto_severity,
     format_target,
-    gather_groups,
+    is_docs_test_path,
     label_source,
     load_labeled_keys,
     load_repos,
     select_groups,
     three_line_context,
 )
+from scanner.models import BucketProbeResult, DnsResult, RdapResult
 from eval.run_eval import (
     baseline_severity,
     evaluate,
@@ -21,7 +23,7 @@ from eval.run_eval import (
 )
 from scanner.config import EVAL_SCAN_COST_CAP_USD
 from scanner.lookups import LookupCache
-from scanner.models import Finding, Reference
+from scanner.models import BucketProbeResult, Finding, Reference
 from scanner.report import ScanOutcome
 from tests.test_agent import _ctx
 
@@ -54,6 +56,85 @@ def test_repos_txt_lists_ten_github_urls():
     assert len(urls) == 10
     assert urls[0] == "https://github.com/quantopian/zipline"
     assert urls[-1] == "https://github.com/psf/requests"
+
+
+def _auto_group(file: str, evidence: dict, *, kind: str = "domain", target: str = "x.example") -> dict:
+    ref = Reference(
+        file=file,
+        line=1,
+        raw=f"https://{target}/x" if kind == "domain" else f"s3://{target}",
+        host_or_bucket=target,
+        domain=target if kind == "domain" else "",
+    )
+    return {
+        "target": target,
+        "kind": kind,
+        "rows": [(ref, None, None)],
+        "evidence": evidence,
+    }
+
+
+def test_auto_info_when_healthy_even_if_expiring():
+    exists = _auto_group(
+        "src/app.py",
+        {"bucket_probe": {"status": "exists"}},
+        kind="bucket",
+        target="live-bucket",
+    )
+    assert auto_severity(exists) == "info"
+    registered = _auto_group(
+        "src/app.py",
+        {
+            "dns": {"status": "resolves"},
+            "rdap": {"status": "registered", "days_to_expiry": 12},
+        },
+    )
+    assert auto_severity(registered) == "info"
+    unknown = _auto_group(
+        "backend/settings.py",
+        {"dns": {"status": "resolves"}, "rdap": {"status": "unknown"}},
+    )
+    assert auto_severity(unknown) == "info"
+
+
+def test_auto_docs_and_tests_low_if_claimable_else_info():
+    assert is_docs_test_path("README.md")
+    assert is_docs_test_path("docs/guide.html")
+    assert is_docs_test_path("doc/index.html")
+    assert is_docs_test_path("CHANGELOG")
+    assert is_docs_test_path("LICENSE.txt")
+    assert is_docs_test_path("tests/test_client.py")
+    assert is_docs_test_path("pkg/foo_test.py")
+    assert not is_docs_test_path("src/app.py")
+    claimable = _auto_group(
+        "README.md",
+        {"bucket_probe": {"status": "NoSuchBucket"}},
+        kind="bucket",
+        target="gone-bucket",
+    )
+    assert auto_severity(claimable) == "low"
+    nx = _auto_group(
+        "tests/test_client.py",
+        {"dns": {"status": "nxdomain"}, "rdap": {"status": "registered"}},
+    )
+    assert auto_severity(nx) == "low"
+    healthy_docs = _auto_group(
+        "docs/overview.rst",
+        {"dns": {"status": "resolves"}, "rdap": {"status": "registered"}},
+    )
+    assert auto_severity(healthy_docs) == "info"
+    runtime_claimable = _auto_group(
+        "deploy/infra.yaml",
+        {"bucket_probe": {"status": "NoSuchBucket"}},
+        kind="bucket",
+        target="gone-bucket",
+    )
+    assert auto_severity(runtime_claimable) is None
+    runtime_nx = _auto_group(
+        "index.html",
+        {"dns": {"status": "nxdomain"}, "rdap": {"status": "unregistered"}},
+    )
+    assert auto_severity(runtime_nx) is None
 
 
 def test_select_groups_hard_first_then_seeded_sample():
@@ -266,4 +347,79 @@ def test_evaluate_precision_ignores_unlabeled():
     text = evaluate(labels, {"r": outcome}, 0.0, [])
     assert "unlabeled-critical" not in text.split("Budget")[0]
     # top 2 labeled: a critical, b low → 1/2 gold in top 2
+    assert "## All labels" in text
+    assert "## Human-labeled only" in text
     assert "| trustmap | 0.500 |" in text
+
+
+def test_evaluate_reports_human_only_separately():
+    labels = [
+        {
+            "repo": "r",
+            "target": "a",
+            "severity": "critical",
+            "source": "human",
+            "evidence": {"bucket_probe": {"status": "NoSuchBucket"}},
+        },
+        {
+            "repo": "r",
+            "target": "b",
+            "severity": "info",
+            "source": "auto",
+            "evidence": {"bucket_probe": {"status": "exists"}},
+        },
+    ]
+    outcome = ScanOutcome(
+        findings=[_finding("a", "critical"), _finding("b", "info")]
+    )
+    text = evaluate(labels, {"r": outcome}, 0.01, [])
+    all_sec, human_sec = text.split("## Human-labeled only", 1)
+    assert "| trustmap | 0.500 |" in all_sec
+    assert "| trustmap | 1.000 |" in human_sec
+
+
+@pytest.mark.asyncio
+async def test_label_auto_keeps_human_and_summarizes(tmp_path):
+    labels = tmp_path / "labels.jsonl"
+    source = str(FIXTURE_ROOT)
+    append_existing = {
+        "repo": source,
+        "target": "keep-me.example",
+        "severity": "high",
+        "source": "human",
+        "evidence": {},
+    }
+    labels.write_text(json.dumps(append_existing) + "\n")
+
+    async def fake_bucket(name, provider, cache=None, **kwargs):
+        missing = "acme-static-assets" not in name
+        return BucketProbeResult(
+            name=name,
+            provider=provider,
+            status="NoSuchBucket" if missing else "exists",
+            http_status=404 if missing else 403,
+        )
+
+    answers = iter(["c", "note", "c", "", "c", "", "c", "", "c", ""])
+    buf = StringIO()
+    await label_source(
+        source,
+        cache=LookupCache(tmp_path / "c.db"),
+        labels_path=labels,
+        ctx=_ctx(tmp_path, bucket_probe=fake_bucket),
+        input_fn=lambda prompt: next(answers),
+        output=buf,
+        auto=True,
+    )
+    rows = [json.loads(line) for line in labels.read_text().splitlines()]
+    by_target = {row["target"]: row for row in rows}
+    assert by_target["keep-me.example"]["source"] == "human"
+    assert by_target["keep-me.example"]["severity"] == "high"
+    live = by_target["acme-static-assets-a3f91c2e"]
+    assert live["source"] == "auto"
+    assert live["severity"] == "info"
+    gone = by_target["acme-legacy-uploads-a3f91c2e"]
+    assert gone["source"] == "human"
+    summary = buf.getvalue()
+    assert "auto-labeled" in summary
+    assert "left for you" in summary

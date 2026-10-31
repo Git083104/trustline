@@ -200,11 +200,13 @@ host is filtered (`reserved_tld`) and must not rank.
 
 `eval/`:
 - `label.py`: extract + free lookups only; group by target; cap 25 per repo (hard signals first,
-  then random sample seed 42); hand-label into `eval/labels.jsonl` (`c/h/m/l/i` or skip). Resume.
+  then random sample seed 42); `--auto` labels fact-decided targets (`source=auto`), then
+  hand-label the rest (`source=human`) into `eval/labels.jsonl`. Resume keeps existing labels.
   `eval/repos.txt` is the default list. Labels file is gitignored.
 - `run_eval.py`: baseline (claimable-now → critical, NXDOMAIN/expiry≤90 → high, else low) vs
-  Trustmap full scan ($3 cap). Metrics only on labeled targets. Precision@10, recall of
-  critical/high, confusion table, model cost, budget skips. Writes `eval/results.md`.
+  Trustmap full scan ($3 cap). Metrics only on labeled targets, reported for all labels and
+  human-labeled only. Precision@10, recall of critical/high, confusion table, model cost,
+  budget skips. Writes `eval/results.md`.
 
 **Accept when:** offline tests pass and `run_eval.py` prints one comparison table on canned labels.
 

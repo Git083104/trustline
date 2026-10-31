@@ -105,8 +105,9 @@ def fmt(value: float | None) -> str:
     return f"{value:.3f}"
 
 
-def render_results(
+def render_table(
     *,
+    title: str,
     baseline_p: float | None,
     baseline_r: float | None,
     trustmap_p: float | None,
@@ -114,30 +115,28 @@ def render_results(
     cost: float,
     baseline_conf: dict[str, dict[str, int]],
     trustmap_conf: dict[str, dict[str, int]],
-    budget: list[str],
+    include_cost: bool,
 ) -> str:
-    lines = [
-        "# Eval results",
-        "",
-        "| system | precision@10 | recall (critical/high) | cost_usd |",
-        "|---|---|---|---|",
-        f"| baseline | {fmt(baseline_p)} | {fmt(baseline_r)} | 0.00000000 |",
-        f"| trustmap | {fmt(trustmap_p)} | {fmt(trustmap_r)} | {cost:.8f} |",
-        "",
-        "## Confusion (baseline, gold \\ predicted)",
-        _conf_md(baseline_conf),
-        "",
-        "## Confusion (trustmap, gold \\ predicted)",
-        _conf_md(trustmap_conf),
-        "",
-        "## Budget skips",
-    ]
-    if budget:
-        lines.extend(f"- {item}" for item in budget)
-    else:
-        lines.append("- (none)")
-    lines.append("")
-    return "\n".join(lines)
+    cost_h = " | cost_usd |" if include_cost else " |"
+    cost_sep = "---|---|" if include_cost else "---|"
+    b_cost = f" | 0.00000000 |" if include_cost else " |"
+    t_cost = f" | {cost:.8f} |" if include_cost else " |"
+    return "\n".join(
+        [
+            f"## {title}",
+            "",
+            f"| system | precision@10 | recall (critical/high){cost_h}",
+            f"|---|---|---|{cost_sep}",
+            f"| baseline | {fmt(baseline_p)} | {fmt(baseline_r)}{b_cost}",
+            f"| trustmap | {fmt(trustmap_p)} | {fmt(trustmap_r)}{t_cost}",
+            "",
+            "### Confusion (baseline, gold \\ predicted)",
+            _conf_md(baseline_conf),
+            "",
+            "### Confusion (trustmap, gold \\ predicted)",
+            _conf_md(trustmap_conf),
+        ]
+    )
 
 
 def _conf_md(table: dict[str, dict[str, int]]) -> str:
@@ -190,7 +189,7 @@ def _confusion_unique(
     return table
 
 
-def evaluate(labels, outcomes, cost, budget) -> str:
+def _metrics(labels: list[dict], outcomes: dict, cost: float) -> dict:
     by_repo: dict[str, list[dict]] = defaultdict(list)
     for row in labels:
         by_repo[row["repo"]].append(row)
@@ -201,7 +200,10 @@ def evaluate(labels, outcomes, cost, budget) -> str:
     trustmap_pred = {}
     for row in labels:
         outcome = outcomes.get(row["repo"])
-        findings = {item.target: item.final_severity for item in (outcome.findings if outcome else [])}
+        findings = {
+            item.target: item.final_severity
+            for item in (outcome.findings if outcome else [])
+        }
         trustmap_pred[(row["repo"], row["target"])] = findings.get(row["target"], "low")
 
     def p_macro(pred: dict[tuple[str, str], str]) -> float | None:
@@ -215,19 +217,56 @@ def evaluate(labels, outcomes, cost, budget) -> str:
         gold = [row for row in labels if row["severity"] in GOLD_POS]
         if not gold:
             return None
-        hits = sum(1 for row in gold if pred[(row["repo"], row["target"])] in GOLD_POS)
+        hits = sum(
+            1 for row in gold if pred[(row["repo"], row["target"])] in GOLD_POS
+        )
         return hits / len(gold)
 
-    return render_results(
-        baseline_p=p_macro(baseline_pred),
-        baseline_r=rec(baseline_pred),
-        trustmap_p=p_macro(trustmap_pred),
-        trustmap_r=rec(trustmap_pred),
-        cost=cost,
-        baseline_conf=_confusion_unique(labels, baseline_pred),
-        trustmap_conf=_confusion_unique(labels, trustmap_pred),
-        budget=budget,
-    )
+    return {
+        "baseline_p": p_macro(baseline_pred),
+        "baseline_r": rec(baseline_pred),
+        "trustmap_p": p_macro(trustmap_pred),
+        "trustmap_r": rec(trustmap_pred),
+        "cost": cost,
+        "baseline_conf": _confusion_unique(labels, baseline_pred),
+        "trustmap_conf": _confusion_unique(labels, trustmap_pred),
+    }
+
+
+def human_labels(labels: list[dict]) -> list[dict]:
+    return [row for row in labels if row.get("source") != "auto"]
+
+
+def evaluate(labels, outcomes, cost, budget) -> str:
+    empty = {
+        gold: {pred_s: 0 for pred_s in ALL_SEVERITIES} for gold in ALL_SEVERITIES
+    }
+    all_m = _metrics(labels, outcomes, cost)
+    human = human_labels(labels)
+    human_m = _metrics(human, outcomes, cost) if human else {
+        "baseline_p": None,
+        "baseline_r": None,
+        "trustmap_p": None,
+        "trustmap_r": None,
+        "cost": cost,
+        "baseline_conf": empty,
+        "trustmap_conf": empty,
+    }
+    lines = [
+        "# Eval results",
+        "",
+        render_table(title="All labels", include_cost=True, **all_m),
+        "",
+        render_table(title="Human-labeled only", include_cost=False, **human_m),
+        "",
+        "## Budget skips",
+    ]
+    if budget:
+        lines.extend(f"- {item}" for item in budget)
+    else:
+        lines.append("- (none)")
+    lines.append("")
+    return "\n".join(lines)
 
 
 async def run(

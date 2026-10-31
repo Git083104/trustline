@@ -13,7 +13,7 @@ from scanner.config import EVAL_SAMPLE_SEED, EVAL_TARGET_CAP
 from scanner.extract import GITHUB_RE, extract, _clone_github
 from scanner.lookups import LookupCache, consistent_evidence
 from scanner.models import Classification, Investigation, Reference
-from scanner.report import evidence_line
+from scanner.report import evidence_line, is_claimable
 from scanner.tools import ToolContext
 
 EVAL_DIR = Path(__file__).resolve().parent
@@ -27,6 +27,10 @@ SEVERITY_KEYS = {
     "i": "info",
     "s": "skip",
 }
+DOCS_SUFFIXES = {".md", ".rst", ".txt", ".ipynb"}
+DOCS_DIR_NAMES = {"docs", "doc", "tests"}
+DOCS_FILE_STEMS = {"changelog", "license"}
+HEALTHY_RDAP = frozenset({"registered", "unknown"})
 
 
 def is_bucket_ref(ref: Reference) -> bool:
@@ -101,6 +105,53 @@ def three_line_context(root: Path, ref: Reference) -> str:
     return "\n".join(out)
 
 
+def is_docs_test_path(file: str) -> bool:
+    path = Path(file.replace("\\", "/"))
+    parts = [part.lower() for part in path.parts]
+    name = path.name.lower()
+    stem = path.stem.lower()
+    if path.suffix.lower() in DOCS_SUFFIXES:
+        return True
+    if any(part in DOCS_DIR_NAMES for part in parts[:-1]):
+        return True
+    if stem in DOCS_FILE_STEMS:
+        return True
+    if name.startswith("test_"):
+        return True
+    if stem.endswith("_test"):
+        return True
+    return False
+
+
+def has_nxdomain(evidence: dict[str, Any]) -> bool:
+    dns = (evidence or {}).get("dns") or {}
+    return str(dns.get("status", "")).lower() == "nxdomain"
+
+
+def is_healthy_unclaimable(group: dict[str, Any]) -> bool:
+    evidence = consistent_evidence(group.get("evidence") or {})
+    if is_claimable(evidence):
+        return False
+    if group.get("kind") == "bucket":
+        status = str((evidence.get("bucket_probe") or {}).get("status", "")).lower()
+        return status == "exists"
+    dns = str((evidence.get("dns") or {}).get("status", "")).lower()
+    rdap = str((evidence.get("rdap") or {}).get("status", "")).lower()
+    return dns == "resolves" and rdap in HEALTHY_RDAP
+
+
+def auto_severity(group: dict[str, Any]) -> str | None:
+    refs = [ref for ref, _cl, _inv in group.get("rows") or []]
+    docs_only = bool(refs) and all(is_docs_test_path(ref.file) for ref in refs)
+    evidence = consistent_evidence(group.get("evidence") or {})
+    risky = is_claimable(evidence) or has_nxdomain(evidence)
+    if docs_only:
+        return "low" if risky else "info"
+    if is_healthy_unclaimable(group):
+        return "info"
+    return None
+
+
 def select_groups(
     groups: list[dict[str, Any]],
     *,
@@ -151,6 +202,29 @@ async def gather_groups(
     return [grouped[key] for key in order]
 
 
+def label_row(
+    source: str,
+    group: dict[str, Any],
+    *,
+    severity: str,
+    note: str,
+    origin: str,
+) -> dict[str, Any]:
+    return {
+        "repo": source,
+        "target": group["target"],
+        "kind": group["kind"],
+        "severity": severity,
+        "note": note,
+        "source": origin,
+        "references": [
+            {"file": ref.file, "line": ref.line, "raw": ref.raw}
+            for ref, _cl, _inv in group["rows"]
+        ],
+        "evidence": group["evidence"],
+    }
+
+
 def format_target(group: dict[str, Any], root: Path) -> str:
     lines = [f"target: {group['target']}"]
     for ref, _cl, _inv in group["rows"]:
@@ -196,6 +270,7 @@ async def label_source(
     input_fn: Callable[[str], str] = input,
     output: TextIO | None = None,
     repo_index: str = "",
+    auto: bool = False,
 ) -> int:
     out = output
     done = load_labeled_keys(labels_path)
@@ -207,25 +282,39 @@ async def label_source(
         written = 0
         total = len(selected)
         prefix = f"repo {repo_index}{repo_name(source)}"
+        pending: list[tuple[int, dict[str, Any]]] = []
+        auto_count = 0
         for index, group in enumerate(selected, 1):
             if (source, group["target"]) in done:
                 continue
+            guessed = auto_severity(group) if auto else None
+            if guessed is not None:
+                append_label(
+                    labels_path,
+                    label_row(
+                        source, group, severity=guessed, note="", origin="auto"
+                    ),
+                )
+                written += 1
+                auto_count += 1
+                done.add((source, group["target"]))
+                continue
+            pending.append((index, group))
+        if auto:
+            print(
+                f"{prefix}: auto-labeled {auto_count}, {len(pending)} left for you",
+                file=out,
+            )
+        for index, group in pending:
             print(f"{prefix}: target {index} of {total}", file=out)
             print(format_target(group, root), file=out)
             severity, note = read_severity(input_fn)
-            row = {
-                "repo": source,
-                "target": group["target"],
-                "kind": group["kind"],
-                "severity": severity,
-                "note": note,
-                "references": [
-                    {"file": ref.file, "line": ref.line, "raw": ref.raw}
-                    for ref, _cl, _inv in group["rows"]
-                ],
-                "evidence": group["evidence"],
-            }
-            append_label(labels_path, row)
+            append_label(
+                labels_path,
+                label_row(
+                    source, group, severity=severity, note=note, origin="human"
+                ),
+            )
             written += 1
         return written
     finally:
@@ -245,6 +334,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--labels", default=str(LABELS_FILE))
     parser.add_argument("--cache", default="trustmap.db")
+    parser.add_argument(
+        "--auto",
+        action="store_true",
+        help="auto-label fact-decided targets, then prompt for the rest",
+    )
     args = parser.parse_args(argv)
     sources = [args.source] if args.source else load_repos()
     cache = LookupCache(args.cache)
@@ -258,6 +352,7 @@ def main(argv: list[str] | None = None) -> int:
                 cache=cache,
                 labels_path=labels_path,
                 repo_index=tag,
+                auto=args.auto,
             )
 
     asyncio.run(run())
