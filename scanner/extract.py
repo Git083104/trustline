@@ -15,6 +15,8 @@ from scanner.config import (
     GITHUB_CLONE_TIMEOUT_S,
     MAX_FILE_BYTES,
     SKIP_DIR_NAMES,
+    SKIP_FILE_NAMES,
+    SKIP_NAME_SUFFIXES,
 )
 from scanner.models import Reference
 
@@ -100,6 +102,11 @@ def _extract_dir(root: Path) -> list[Reference]:
 
 
 def _should_read(path: Path) -> bool:
+    name = path.name.lower()
+    if name in SKIP_FILE_NAMES:
+        return False
+    if any(name.endswith(suffix) for suffix in SKIP_NAME_SUFFIXES):
+        return False
     if path.suffix.lower() in BINARY_SUFFIXES:
         return False
     try:

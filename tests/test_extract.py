@@ -60,6 +60,35 @@ def test_skips_node_modules_and_git(tmp_path: Path):
     }
 
 
+def test_skips_lockfiles_minified_and_sourcemaps(tmp_path: Path):
+    (tmp_path / "app.js").write_text('fetch("https://kept.example.net/v1")\n')
+    (tmp_path / "package-lock.json").write_text(
+        '{"resolved": "https://noise.example.net/pkg.tgz"}\n'
+    )
+    (tmp_path / "lib.min.js").write_text('fetch("https://minified.example.net/x")\n')
+    (tmp_path / "lib.js.map").write_text('{"file": "https://map.example.net/x"}\n')
+    found = extract(str(tmp_path))
+    assert {(ref.host_or_bucket, ref.file) for ref in found} == {
+        ("kept.example.net", "app.js")
+    }
+
+
+def test_drops_license_and_schema_namespace_hosts(tmp_path: Path):
+    (tmp_path / "note.txt").write_text(
+        "\n".join(
+            [
+                "https://opensource.org/licenses/MIT",
+                "http://www.apache.org/licenses/LICENSE-2.0",
+                "http://schemas.xmlsoap.org/soap/envelope/",
+                "https://kept.example.net/api",
+            ]
+        )
+        + "\n"
+    )
+    found = extract(str(tmp_path))
+    assert {ref.domain for ref in found} == {"example.net"}
+
+
 def test_github_url_uses_shallow_clone(tmp_path: Path):
     repo = tmp_path / "cloned"
     repo.mkdir()
