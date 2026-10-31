@@ -1,6 +1,6 @@
 # Deploy config — buckets used by the demo shop
 assets:
-  abandoned: s3://acme-legacy-uploads-a3f91c2e
+  uploads: s3://acme-legacy-uploads-a3f91c2e
   live_host: https://acme-static-assets-a3f91c2e.s3.amazonaws.com/public
   path_style: https://s3.amazonaws.com/acme-legacy-uploads-a3f91c2e
   regional: https://s3.us-east-2.amazonaws.com/acme-static-assets-a3f91c2e
