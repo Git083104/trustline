@@ -1,5 +1,7 @@
 import asyncio
 import json
+import threading
+import time
 from pathlib import Path
 
 import pytest
@@ -42,7 +44,7 @@ def _ctx(tmp_path, **impls) -> ToolContext:
         return DnsResult(host=host, status=status, addresses=addrs)
 
     async def fake_bucket(name, provider, cache=None, **kwargs):
-        missing = "gone" in name
+        missing = "live" not in name
         return BucketProbeResult(
             name=name,
             provider=provider,
@@ -51,7 +53,9 @@ def _ctx(tmp_path, **impls) -> ToolContext:
         )
 
     async def fake_rdap(domain, cache=None, **kwargs):
-        return RdapResult(domain=domain, status="unregistered")
+        if "7f3k2" in domain:
+            return RdapResult(domain=domain, status="unregistered")
+        return RdapResult(domain=domain, status="registered", days_to_expiry=400)
 
     return ToolContext(
         cache=LookupCache(tmp_path / "c.db"),
@@ -87,8 +91,8 @@ async def test_prerun_dns_and_bucket_always_in_evidence(tmp_path):
     bucket_ref = Reference(
         file="deploy/infra.yaml",
         line=3,
-        raw="s3://trustmap-demo-gone-a3f91c2e",
-        host_or_bucket="trustmap-demo-gone-a3f91c2e",
+        raw="s3://missing-orphan-bucket",
+        host_or_bucket="missing-orphan-bucket",
     )
     client = FakeModelClient(
         tool_handler=lambda request: {
@@ -106,9 +110,11 @@ async def test_prerun_dns_and_bucket_always_in_evidence(tmp_path):
     )
     by_host = {item.host_or_bucket: item for item in results}
     assert by_host["cdn-assets-trustmap-7f3k2.com"].evidence["dns"]["status"] == "nxdomain"
-    assert by_host["trustmap-demo-gone-a3f91c2e"].evidence["bucket_probe"]["status"] == (
-        "NoSuchBucket"
+    assert by_host["cdn-assets-trustmap-7f3k2.com"].evidence["rdap"]["status"] == (
+        "unregistered"
     )
+    gone = bucket_ref.host_or_bucket
+    assert by_host[gone].evidence["bucket_probe"]["status"] == "NoSuchBucket"
     assert any(
         "precomputed" in json.loads(call["messages"][0]["content"])
         for call in client.calls
@@ -125,7 +131,7 @@ async def test_fixture_gone_bucket_and_unregistered_host(tmp_path):
         exp = by_loc.get((ref.file, ref.line))
         if not exp:
             continue
-        blast = 2 if ref.filter_reason is None else 0
+        blast = 0 if exp["type"] == "bucket" else (2 if ref.filter_reason is None else 0)
         pairs.append(
             (
                 ref,
@@ -141,9 +147,14 @@ async def test_fixture_gone_bucket_and_unregistered_host(tmp_path):
         pairs, client=_scripted_client(), ctx=_ctx(tmp_path)
     )
     hosts = {item.host_or_bucket for item in results}
+    gone_name = next(
+        row["host_or_bucket"]
+        for row in expected
+        if row["file"] == "deploy/infra.yaml" and row["raw"].startswith("s3://")
+    )
     assert "cdn-assets-trustmap-7f3k2.com" in hosts
-    assert "trustmap-demo-gone-a3f91c2e" in hosts
-    gone = next(item for item in results if "gone" in item.host_or_bucket)
+    assert gone_name in hosts
+    gone = next(item for item in results if item.host_or_bucket == gone_name)
     domain = next(
         item for item in results if item.host_or_bucket == "cdn-assets-trustmap-7f3k2.com"
     )
@@ -165,13 +176,14 @@ async def test_skips_filtered_and_low_blast(tmp_path):
     low = Reference(
         file="b.py",
         line=1,
-        raw="https://cdn-assets-trustmap-7f3k2.com/y",
-        host_or_bucket="cdn-assets-trustmap-7f3k2.com",
+        raw="https://api.vendor.example.net/v1",
+        host_or_bucket="api.vendor.example.net",
+        domain="vendor.example.net",
     )
     results = await investigate(
         [
             (ref, _classification(ref, blast_radius=3)),
-            (low, _classification(low, blast_radius=0)),
+            (low, _classification(low, type="api", runs_in="server", blast_radius=0)),
         ],
         client=_scripted_client(),
         ctx=_ctx(tmp_path),
@@ -180,20 +192,38 @@ async def test_skips_filtered_and_low_blast(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_nosuchbucket_blast_zero_is_still_investigated(tmp_path):
+    ref = Reference(
+        file="deploy/infra.yaml",
+        line=3,
+        raw="s3://missing-orphan-bucket",
+        host_or_bucket="missing-orphan-bucket",
+    )
+    results = await investigate(
+        [(ref, _classification(ref, type="bucket", runs_in="deploy", blast_radius=0))],
+        client=_scripted_client(),
+        ctx=_ctx(tmp_path),
+    )
+    assert len(results) == 1
+    assert results[0].status == "done"
+    assert results[0].evidence["bucket_probe"]["status"] == "NoSuchBucket"
+
+
+@pytest.mark.asyncio
 async def test_concurrency_caps_at_four(tmp_path):
     inflight = 0
     max_seen = 0
-    gate = asyncio.Lock()
+    gate = threading.Lock()
 
-    async def fake_dns(host, cache=None, **kwargs):
+    def tool_handler(request):
         nonlocal inflight, max_seen
-        async with gate:
+        with gate:
             inflight += 1
             max_seen = max(max_seen, inflight)
-        await asyncio.sleep(0.05)
-        async with gate:
+        time.sleep(0.05)
+        with gate:
             inflight -= 1
-        return DnsResult(host=host, status="resolves", addresses=["203.0.113.9"])
+        return {"name": "done", "arguments": {"summary": "ok"}}
 
     refs = [
         Reference(
@@ -208,16 +238,10 @@ async def test_concurrency_caps_at_four(tmp_path):
     pairs = [
         (ref, _classification(ref, type="script", blast_radius=2)) for ref in refs
     ]
-    client = FakeModelClient(
-        tool_handler=lambda request: {
-            "name": "done",
-            "arguments": {"summary": "ok"},
-        }
-    )
     await investigate(
         pairs,
-        client=client,
-        ctx=_ctx(tmp_path, dns=fake_dns),
+        client=FakeModelClient(tool_handler=tool_handler),
+        ctx=_ctx(tmp_path),
         max_concurrent=4,
         cost_cap=10.0,
     )

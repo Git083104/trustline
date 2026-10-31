@@ -165,13 +165,17 @@ table of mismatches.
 
 ## Phase 4 — Investigator agent
 
-`scanner/agent.py`: Muse tool calling with the Phase 2 functions as tools. For each reference with
-blast_radius ≥ 1 the model chooses which lookups to run (max 6 calls), then emits
-`done(summary)`. Code always runs `dns` for domains and `bucket_probe` for buckets regardless of
-the model's choice. Log every tool call with arguments and result.
+`scanner/agent.py`: Muse tool calling with the Phase 2 functions as tools. Code first runs free
+deterministic checks on every actionable reference (`dns` + `rdap` for hosts, `bucket_probe` for
+buckets). A hard signal (`NoSuchBucket`, NXDOMAIN, RDAP unregistered, or expiry within 90 days)
+always sends the reference to the agent, even if `blast_radius` is 0. `blast_radius` ≥ 1 still
+selects references without a hard signal, and is used later for ranking. The model then chooses
+follow-up lookups (max 6 calls) and emits `done(summary)`. Log every tool call with arguments and
+result.
 
-**Accept when:** the agent investigates every fixture reference with blast_radius ≥ 1, and the
-claimable demo bucket and the non-resolving script domain both appear in its evidence.
+**Accept when:** the agent investigates every fixture reference with a hard signal or
+blast_radius ≥ 1, and the claimable demo bucket and the non-resolving script domain both appear
+in its evidence.
 
 ## Phase 5 — Ranking, self-check, CLI
 

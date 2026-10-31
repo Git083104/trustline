@@ -1,8 +1,12 @@
 import os
+from pathlib import Path
 
 import pytest
+from dotenv import load_dotenv
 
 from scanner.lookups import LookupCache, bucket_probe, dns, rdap
+
+load_dotenv(Path(__file__).resolve().parents[1] / ".env", override=True)
 
 pytestmark = pytest.mark.slow
 

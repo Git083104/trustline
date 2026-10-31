@@ -2,6 +2,10 @@ import json
 import os
 from pathlib import Path
 
+from dotenv import load_dotenv
+
+load_dotenv(Path(__file__).resolve().parents[1] / ".env", override=True)
+
 FIXTURE_ROOT = Path(__file__).parent / "fixtures" / "demo_repo"
 EXPECTED_PATH = Path(__file__).parent / "fixtures" / "expected.json"
 

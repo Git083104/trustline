@@ -7,6 +7,7 @@ from typing import Any
 from scanner.config import (
     AGENT_MODEL,
     AGENT_REASONING_EFFORT,
+    EXPIRY_INVESTIGATE_DAYS,
     MAX_AGENT_TOOL_CALLS,
     MAX_INVESTIGATION_CONCURRENCY,
     SCAN_COST_CAP_USD,
@@ -23,9 +24,9 @@ from scanner.tools import ToolContext, definitions, run as run_tool
 
 AGENT_SYSTEM_PROMPT = (
     "You investigate one outside reference for takeover risk. "
-    "Code already ran dns for hosts or bucket_probe for buckets; those results are in the "
-    "first message. Each turn pick exactly one tool. Call done(summary) when finished. "
-    "Do not invent dates, DNS results, or HTTP statuses."
+    "Code already ran dns and rdap for hosts, or bucket_probe for buckets; those results "
+    "are in the first message. Each turn pick exactly one tool. Call done(summary) when "
+    "finished. Do not invent dates, DNS results, or HTTP statuses."
 )
 
 BUDGET_NOTE = "not investigated (budget)"
@@ -38,6 +39,49 @@ def _bucket_provider(raw: str) -> str:
     return "s3"
 
 
+def has_hard_signal(evidence: dict[str, Any]) -> bool:
+    bucket = evidence.get("bucket_probe") or {}
+    if bucket.get("status") == "NoSuchBucket":
+        return True
+    dns = evidence.get("dns") or {}
+    if str(dns.get("status", "")).lower() == "nxdomain":
+        return True
+    rdap = evidence.get("rdap") or {}
+    if str(rdap.get("status", "")).lower() == "unregistered":
+        return True
+    days = rdap.get("days_to_expiry")
+    if isinstance(days, int) and days <= EXPIRY_INVESTIGATE_DAYS:
+        return True
+    return False
+
+
+async def precheck(
+    ref: Reference, cl: Classification, ctx: ToolContext
+) -> dict[str, Any]:
+    evidence: dict[str, Any] = {}
+    if cl.type == "bucket":
+        evidence["bucket_probe"] = await run_tool(
+            "bucket_probe",
+            {
+                "name": ref.host_or_bucket,
+                "provider": _bucket_provider(ref.raw),
+            },
+            ctx,
+        )
+        return evidence
+    evidence["dns"] = await run_tool("dns", {"host": ref.host_or_bucket}, ctx)
+    domain = ref.domain or ""
+    if domain:
+        evidence["rdap"] = await run_tool("rdap", {"domain": domain}, ctx)
+    return evidence
+
+
+def should_investigate(ref: Reference, cl: Classification, evidence: dict[str, Any]) -> bool:
+    if ref.filter_reason is not None:
+        return False
+    return has_hard_signal(evidence) or cl.blast_radius >= 1
+
+
 async def investigate(
     pairs: list[tuple[Reference, Classification]],
     *,
@@ -46,10 +90,13 @@ async def investigate(
     cost_cap: float = SCAN_COST_CAP_USD,
     max_concurrent: int = MAX_INVESTIGATION_CONCURRENCY,
 ) -> list[Investigation]:
+    actionable = [(ref, cl) for ref, cl in pairs if ref.filter_reason is None]
+    checked: list[tuple[Reference, Classification, dict[str, Any]]] = []
+    for ref, cl in actionable:
+        evidence = await precheck(ref, cl, ctx)
+        checked.append((ref, cl, evidence))
     eligible = [
-        (ref, cl)
-        for ref, cl in pairs
-        if ref.filter_reason is None and cl.blast_radius >= 1
+        item for item in checked if should_investigate(item[0], item[1], item[2])
     ]
     if not eligible:
         return []
@@ -59,19 +106,24 @@ async def investigate(
     lock = asyncio.Lock()
     sem = asyncio.Semaphore(max_concurrent)
 
-    async def worker(index: int, pair: tuple[Reference, Classification]) -> None:
+    async def worker(
+        index: int, item: tuple[Reference, Classification, dict[str, Any]]
+    ) -> None:
         nonlocal spent
+        ref, cl, evidence = item
         async with sem:
             async with lock:
                 if spent >= cost_cap:
-                    results[index] = _budget_skip(pair[0], pair[1])
+                    results[index] = _budget_skip(ref, cl)
                     return
-            inv = await investigate_one(pair[0], pair[1], client=client, ctx=ctx)
+            inv = await investigate_one(
+                ref, cl, client=client, ctx=ctx, evidence=evidence
+            )
             async with lock:
                 spent += inv.cost_usd
             results[index] = inv
 
-    await asyncio.gather(*(worker(i, pair) for i, pair in enumerate(eligible)))
+    await asyncio.gather(*(worker(i, item) for i, item in enumerate(eligible)))
     return [item for item in results if item is not None]
 
 
@@ -81,19 +133,12 @@ async def investigate_one(
     *,
     client: ModelClient,
     ctx: ToolContext,
+    evidence: dict[str, Any] | None = None,
 ) -> Investigation:
-    evidence: dict[str, Any] = {}
-    if cl.type == "bucket":
-        provider = _bucket_provider(ref.raw)
-        evidence["bucket_probe"] = await run_tool(
-            "bucket_probe",
-            {"name": ref.host_or_bucket, "provider": provider},
-            ctx,
-        )
+    if evidence is None:
+        evidence = await precheck(ref, cl, ctx)
     else:
-        evidence["dns"] = await run_tool(
-            "dns", {"host": ref.host_or_bucket}, ctx
-        )
+        evidence = dict(evidence)
 
     messages: list[dict[str, Any]] = [
         {
@@ -122,7 +167,7 @@ async def investigate_one(
     tools = definitions()
 
     for _ in range(MAX_AGENT_TOOL_CALLS):
-        turn, log = _model_turn(client, messages, tools)
+        turn, log = await asyncio.to_thread(_model_turn, client, messages, tools)
         cost_total += log.cost_usd
         trace.append(
             TraceEvent(
