@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import os
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -18,7 +19,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("source", help="local path or GitHub URL")
     parser.add_argument("--json", dest="json_out", help="write findings JSON")
     args = parser.parse_args(argv)
-    cache = LookupCache(Path("trustmap.db"))
+    cache = LookupCache(os.environ.get("TRUSTMAP_CACHE_DB", "trustmap.db"))
     findings = asyncio.run(scan(args.source, client=LiveModelClient(), cache=cache))
     print(format_table(findings))
     if args.json_out:

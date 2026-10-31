@@ -13,7 +13,9 @@ from scanner.models import (
     Reference,
 )
 from scanner.report import (
+    CLAIMABLE_FIX,
     apply_floor,
+    finding_payload,
     floor_severity,
     format_table,
     group_by_target,
@@ -87,8 +89,44 @@ def test_group_by_target_merges_two_bucket_refs():
 
 def test_missing_claims_requires_evidence_tokens():
     evidence = {"bucket_probe": {"status": "NoSuchBucket", "http_status": 404}}
-    assert missing_claims("NoSuchBucket 404", evidence) == []
-    assert missing_claims("NoSuchBucket 999", evidence) == ["999"]
+    assert missing_claims("NoSuchBucket 404", evidence=evidence) == []
+    assert missing_claims("does not exist", evidence=evidence) == []
+    assert missing_claims("NoSuchBucket 999", evidence=evidence) == ["999"]
+
+
+def test_self_check_allows_lines_and_region_but_rejects_invented_date():
+    gone = "acme-legacy-uploads-a3f91c2e"
+    a = Reference(
+        file="deploy/infra.yaml",
+        line=3,
+        raw=f"s3://{gone}",
+        host_or_bucket=gone,
+    )
+    b = Reference(
+        file="deploy/infra.yaml",
+        line=5,
+        raw=f"https://s3.us-east-2.amazonaws.com/{gone}",
+        host_or_bucket=gone,
+    )
+    evidence = {
+        "bucket_probe": {
+            "name": gone,
+            "provider": "s3",
+            "status": "NoSuchBucket",
+            "http_status": 404,
+        }
+    }
+    group = group_by_target(
+        [
+            (a, _cl(a, blast_radius=2), _inv(a, evidence)),
+            (b, _cl(b, blast_radius=2), _inv(b, evidence)),
+        ]
+    )[0]
+    allowed = finding_payload(group)
+    ok = "The bucket does not exist; lines 3 and 5 in us-east-2"
+    assert missing_claims(ok, allowed) == []
+    bad = ok + " first seen 2020-01-01"
+    assert "2020-01-01" in missing_claims(bad, allowed)
 
 
 def test_floor_claimable_is_critical_other_hard_is_high():
@@ -175,11 +213,18 @@ def test_rank_overrides_blast_and_applies_floor(tmp_path):
         cache=LookupCache(tmp_path / "c.db"),
     )
     assert findings[0].severity == "critical"
+    assert findings[0].model_severity == "low"
+    assert findings[0].final_severity == "critical"
     assert findings[0].floor_applied == "critical"
+    assert "NoSuchBucket" in findings[0].floor_reason
+    assert findings[0].fix == CLAIMABLE_FIX
     assert findings[0].classified_blast_radius == 0
     assert findings[0].ranked_blast_radius == 3
     assert findings[0].blast_override_reason == "claimable bucket in deploy"
     assert findings[0].references == ["deploy/infra.yaml:3"]
+    table = format_table(findings)
+    assert "model=low" in table
+    assert "final=critical" in table
 
 
 def test_self_check_retries_then_needs_review(tmp_path):
@@ -189,13 +234,14 @@ def test_self_check_retries_then_needs_review(tmp_path):
         raw="s3://missing",
         host_or_bucket="missing",
     )
-    n = {"i": 0}
+    users: list[str] = []
 
     def handler(request):
-        n["i"] += 1
-        if n["i"] < 3:
-            return _rank_ok(risk="invented 777 status")
-        return _rank_ok()
+        users.append(request["user"])
+        if "Self-check rejected these tokens" in request["user"]:
+            assert "777" in request["user"]
+            return _rank_ok()
+        return _rank_ok(risk="invented 777 status")
 
     rows = [
         (
@@ -206,12 +252,17 @@ def test_self_check_retries_then_needs_review(tmp_path):
     ]
     ok = rank(rows, client=FakeModelClient(handler), cache=LookupCache(tmp_path / "a.db"))
     assert ok[0].needs_review is False
-    assert n["i"] == 3
+    assert len(users) == 2
+    assert "777" in users[1]
+    assert "Self-check rejected these tokens" in users[1]
 
     always = FakeModelClient(handler=lambda request: _rank_ok(risk="invented 777 status"))
     bad = rank(rows, client=always, cache=LookupCache(tmp_path / "b.db"))
     assert bad[0].needs_review is True
     assert bad[0].severity == "critical"
+    assert bad[0].model_severity == "info"
+    assert bad[0].final_severity == "critical"
+    assert bad[0].fix == CLAIMABLE_FIX
 
 
 def _fixture_handler():
@@ -222,7 +273,8 @@ def _fixture_handler():
 
     def handler(request):
         if request.get("schema_name") == "ranking":
-            payload = json.loads(request["user"].split("\n", 1)[1])
+            text = request["user"]
+            payload = json.loads(text[text.find("{") : text.rfind("}") + 1])
             blob = json.dumps(payload.get("evidence", {}))
             if "NoSuchBucket" in blob:
                 return _rank_ok(
@@ -300,10 +352,12 @@ async def test_fixture_scan_groups_and_ranks_claimable_first(tmp_path):
         "trustmap-demo-assets",
     }
     assert all(item.severity == "critical" for item in top)
+    assert all(item.fix == CLAIMABLE_FIX for item in top)
     gone_hit = next(item for item in findings if item.target == gone)
     assert gone_hit.references == ["deploy/infra.yaml:3", "deploy/infra.yaml:5"]
     live_hit = next(item for item in findings if item.target == live)
     assert live_hit.severity in {"low", "info"}
+    assert live_hit.fix != CLAIMABLE_FIX
     table = format_table(findings)
     assert gone in table
     assert "critical" in table

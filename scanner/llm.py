@@ -229,6 +229,7 @@ def call_json(
     schema_name: str,
     cache: LookupCache | None = None,
     extra_check: Callable[[T], None] | None = None,
+    retries: int | None = None,
 ) -> tuple[T, CallLog]:
     cache = cache or default_cache()
     key = f"llm:{prompt_hash(model, system, user)}"
@@ -249,7 +250,7 @@ def call_json(
         return parsed, log
 
     last_error: Exception | None = None
-    attempts = LLM_MAX_RETRIES + 1
+    attempts = (LLM_MAX_RETRIES if retries is None else retries) + 1
     for _ in range(attempts):
         started = time.perf_counter()
         raw = client.complete_json(

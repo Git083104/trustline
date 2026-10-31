@@ -138,6 +138,8 @@ class Finding(BaseModel):
     kind: Literal["bucket", "domain"]
     references: list[str]
     severity: Severity
+    model_severity: Severity
+    final_severity: Severity
     classified_blast_radius: int
     ranked_blast_radius: int
     blast_override_reason: str = ""
@@ -146,5 +148,6 @@ class Finding(BaseModel):
     uncertain_about: str = ""
     needs_review: bool = False
     floor_applied: str = ""
+    floor_reason: str = ""
     evidence: dict[str, Any] = Field(default_factory=dict)
     cost_usd: float = 0

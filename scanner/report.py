@@ -4,10 +4,11 @@ import json
 import re
 from typing import Any
 
-from scanner.agent import investigate
+from scanner.agent import investigate, should_investigate
 from scanner.classify import classify
 from scanner.config import (
     EXPIRY_INVESTIGATE_DAYS,
+    LLM_MAX_RETRIES,
     RANK_MODEL,
     RANK_REASONING_EFFORT,
 )
@@ -25,6 +26,10 @@ from scanner.models import (
 from scanner.tools import ToolContext
 
 EXECUTING = frozenset({"browser", "server", "build", "deploy", "ci"})
+CLAIMABLE_FIX = (
+    "Remove or replace this reference. If this was yours, re-create it in your own "
+    "account to reclaim the name."
+)
 SEVERITY_ORDER: dict[str, int] = {
     "critical": 0,
     "high": 1,
@@ -32,19 +37,35 @@ SEVERITY_ORDER: dict[str, int] = {
     "low": 3,
     "info": 4,
 }
-STATUS_WORDS = (
-    "NoSuchBucket",
-    "NXDOMAIN",
+DATE_RE = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
+NUM_RE = re.compile(r"\b\d+\b")
+REGION_RE = re.compile(r"\b[a-z]{2}-[a-z]+-\d+\b", re.IGNORECASE)
+STATUS_PHRASES = (
+    "does not exist",
+    "doesn't exist",
+    "do not exist",
+    "nosuchbucket",
+    "nxdomain",
     "unregistered",
     "registered",
     "exists",
-    "AccessDenied",
-    "PermanentRedirect",
+    "accessdenied",
+    "permanentredirect",
     "resolves",
     "unavailable",
+    "forbidden",
 )
-DATE_RE = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
-NUM_RE = re.compile(r"\b\d+\b")
+# If evidence has any token in a row, every token in that row is the same fact.
+STATUS_MEANING = (
+    frozenset({"nosuchbucket", "404", "does not exist", "doesn't exist", "do not exist"}),
+    frozenset({"nxdomain"}),
+    frozenset({"unregistered"}),
+    frozenset({"registered"}),
+    frozenset({"exists", "403", "accessdenied", "forbidden"}),
+    frozenset({"permanentredirect", "301"}),
+    frozenset({"resolves"}),
+    frozenset({"unavailable"}),
+)
 
 RANK_SYSTEM_PROMPT = (
     "You rank takeover risk for one outside target (a bucket or a registrable domain). "
@@ -116,20 +137,64 @@ def group_by_target(
     return [groups[key] for key in order]
 
 
+def finding_payload(group: dict[str, Any]) -> dict[str, Any]:
+    rows: list[tuple[Reference, Classification, Investigation]] = group["rows"]
+    raws = [ref.raw for ref, _, _ in rows]
+    regions = sorted({match.group(0).lower() for raw in raws for match in REGION_RE.finditer(raw)})
+    bucket = (group.get("evidence") or {}).get("bucket_probe") or {}
+    provider = bucket.get("provider") or ""
+    return {
+        "target": group["target"],
+        "kind": group["kind"],
+        "reference_count": len(rows),
+        "classified_blast_radius": max(cl.blast_radius for _, cl, _ in rows),
+        "provider": provider,
+        "regions": regions,
+        "references": [
+            {
+                "file": ref.file,
+                "line": ref.line,
+                "file_line": f"{ref.file}:{ref.line}",
+                "raw": ref.raw,
+                "host_or_bucket": ref.host_or_bucket,
+                "type": cl.type,
+                "runs_in": cl.runs_in,
+                "blast_radius": cl.blast_radius,
+                "reason": cl.reason,
+            }
+            for ref, cl, _ in rows
+        ],
+        "evidence": group["evidence"],
+    }
+
+
 def claims_from_risk(risk: str) -> list[str]:
-    claims = DATE_RE.findall(risk) + NUM_RE.findall(risk)
+    claims = DATE_RE.findall(risk) + NUM_RE.findall(risk) + REGION_RE.findall(risk)
     folded = risk.casefold()
-    for word in STATUS_WORDS:
-        if word.casefold() in folded:
-            claims.append(word)
+    for phrase in STATUS_PHRASES:
+        if phrase in folded:
+            claims.append(phrase)
     return claims
 
 
-def missing_claims(risk: str, evidence: dict[str, Any]) -> list[str]:
-    blob = json.dumps(evidence, default=str).casefold()
+def _meaning_allowed(claim: str, blob: str) -> bool:
+    token = claim.casefold()
+    if token in blob:
+        return True
+    for group in STATUS_MEANING:
+        if token not in group:
+            continue
+        if any(member in blob for member in group):
+            return True
+    return False
+
+
+def missing_claims(risk: str, allowed: dict[str, Any] | None = None, evidence: dict[str, Any] | None = None) -> list[str]:
+    payload = allowed if allowed is not None else {"evidence": evidence or {}}
+    blob = json.dumps(payload, default=str).casefold()
     missing = []
     for claim in claims_from_risk(risk):
-        if claim.casefold() not in blob:
+        if not _meaning_allowed(claim, blob):
             missing.append(claim)
     return missing
 
@@ -138,23 +203,56 @@ def executing_runs_in(rows: list[tuple[Reference, Classification, Investigation]
     return any(cl.runs_in in EXECUTING for _, cl, _ in rows)
 
 
+def is_claimable(evidence: dict[str, Any]) -> bool:
+    bucket = evidence.get("bucket_probe") or {}
+    rdap = evidence.get("rdap") or {}
+    return bucket.get("status") == "NoSuchBucket" or str(rdap.get("status", "")).lower() == "unregistered"
+
+
+def choose_fix(evidence: dict[str, Any], model_fix: str) -> str:
+    if is_claimable(evidence):
+        return CLAIMABLE_FIX
+    return model_fix
+
+
 def floor_severity(group: dict[str, Any]) -> str | None:
+    level, _reason = floor_decision(group)
+    return level
+
+
+def floor_decision(group: dict[str, Any]) -> tuple[str | None, str]:
     if not executing_runs_in(group["rows"]):
-        return None
+        return None, ""
     evidence = group["evidence"]
+    runs = sorted(
+        {cl.runs_in for _, cl, _ in group["rows"] if cl.runs_in in EXECUTING}
+    )
+    where = ", ".join(runs)
     bucket = evidence.get("bucket_probe") or {}
     rdap = evidence.get("rdap") or {}
     dns = evidence.get("dns") or {}
     if bucket.get("status") == "NoSuchBucket":
-        return "critical"
+        return (
+            "critical",
+            f"NoSuchBucket in executing position ({where}) is at least critical",
+        )
     if str(rdap.get("status", "")).lower() == "unregistered":
-        return "critical"
+        return (
+            "critical",
+            f"RDAP unregistered in executing position ({where}) is at least critical",
+        )
     if str(dns.get("status", "")).lower() == "nxdomain":
-        return "high"
+        return (
+            "high",
+            f"NXDOMAIN in executing position ({where}) is at least high",
+        )
     days = rdap.get("days_to_expiry")
     if isinstance(days, int) and days <= EXPIRY_INVESTIGATE_DAYS:
-        return "high"
-    return None
+        return (
+            "high",
+            f"expiry within {EXPIRY_INVESTIGATE_DAYS} days in executing position ({where}) is at least high",
+        )
+    return None, ""
 
 
 def apply_floor(severity: Severity, floor: str | None) -> tuple[Severity, str]:
@@ -197,91 +295,120 @@ def _rank_group(
     cache: LookupCache | None,
     logs: list[CallLog] | None,
 ) -> Finding:
-    rows: list[tuple[Reference, Classification, Investigation]] = group["rows"]
-    classified_blast = max(cl.blast_radius for _, cl, _ in rows)
-    refs = [f"{ref.file}:{ref.line}" for ref, _, _ in rows]
-    evidence = group["evidence"]
-    floor = floor_severity(group)
-    user = (
-        "Rank this target. Cite only evidence facts in risk.\n"
-        + json.dumps(
-            {
-                "target": group["target"],
-                "kind": group["kind"],
-                "references": [
-                    {
-                        "file": ref.file,
-                        "line": ref.line,
-                        "raw": ref.raw,
-                        "type": cl.type,
-                        "runs_in": cl.runs_in,
-                        "blast_radius": cl.blast_radius,
-                        "reason": cl.reason,
-                    }
-                    for ref, cl, _ in rows
-                ],
-                "classified_blast_radius": classified_blast,
-                "evidence": evidence,
-            },
-            sort_keys=True,
-            default=str,
-        )
-    )
+    payload = finding_payload(group)
+    floor, floor_why = floor_decision(group)
+    body = json.dumps(payload, sort_keys=True, default=str)
+    user = "Rank this target. Cite only facts from the provided evidence and finding.\n" + body
+    cost_total = 0.0
 
     def check(parsed: RankModelOut) -> None:
-        missing = missing_claims(parsed.risk, evidence)
+        missing = missing_claims(parsed.risk, payload)
+        missing.extend(
+            token
+            for token in missing_claims(parsed.fix, payload)
+            if token not in missing
+        )
         if missing:
             raise ValueError(f"claims not in evidence: {missing}")
 
-    try:
-        parsed, log = call_json(
-            RANK_MODEL,
-            RANK_SYSTEM_PROMPT,
-            user,
-            RankModelOut,
-            RANK_REASONING_EFFORT,
-            client=client,
-            json_schema=RANK_JSON_SCHEMA,
-            schema_name="ranking",
-            cache=cache,
-            extra_check=check,
-        )
-        if logs is not None:
-            logs.append(log)
-        severity, floor_note = apply_floor(parsed.severity, floor)
+    for attempt in range(LLM_MAX_RETRIES + 1):
+        try:
+            parsed, log = call_json(
+                RANK_MODEL,
+                RANK_SYSTEM_PROMPT,
+                user,
+                RankModelOut,
+                RANK_REASONING_EFFORT,
+                client=client,
+                json_schema=RANK_JSON_SCHEMA,
+                schema_name="ranking",
+                cache=cache,
+                extra_check=check,
+                retries=0,
+            )
+            if logs is not None:
+                logs.append(log)
+            cost_total += log.cost_usd
+            return _finding_from_rank(
+                group=group,
+                payload=payload,
+                parsed=parsed,
+                floor=floor,
+                floor_why=floor_why,
+                cost_total=cost_total,
+            )
+        except ValueError as exc:
+            rejected = str(exc)
+            user = (
+                "Rank this target. Cite only facts from the provided evidence and finding.\n"
+                + body
+                + "\nSelf-check rejected these tokens: "
+                + rejected
+                + ". only use facts from the provided evidence and finding."
+            )
+            continue
+
+    return _finding_from_rank(
+        group=group,
+        payload=payload,
+        parsed=None,
+        floor=floor,
+        floor_why=floor_why,
+        cost_total=cost_total,
+        needs_review=True,
+    )
+
+
+def _finding_from_rank(
+    *,
+    group: dict[str, Any],
+    payload: dict[str, Any],
+    parsed: RankModelOut | None,
+    floor: str | None,
+    floor_why: str,
+    cost_total: float,
+    needs_review: bool = False,
+) -> Finding:
+    evidence = group["evidence"]
+    refs = [item["file_line"] for item in payload["references"]]
+    classified_blast = payload["classified_blast_radius"]
+    if parsed is None:
+        model_severity: Severity = "info"
+        ranked_blast = classified_blast
+        override = ""
+        risk = "needs review: ranking failed self-check"
+        model_fix = "remove dead reference"
+        uncertain = ""
+    else:
+        model_severity = parsed.severity
+        ranked_blast = parsed.blast_radius
         override = parsed.blast_override_reason
         if parsed.blast_radius != classified_blast and not override:
             override = "ranker changed blast_radius versus classify"
-        return Finding(
-            target=group["target"],
-            kind=group["kind"],
-            references=refs,
-            severity=severity,
-            classified_blast_radius=classified_blast,
-            ranked_blast_radius=parsed.blast_radius,
-            blast_override_reason=override,
-            risk=parsed.risk,
-            fix=parsed.fix,
-            uncertain_about=parsed.uncertain_about,
-            floor_applied=floor_note,
-            evidence=evidence,
-            cost_usd=log.cost_usd,
-        )
-    except ValueError:
-        severity, floor_note = apply_floor("info", floor)
-        return Finding(
-            target=group["target"],
-            kind=group["kind"],
-            references=refs,
-            severity=severity,
-            classified_blast_radius=classified_blast,
-            ranked_blast_radius=classified_blast,
-            risk="needs review: ranking failed self-check",
-            fix="remove dead reference",
-            needs_review=True,
-            floor_applied=floor_note,
-            evidence=evidence,
-        )
+        risk = parsed.risk
+        model_fix = parsed.fix
+        uncertain = parsed.uncertain_about
+    final, raised = apply_floor(model_severity, floor)
+    floor_reason = floor_why if raised else ""
+    return Finding(
+        target=group["target"],
+        kind=group["kind"],
+        references=refs,
+        severity=final,
+        model_severity=model_severity,
+        final_severity=final,
+        classified_blast_radius=classified_blast,
+        ranked_blast_radius=ranked_blast,
+        blast_override_reason=override,
+        risk=risk,
+        fix=choose_fix(evidence, model_fix),
+        uncertain_about=uncertain,
+        needs_review=needs_review,
+        floor_applied=raised,
+        floor_reason=floor_reason,
+        evidence=evidence,
+        cost_usd=cost_total,
+    )
 
 
 async def scan(
@@ -300,14 +427,83 @@ async def scan(
         if (ref.file, ref.line) in by_loc
     ]
     ctx = ctx or ToolContext(cache=cache)
-    investigations = await investigate(pairs, client=client, ctx=ctx)
-    inv_by_loc = {(item.file, item.line): item for item in investigations}
-    rows = [
-        (ref, cl, inv_by_loc[(ref.file, ref.line)])
-        for ref, cl in pairs
-        if (ref.file, ref.line) in inv_by_loc
-    ]
+    cached_rows = rows_from_lookup_cache(pairs, cache)
+    if cached_rows is not None:
+        rows = cached_rows
+    else:
+        investigations = await investigate(pairs, client=client, ctx=ctx)
+        inv_by_loc = {(item.file, item.line): item for item in investigations}
+        rows = [
+            (ref, cl, inv_by_loc[(ref.file, ref.line)])
+            for ref, cl in pairs
+            if (ref.file, ref.line) in inv_by_loc
+        ]
     return rank(rows, client=client, cache=cache)
+
+
+def hydrate_evidence(
+    ref: Reference, cl: Classification, cache: LookupCache
+) -> dict[str, Any] | None:
+    if cl.type == "bucket":
+        provider = "gcs" if "storage.googleapis.com" in ref.raw.lower() else "s3"
+        hit = cache.get_json(f"bucket:{provider}:{ref.host_or_bucket}")
+        if hit is None:
+            return None
+        evidence: dict[str, Any] = {"bucket_probe": hit}
+        urls = (
+            [ref.raw]
+            if ref.raw.startswith("http")
+            else [f"https://{ref.host_or_bucket}.s3.amazonaws.com"]
+        )
+        for url in urls:
+            wayback = cache.get_json(f"wayback:{url}")
+            if wayback:
+                evidence["wayback"] = wayback
+                break
+        return evidence
+    dns = cache.get_json(f"dns:{ref.host_or_bucket.lower()}")
+    if dns is None:
+        return None
+    evidence = {"dns": dns}
+    if ref.domain:
+        rdap = cache.get_json(f"rdap:{ref.domain.lower()}")
+        if rdap:
+            evidence["rdap"] = rdap
+        certs = cache.get_json(f"crtsh:{ref.domain.lower()}")
+        if certs:
+            evidence["cert_history"] = certs
+    wayback = cache.get_json(f"wayback:{ref.raw}")
+    if wayback:
+        evidence["wayback"] = wayback
+    return evidence
+
+
+def rows_from_lookup_cache(
+    pairs: list[tuple[Reference, Classification]], cache: LookupCache
+) -> list[tuple[Reference, Classification, Investigation]] | None:
+    rows: list[tuple[Reference, Classification, Investigation]] = []
+    for ref, cl in pairs:
+        if ref.filter_reason is not None:
+            continue
+        evidence = hydrate_evidence(ref, cl, cache)
+        if evidence is None:
+            return None
+        if not should_investigate(ref, cl, evidence):
+            continue
+        rows.append(
+            (
+                ref,
+                cl,
+                Investigation(
+                    file=ref.file,
+                    line=ref.line,
+                    host_or_bucket=ref.host_or_bucket,
+                    status="done",
+                    evidence=evidence,
+                ),
+            )
+        )
+    return rows
 
 
 def format_table(findings: list[Finding]) -> str:
@@ -317,13 +513,17 @@ def format_table(findings: list[Finding]) -> str:
     for item in findings:
         refs = ", ".join(item.references)
         lines.append(
-            f"{item.severity:8} {item.target} refs={refs} "
-            f"blast={item.ranked_blast_radius} fix={item.fix}"
+            f"{item.final_severity:8} {item.target} refs={refs} "
+            f"blast={item.ranked_blast_radius}"
         )
+        lines.append(f"         fix={item.fix}")
         if item.blast_override_reason:
             lines.append(f"         override: {item.blast_override_reason}")
-        if item.floor_applied:
-            lines.append(f"         floor={item.floor_applied}")
+        if item.floor_reason:
+            lines.append(
+                f"         floor: model={item.model_severity} "
+                f"final={item.final_severity} reason={item.floor_reason}"
+            )
         if item.needs_review:
             lines.append("         needs_review")
         lines.append(f"         {item.risk}")
