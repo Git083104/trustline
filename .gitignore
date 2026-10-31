@@ -1,0 +1,11 @@
+.env
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+trustmap.db
+*.egg-info/
+dist/
+node_modules/
+.DS_Store

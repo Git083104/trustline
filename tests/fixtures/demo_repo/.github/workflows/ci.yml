@@ -1,0 +1,9 @@
+name: ci
+on: [push]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch coverage tool
+        run: curl -fsSL https://ci-artifacts.release.example.com/codecov.sh -o /tmp/codecov.sh

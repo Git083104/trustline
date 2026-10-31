@@ -1,0 +1,152 @@
+{
+  "placeholders": {
+    "BUCKET_DEMO_CLAIMABLE": "Replace with an S3 bucket name you create and then delete so it is claimable.",
+    "BUCKET_DEMO_LIVE": "Replace with an S3 bucket name you own that still exists."
+  },
+  "references": [
+    {
+      "file": "index.html",
+      "line": 6,
+      "raw": "https://cdn.this-host-does-not-resolve-trustmap.invalid/polyfill.min.js",
+      "host_or_bucket": "cdn.this-host-does-not-resolve-trustmap.invalid",
+      "type": "script",
+      "runs_in": "browser"
+    },
+    {
+      "file": "index.html",
+      "line": 7,
+      "raw": "https://widgets.partner-analytics.example.com/v2/tracker.js",
+      "host_or_bucket": "widgets.partner-analytics.example.com",
+      "type": "script",
+      "runs_in": "browser"
+    },
+    {
+      "file": "index.html",
+      "line": 8,
+      "raw": "https://assets.brand-cdn.example.net/shop.css",
+      "host_or_bucket": "assets.brand-cdn.example.net",
+      "type": "asset",
+      "runs_in": "browser"
+    },
+    {
+      "file": "index.html",
+      "line": 12,
+      "raw": "https://images.media-host.example.org/logo.png",
+      "host_or_bucket": "images.media-host.example.org",
+      "type": "asset",
+      "runs_in": "browser"
+    },
+    {
+      "file": "src/client.ts",
+      "line": 1,
+      "raw": "https://api.payments.example.com/v1",
+      "host_or_bucket": "api.payments.example.com",
+      "type": "api",
+      "runs_in": "browser"
+    },
+    {
+      "file": "src/config.js",
+      "line": 1,
+      "raw": "https://status.old-jquery.example.com/",
+      "host_or_bucket": "status.old-jquery.example.com",
+      "type": "docs",
+      "runs_in": "docs_only"
+    },
+    {
+      "file": "src/config.js",
+      "line": 2,
+      "raw": "https://static.old-jquery.example.com/jquery-3.6.0.min.js",
+      "host_or_bucket": "static.old-jquery.example.com",
+      "type": "script",
+      "runs_in": "browser"
+    },
+    {
+      "file": "backend/settings.py",
+      "line": 1,
+      "raw": "https://docs.internal-notes.example.com/api",
+      "host_or_bucket": "docs.internal-notes.example.com",
+      "type": "docs",
+      "runs_in": "docs_only"
+    },
+    {
+      "file": "backend/settings.py",
+      "line": 2,
+      "raw": "https://billing.vendor.example.net/api",
+      "host_or_bucket": "billing.vendor.example.net",
+      "type": "api",
+      "runs_in": "server"
+    },
+    {
+      "file": "deploy/infra.yaml",
+      "line": 3,
+      "raw": "s3://BUCKET_DEMO_CLAIMABLE",
+      "host_or_bucket": "BUCKET_DEMO_CLAIMABLE",
+      "type": "bucket",
+      "runs_in": "build"
+    },
+    {
+      "file": "deploy/infra.yaml",
+      "line": 4,
+      "raw": "https://BUCKET_DEMO_LIVE.s3.amazonaws.com/public",
+      "host_or_bucket": "BUCKET_DEMO_LIVE",
+      "type": "bucket",
+      "runs_in": "build"
+    },
+    {
+      "file": "deploy/infra.yaml",
+      "line": 5,
+      "raw": "https://s3.amazonaws.com/BUCKET_DEMO_CLAIMABLE",
+      "host_or_bucket": "BUCKET_DEMO_CLAIMABLE",
+      "type": "bucket",
+      "runs_in": "build"
+    },
+    {
+      "file": "deploy/infra.yaml",
+      "line": 6,
+      "raw": "https://s3.us-east-1.amazonaws.com/BUCKET_DEMO_LIVE",
+      "host_or_bucket": "BUCKET_DEMO_LIVE",
+      "type": "bucket",
+      "runs_in": "build"
+    },
+    {
+      "file": "deploy/infra.yaml",
+      "line": 7,
+      "raw": "https://storage.googleapis.com/trustmap-demo-assets",
+      "host_or_bucket": "trustmap-demo-assets",
+      "type": "bucket",
+      "runs_in": "build"
+    },
+    {
+      "file": "Dockerfile",
+      "line": 2,
+      "raw": "https://bootstrap.install.example.com/get-pip.py",
+      "host_or_bucket": "bootstrap.install.example.com",
+      "type": "config",
+      "runs_in": "build"
+    },
+    {
+      "file": ".github/workflows/ci.yml",
+      "line": 9,
+      "raw": "https://ci-artifacts.release.example.com/codecov.sh",
+      "host_or_bucket": "ci-artifacts.release.example.com",
+      "type": "ci",
+      "runs_in": "ci"
+    },
+    {
+      "file": "README.md",
+      "line": 3,
+      "raw": "https://handbook.acme-demo.example.org/setup",
+      "host_or_bucket": "handbook.acme-demo.example.org",
+      "type": "docs",
+      "runs_in": "docs_only"
+    },
+    {
+      "file": "tests/test_client.py",
+      "line": 1,
+      "raw": "https://sandbox.payments.example.com/v1/health",
+      "host_or_bucket": "sandbox.payments.example.com",
+      "type": "test",
+      "runs_in": "docs_only"
+    }
+  ]
+}

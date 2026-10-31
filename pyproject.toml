@@ -1,0 +1,15 @@
+[project]
+name = "trustmap"
+version = "0.1.0"
+description = "Find abandoned outside infrastructure a repository still trusts."
+requires-python = ">=3.12"
+dependencies = []
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "slow: live network tests",
+]
