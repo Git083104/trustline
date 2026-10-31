@@ -1,6 +1,6 @@
 import json
 
-from scanner.llm import FakeModelClient, call_json, cost_usd, redact_secrets
+from scanner.llm import FakeModelClient, _tokens, call_json, cost_usd, redact_secrets
 from scanner.lookups import LookupCache
 from scanner.models import ClassificationBatch
 
@@ -16,6 +16,26 @@ def test_redact_secrets():
 def test_cost_uses_config_prices():
     # 1M in + 1M out = 1.25 + 4.25
     assert cost_usd("muse-spark-1.3", 1_000_000, 1_000_000) == 5.5
+
+
+def test_reasoning_tokens_count_as_output_when_not_already_included():
+    in_tok, out_tok, _ = _tokens(
+        {
+            "input_tokens": 10,
+            "output_tokens": 20,
+            "output_tokens_details": {"reasoning_tokens": 50},
+        }
+    )
+    assert in_tok == 10
+    assert out_tok == 70
+    in_tok, out_tok, _ = _tokens(
+        {
+            "prompt_tokens": 10,
+            "completion_tokens": 80,
+            "completion_tokens_details": {"reasoning_tokens": 50},
+        }
+    )
+    assert out_tok == 80
 
 
 def test_call_json_retries_invalid_then_succeeds(tmp_path):

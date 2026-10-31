@@ -212,7 +212,22 @@ def _tokens(usage: dict[str, Any]) -> tuple[int, int, dict[str, Any]]:
         return 0, 0, {}
     in_tok = int(usage.get("input_tokens") or usage.get("prompt_tokens") or 0)
     out_tok = int(usage.get("output_tokens") or usage.get("completion_tokens") or 0)
+    reasoning = _reasoning_tokens(usage)
+    # Some payloads nest reasoning under details but already include it in
+    # output/completion tokens; only add when it is clearly extra.
+    if reasoning and out_tok < reasoning:
+        out_tok += reasoning
     return in_tok, out_tok, dict(usage)
+
+
+def _reasoning_tokens(usage: dict[str, Any]) -> int:
+    for key in ("output_tokens_details", "completion_tokens_details"):
+        details = usage.get(key)
+        if isinstance(details, dict) and details.get("reasoning_tokens") is not None:
+            return int(details["reasoning_tokens"])
+    if usage.get("reasoning_tokens") is not None:
+        return int(usage["reasoning_tokens"])
+    return 0
 
 
 def _usage_dict(response: Any) -> dict[str, Any]:
