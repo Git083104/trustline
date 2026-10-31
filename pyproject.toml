@@ -12,6 +12,9 @@ dependencies = [
     "tldextract>=5.4.0",
 ]
 
+[project.scripts]
+trustmap = "scanner.cli:main"
+
 [dependency-groups]
 dev = [
     "pytest>=8",

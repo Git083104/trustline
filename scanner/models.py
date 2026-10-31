@@ -112,3 +112,39 @@ class Investigation(BaseModel):
     evidence: dict[str, Any] = Field(default_factory=dict)
     trace: list[TraceEvent] = Field(default_factory=list)
     cost_usd: float = 0
+
+
+Severity = Literal["critical", "high", "medium", "low", "info"]
+FixKind = Literal[
+    "remove dead reference",
+    "self-host the asset",
+    "pin with subresource integrity",
+    "re-register what you abandoned",
+    "replace with maintained source",
+]
+
+
+class RankModelOut(BaseModel):
+    severity: Severity
+    risk: str
+    fix: FixKind
+    uncertain_about: str = ""
+    blast_radius: int = Field(ge=0, le=3)
+    blast_override_reason: str = ""
+
+
+class Finding(BaseModel):
+    target: str
+    kind: Literal["bucket", "domain"]
+    references: list[str]
+    severity: Severity
+    classified_blast_radius: int
+    ranked_blast_radius: int
+    blast_override_reason: str = ""
+    risk: str
+    fix: FixKind | str
+    uncertain_about: str = ""
+    needs_review: bool = False
+    floor_applied: str = ""
+    evidence: dict[str, Any] = Field(default_factory=dict)
+    cost_usd: float = 0

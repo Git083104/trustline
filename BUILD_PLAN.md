@@ -179,20 +179,21 @@ in its evidence.
 
 ## Phase 5 — Ranking, self-check, CLI
 
-`scanner/report.py`:
-- Muse (RANK_MODEL) takes classification + evidence and returns `severity` (critical, high,
-  medium, low, info), `risk` (plain English: what a stranger could do from this position),
-  `fix` (one of: remove dead reference, self-host the asset, pin with subresource integrity,
-  re-register what you abandoned, replace with maintained source), and `uncertain_about`.
-- Self-check: extract every date, number and status word from `risk`; each must appear in the
-  evidence JSON. Regenerate on mismatch (max 2), else mark `needs_review`.
-- Sort by severity then blast radius.
+`scanner/report.py`: group investigations by target (bucket name or registrable domain) and rank
+once per target. Muse (RANK_MODEL) sees classification plus merged evidence and returns
+`severity`, `risk`, `fix`, `uncertain_about`, and `blast_radius` (may override classify; record
+when it does). Code floors severity: claimable-now (NoSuchBucket, RDAP unregistered) in an
+executing position is at least critical; other hard signals (NXDOMAIN on a registered domain,
+expiry ≤ 90 days) are at least high. Self-check: every date, number and status word in `risk`
+must appear in the evidence JSON; regenerate on mismatch (max 2), else `needs_review`. Sort by
+severity then ranked blast radius.
 
 `scanner/cli.py`: `uv run trustmap <path-or-url> [--json out.json]` prints a ranked table.
 
-**Accept when:** on the fixture, the claimable bucket and the unregistered `.com` script host
-(`cdn-assets-trustmap-7f3k2.com`) are the top two findings. The `.invalid` host is filtered as
-unbuyable (`reserved_tld`) and must not rank. README and test-file references are `low`/`info`.
+**Accept when:** the three claimable targets (S3 `acme-legacy-uploads` with 2 refs,
+`cdn-assets-trustmap-7f3k2.com`, GCS `trustmap-demo-assets`) are the top three and all critical.
+Live S3 `acme-static-assets` is low or info. README/test references are low/info. The `.invalid`
+host is filtered (`reserved_tld`) and must not rank.
 
 ## Phase 6 — Evaluation
 
