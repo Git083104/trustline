@@ -73,3 +73,17 @@ DNS_TIMEOUT_S = 5.0
 CACHE_TTL_S = 24 * 60 * 60
 RDAP_BOOTSTRAP_URL = "https://data.iana.org/rdap/dns.json"
 RDAP_FALLBACK_BASE = "https://rdap.org/"
+
+META_BASE_URL = "https://api.meta.ai/v1"
+CLASSIFY_MODEL = "muse-spark-1.3"
+AGENT_MODEL = "muse-spark-1.3"
+RANK_MODEL = "muse-spark-1.3"
+CLASSIFY_REASONING_EFFORT = "low"
+AGENT_REASONING_EFFORT = "low"
+RANK_REASONING_EFFORT = "medium"
+LLM_MAX_RETRIES = 2
+CLASSIFY_BATCH_SIZE = 20
+# USD per million tokens
+MODEL_PRICES: dict[str, dict[str, float]] = {
+    "muse-spark-1.3": {"input": 1.25, "output": 4.25},
+}

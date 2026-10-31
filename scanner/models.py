@@ -1,4 +1,5 @@
 from datetime import date
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -51,3 +52,42 @@ class WaybackResult(BaseModel):
     last_snapshot: str | None = None
     first_digest: str | None = None
     last_digest: str | None = None
+
+
+RefType = Literal["script", "api", "asset", "config", "bucket", "ci", "docs", "test"]
+RunsIn = Literal["browser", "server", "build", "ci", "docs_only"]
+
+
+class ClassificationItem(BaseModel):
+    id: str
+    type: RefType
+    runs_in: RunsIn
+    blast_radius: int = Field(ge=0, le=3)
+    confidence: float = Field(ge=0, le=1)
+    reason: str
+
+
+class ClassificationBatch(BaseModel):
+    items: list[ClassificationItem]
+
+
+class Classification(BaseModel):
+    id: str
+    file: str
+    line: int
+    host_or_bucket: str
+    type: RefType
+    runs_in: RunsIn
+    blast_radius: int
+    confidence: float
+    reason: str
+
+
+class CallLog(BaseModel):
+    model: str
+    input_tokens: int = 0
+    output_tokens: int = 0
+    latency_ms: float = 0
+    cost_usd: float = 0
+    cached: bool = False
+    api_usage: dict[str, Any] | None = None
