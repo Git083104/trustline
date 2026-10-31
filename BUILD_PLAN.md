@@ -198,13 +198,14 @@ host is filtered (`reserved_tld`) and must not rank.
 ## Phase 6 — Evaluation
 
 `eval/`:
-- `label.py`: a small CLI to hand-label references from 5–10 real public repos (I do the
-  labeling; you build the tool) into `eval/labels.jsonl` with my severity.
-- `run_eval.py`: compares (a) a baseline rule — flag anything NXDOMAIN, NoSuchBucket, or expiring
-  within 90 days — and (b) Trustmap's ranking, against my labels. Report precision@10 and recall
-  of my critical/high labels for both, plus total model cost.
+- `label.py`: extract + free lookups only; group by target; cap 25 per repo (hard signals first,
+  then random sample seed 42); hand-label into `eval/labels.jsonl` (`c/h/m/l/i` or skip). Resume.
+  `eval/repos.txt` is the default list. Labels file is gitignored.
+- `run_eval.py`: baseline (claimable-now → critical, NXDOMAIN/expiry≤90 → high, else low) vs
+  Trustmap full scan ($3 cap). Metrics only on labeled targets. Precision@10, recall of
+  critical/high, confusion table, model cost, budget skips. Writes `eval/results.md`.
 
-**Accept when:** the script runs end to end and prints one comparison table.
+**Accept when:** offline tests pass and `run_eval.py` prints one comparison table on canned labels.
 
 ## Phase 7 — Web app
 

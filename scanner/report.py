@@ -6,11 +6,14 @@ from typing import Any
 
 from scanner.agent import investigate, should_investigate
 from scanner.classify import classify
+from dataclasses import dataclass, field
+
 from scanner.config import (
     EXPIRY_INVESTIGATE_DAYS,
     LLM_MAX_RETRIES,
     RANK_MODEL,
     RANK_REASONING_EFFORT,
+    SCAN_COST_CAP_USD,
 )
 from scanner.extract import extract
 from scanner.llm import CallLog, ModelClient, call_json
@@ -24,6 +27,20 @@ from scanner.models import (
     Severity,
 )
 from scanner.tools import ToolContext
+
+
+@dataclass
+class ScanOutcome:
+    findings: list[Finding]
+    investigations: list[Investigation] = field(default_factory=list)
+    classify_cost_usd: float = 0.0
+    agent_cost_usd: float = 0.0
+    rank_cost_usd: float = 0.0
+    budget_targets: list[str] = field(default_factory=list)
+
+    @property
+    def cost_usd(self) -> float:
+        return self.classify_cost_usd + self.agent_cost_usd + self.rank_cost_usd
 
 EXECUTING = frozenset({"browser", "server", "build", "deploy", "ci"})
 CLAIMABLE_FIX = (
@@ -277,7 +294,7 @@ def choose_fix(evidence: dict[str, Any], model_fix: str, final_severity: Severit
     return model_fix
 
 
-def evidence_line(group: dict[str, Any]) -> str:
+def evidence_line(group: dict[str, Any], *, include_runs_in: bool = True) -> str:
     usable = usable_evidence(group.get("evidence") or {})
     parts: list[str] = []
     dns = usable.get("dns") or {}
@@ -310,12 +327,17 @@ def evidence_line(group: dict[str, Any]) -> str:
             parts.append("certificates found")
         else:
             parts.append("no certificates found")
+    locs = [f"{ref.file}:{ref.line}" for ref, _cl, _inv in group.get("rows") or []]
+    if not include_runs_in:
+        if locs:
+            parts.append("referenced at " + " and ".join(locs))
+        return "Evidence: " + " · ".join(parts)
     by_run: dict[str, list[str]] = {}
     for ref, cl, _inv in group.get("rows") or []:
         by_run.setdefault(cl.runs_in, []).append(f"{ref.file}:{ref.line}")
-    for runs_in, locs in by_run.items():
+    for runs_in, run_locs in by_run.items():
         place = RUNS_IN_PHRASE.get(runs_in, runs_in)
-        joined = " and ".join(locs)
+        joined = " and ".join(run_locs)
         if runs_in == "browser":
             parts.append(f"loaded by {joined} {place}")
         elif runs_in == "deploy":
@@ -535,9 +557,34 @@ async def scan(
     client: ModelClient,
     cache: LookupCache,
     ctx: ToolContext | None = None,
+    hydrate_only: bool = True,
+    cost_cap: float = SCAN_COST_CAP_USD,
 ) -> list[Finding]:
+    outcome = await run_scan(
+        source,
+        client=client,
+        cache=cache,
+        ctx=ctx,
+        hydrate_only=hydrate_only,
+        cost_cap=cost_cap,
+    )
+    return outcome.findings
+
+
+async def run_scan(
+    source: str,
+    *,
+    client: ModelClient,
+    cache: LookupCache,
+    ctx: ToolContext | None = None,
+    hydrate_only: bool = True,
+    cost_cap: float = SCAN_COST_CAP_USD,
+) -> ScanOutcome:
     refs = extract(source)
-    classified = classify(refs, client=client, include_filtered=True, cache=cache)
+    class_logs: list[CallLog] = []
+    classified = classify(
+        refs, client=client, include_filtered=True, cache=cache, logs=class_logs
+    )
     by_loc = {(item.file, item.line): item for item in classified}
     pairs = [
         (ref, by_loc[(ref.file, ref.line)])
@@ -545,18 +592,37 @@ async def scan(
         if (ref.file, ref.line) in by_loc
     ]
     ctx = ctx or ToolContext(cache=cache)
-    cached_rows = rows_from_lookup_cache(pairs, cache)
+    investigations: list[Investigation] = []
+    cached_rows = rows_from_lookup_cache(pairs, cache) if hydrate_only else None
     if cached_rows is not None:
         rows = cached_rows
     else:
-        investigations = await investigate(pairs, client=client, ctx=ctx)
+        investigations = await investigate(
+            pairs, client=client, ctx=ctx, cost_cap=cost_cap
+        )
         inv_by_loc = {(item.file, item.line): item for item in investigations}
         rows = [
             (ref, cl, inv_by_loc[(ref.file, ref.line)])
             for ref, cl in pairs
             if (ref.file, ref.line) in inv_by_loc
         ]
-    return rank(rows, client=client, cache=cache)
+    rank_logs: list[CallLog] = []
+    findings = rank(rows, client=client, cache=cache, logs=rank_logs)
+    budget = sorted(
+        {
+            item.host_or_bucket
+            for item in investigations
+            if item.status == "budget"
+        }
+    )
+    return ScanOutcome(
+        findings=findings,
+        investigations=investigations,
+        classify_cost_usd=sum(log.cost_usd for log in class_logs),
+        agent_cost_usd=sum(item.cost_usd for item in investigations),
+        rank_cost_usd=sum(log.cost_usd for log in rank_logs),
+        budget_targets=budget,
+    )
 
 
 def hydrate_evidence(

@@ -1,0 +1,10 @@
+https://github.com/quantopian/zipline
+https://github.com/lbryio/lbry-desktop
+https://github.com/sammy007/monero-stratum
+https://github.com/debois/elm-mdl
+https://github.com/TryKickoff/kickoff
+https://github.com/oncebot/pushbar.js
+https://github.com/Pixabay/jQuery-autoComplete
+https://github.com/OpnTec/2015.opentechsummit.de
+https://github.com/expressjs/express
+https://github.com/psf/requests
