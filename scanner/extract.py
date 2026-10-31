@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ipaddress
 import os
 import re
 import subprocess
@@ -14,6 +15,8 @@ from scanner.config import (
     CONTEXT_LINES,
     GITHUB_CLONE_TIMEOUT_S,
     MAX_FILE_BYTES,
+    RFC2606_DOMAINS,
+    RESERVED_TLDS,
     SKIP_DIR_NAMES,
     SKIP_FILE_NAMES,
     SKIP_NAME_SUFFIXES,
@@ -56,6 +59,11 @@ BINARY_SUFFIXES = frozenset(
         ".jar",
     }
 )
+
+
+def actionable(refs: list[Reference]) -> list[Reference]:
+    """Later phases skip anything with a filter_reason."""
+    return [ref for ref in refs if ref.filter_reason is None]
 
 
 def extract(source: str, *, clone_github=None) -> list[Reference]:
@@ -128,7 +136,7 @@ def _scan_text(rel: str, text: str, found: dict[tuple[str, str, int], Reference]
     for index, line in enumerate(lines):
         line_no = index + 1
         context = _context(lines, index)
-        for host_or_bucket, raw, domain in _find_on_line(line):
+        for host_or_bucket, raw, domain, reason in _find_on_line(line):
             key = (host_or_bucket, rel, line_no)
             if key in found:
                 continue
@@ -139,6 +147,7 @@ def _scan_text(rel: str, text: str, found: dict[tuple[str, str, int], Reference]
                 host_or_bucket=host_or_bucket,
                 domain=domain,
                 context=context,
+                filter_reason=reason,
             )
 
 
@@ -149,11 +158,11 @@ def _context(lines: list[str], index: int) -> str:
     return "\n".join(lines[start:end])
 
 
-def _find_on_line(line: str) -> list[tuple[str, str, str]]:
-    hits: list[tuple[str, str, str]] = []
+def _find_on_line(line: str) -> list[tuple[str, str, str, str | None]]:
+    hits: list[tuple[str, str, str, str | None]] = []
     for match in S3_SCHEME_RE.finditer(line):
         name = match.group(1)
-        hits.append((name, match.group(0), ""))
+        hits.append((name, match.group(0), "", _filter_reason("", "", name, True)))
     for match in URL_RE.finditer(line):
         raw = match.group(0).rstrip(TRAILING_JUNK)
         parsed = _classify_http_url(raw)
@@ -163,7 +172,7 @@ def _find_on_line(line: str) -> list[tuple[str, str, str]]:
     return hits
 
 
-def _classify_http_url(raw: str) -> tuple[str, str, str] | None:
+def _classify_http_url(raw: str) -> tuple[str, str, str, str | None] | None:
     parsed = urlparse(raw)
     host = _host_from_netloc(parsed.netloc)
     if not host:
@@ -174,12 +183,11 @@ def _classify_http_url(raw: str) -> tuple[str, str, str] | None:
 
     bucket = _bucket_from_http(host, host_l, first)
     if bucket:
-        return bucket, raw, _registrable(host)
+        domain = _registrable(host)
+        return bucket, raw, domain, _filter_reason(host, domain, bucket, True)
 
     domain = _registrable(host)
-    if domain in ALLOWLIST_DOMAINS or host_l in ALLOWLIST_DOMAINS:
-        return None
-    return host, raw, domain
+    return host, raw, domain, _filter_reason(host, domain, host, False)
 
 
 def _bucket_from_http(host: str, host_l: str, first: str) -> str | None:
@@ -214,3 +222,47 @@ def _registrable(host: str) -> str:
     if parts.domain and parts.suffix:
         return f"{parts.domain}.{parts.suffix}".lower()
     return host.lower()
+
+
+_PLACEHOLDER_CHARS = frozenset("{}<>$")
+
+
+def _filter_reason(
+    host: str, domain: str, host_or_bucket: str, is_bucket: bool
+) -> str | None:
+    if is_bucket:
+        if _is_placeholder(host_or_bucket):
+            return "placeholder"
+        return None
+    if _is_ip(host):
+        return "ip_address"
+    if _is_placeholder(host) or _is_placeholder(host_or_bucket):
+        return "placeholder"
+    psl_suffix = _suffix(host)
+    last_label = host.rsplit(".", 1)[-1].lower() if host else ""
+    if psl_suffix in RESERVED_TLDS or last_label in RESERVED_TLDS:
+        return "reserved_tld"
+    if domain.lower() in RFC2606_DOMAINS:
+        return "reserved_domain"
+    if not psl_suffix:
+        return "no_public_suffix"
+    if domain.lower() in ALLOWLIST_DOMAINS or host.lower() in ALLOWLIST_DOMAINS:
+        return "allowlisted"
+    return None
+
+
+def _is_ip(host: str) -> bool:
+    try:
+        ipaddress.ip_address(host.strip("[]"))
+    except ValueError:
+        return False
+    return True
+
+
+def _is_placeholder(value: str) -> bool:
+    return any(char in value for char in _PLACEHOLDER_CHARS)
+
+
+def _suffix(host: str) -> str:
+    parts = _EXTRACT(host)
+    return (parts.suffix or "").lower()

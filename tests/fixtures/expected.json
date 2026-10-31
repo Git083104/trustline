@@ -10,7 +10,8 @@
       "raw": "https://cdn.this-host-does-not-resolve-trustmap.invalid/polyfill.min.js",
       "host_or_bucket": "cdn.this-host-does-not-resolve-trustmap.invalid",
       "type": "script",
-      "runs_in": "browser"
+      "runs_in": "browser",
+      "filter_reason": "reserved_tld"
     },
     {
       "file": "index.html",
@@ -18,7 +19,8 @@
       "raw": "https://cdn-assets-trustmap-7f3k2.com/lib.js",
       "host_or_bucket": "cdn-assets-trustmap-7f3k2.com",
       "type": "script",
-      "runs_in": "browser"
+      "runs_in": "browser",
+      "filter_reason": null
     },
     {
       "file": "index.html",
@@ -26,7 +28,8 @@
       "raw": "https://widgets.partner-analytics.example.com/v2/tracker.js",
       "host_or_bucket": "widgets.partner-analytics.example.com",
       "type": "script",
-      "runs_in": "browser"
+      "runs_in": "browser",
+      "filter_reason": "reserved_domain"
     },
     {
       "file": "index.html",
@@ -34,7 +37,8 @@
       "raw": "https://assets.brand-cdn.example.net/shop.css",
       "host_or_bucket": "assets.brand-cdn.example.net",
       "type": "asset",
-      "runs_in": "browser"
+      "runs_in": "browser",
+      "filter_reason": "reserved_domain"
     },
     {
       "file": "index.html",
@@ -42,7 +46,8 @@
       "raw": "https://images.media-host.example.org/logo.png",
       "host_or_bucket": "images.media-host.example.org",
       "type": "asset",
-      "runs_in": "browser"
+      "runs_in": "browser",
+      "filter_reason": "reserved_domain"
     },
     {
       "file": "src/client.ts",
@@ -50,7 +55,8 @@
       "raw": "https://api.payments.example.com/v1",
       "host_or_bucket": "api.payments.example.com",
       "type": "api",
-      "runs_in": "browser"
+      "runs_in": "browser",
+      "filter_reason": "reserved_domain"
     },
     {
       "file": "src/config.js",
@@ -58,7 +64,8 @@
       "raw": "https://status.old-jquery.example.com/",
       "host_or_bucket": "status.old-jquery.example.com",
       "type": "docs",
-      "runs_in": "docs_only"
+      "runs_in": "docs_only",
+      "filter_reason": "reserved_domain"
     },
     {
       "file": "src/config.js",
@@ -66,7 +73,8 @@
       "raw": "https://static.old-jquery.example.com/jquery-3.6.0.min.js",
       "host_or_bucket": "static.old-jquery.example.com",
       "type": "script",
-      "runs_in": "browser"
+      "runs_in": "browser",
+      "filter_reason": "reserved_domain"
     },
     {
       "file": "backend/settings.py",
@@ -74,7 +82,8 @@
       "raw": "https://docs.internal-notes.example.com/api",
       "host_or_bucket": "docs.internal-notes.example.com",
       "type": "docs",
-      "runs_in": "docs_only"
+      "runs_in": "docs_only",
+      "filter_reason": "reserved_domain"
     },
     {
       "file": "backend/settings.py",
@@ -82,7 +91,8 @@
       "raw": "https://billing.vendor.example.net/api",
       "host_or_bucket": "billing.vendor.example.net",
       "type": "api",
-      "runs_in": "server"
+      "runs_in": "server",
+      "filter_reason": "reserved_domain"
     },
     {
       "file": "deploy/infra.yaml",
@@ -90,7 +100,8 @@
       "raw": "s3://BUCKET_DEMO_CLAIMABLE",
       "host_or_bucket": "BUCKET_DEMO_CLAIMABLE",
       "type": "bucket",
-      "runs_in": "build"
+      "runs_in": "build",
+      "filter_reason": null
     },
     {
       "file": "deploy/infra.yaml",
@@ -98,7 +109,8 @@
       "raw": "https://BUCKET_DEMO_LIVE.s3.amazonaws.com/public",
       "host_or_bucket": "BUCKET_DEMO_LIVE",
       "type": "bucket",
-      "runs_in": "build"
+      "runs_in": "build",
+      "filter_reason": null
     },
     {
       "file": "deploy/infra.yaml",
@@ -106,7 +118,8 @@
       "raw": "https://s3.amazonaws.com/BUCKET_DEMO_CLAIMABLE",
       "host_or_bucket": "BUCKET_DEMO_CLAIMABLE",
       "type": "bucket",
-      "runs_in": "build"
+      "runs_in": "build",
+      "filter_reason": null
     },
     {
       "file": "deploy/infra.yaml",
@@ -114,7 +127,8 @@
       "raw": "https://s3.us-east-1.amazonaws.com/BUCKET_DEMO_LIVE",
       "host_or_bucket": "BUCKET_DEMO_LIVE",
       "type": "bucket",
-      "runs_in": "build"
+      "runs_in": "build",
+      "filter_reason": null
     },
     {
       "file": "deploy/infra.yaml",
@@ -122,7 +136,8 @@
       "raw": "https://storage.googleapis.com/trustmap-demo-assets",
       "host_or_bucket": "trustmap-demo-assets",
       "type": "bucket",
-      "runs_in": "build"
+      "runs_in": "build",
+      "filter_reason": null
     },
     {
       "file": "Dockerfile",
@@ -130,7 +145,8 @@
       "raw": "https://bootstrap.install.example.com/get-pip.py",
       "host_or_bucket": "bootstrap.install.example.com",
       "type": "config",
-      "runs_in": "build"
+      "runs_in": "build",
+      "filter_reason": "reserved_domain"
     },
     {
       "file": ".github/workflows/ci.yml",
@@ -138,7 +154,8 @@
       "raw": "https://ci-artifacts.release.example.com/codecov.sh",
       "host_or_bucket": "ci-artifacts.release.example.com",
       "type": "ci",
-      "runs_in": "ci"
+      "runs_in": "ci",
+      "filter_reason": "reserved_domain"
     },
     {
       "file": "README.md",
@@ -146,7 +163,8 @@
       "raw": "https://handbook.acme-demo.example.org/setup",
       "host_or_bucket": "handbook.acme-demo.example.org",
       "type": "docs",
-      "runs_in": "docs_only"
+      "runs_in": "docs_only",
+      "filter_reason": "reserved_domain"
     },
     {
       "file": "tests/test_client.py",
@@ -154,7 +172,8 @@
       "raw": "https://sandbox.payments.example.com/v1/health",
       "host_or_bucket": "sandbox.payments.example.com",
       "type": "test",
-      "runs_in": "docs_only"
+      "runs_in": "docs_only",
+      "filter_reason": "reserved_domain"
     }
   ]
 }

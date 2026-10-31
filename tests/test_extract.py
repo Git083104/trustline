@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 
 from scanner.config import ALLOWLIST_DOMAINS
-from scanner.extract import extract
+from scanner.extract import actionable, extract
 
 FIXTURE_ROOT = Path(__file__).parent / "fixtures" / "demo_repo"
 EXPECTED_PATH = Path(__file__).parent / "fixtures" / "expected.json"
@@ -23,9 +23,15 @@ def test_extract_finds_every_expected_reference():
         got = by_key[(ref["file"], ref["line"], ref["host_or_bucket"])]
         assert ref["raw"] == got.raw
         assert got.context
+        assert got.filter_reason == ref["filter_reason"]
+    assert any(
+        ref.filter_reason is None
+        and ref.host_or_bucket == "cdn-assets-trustmap-7f3k2.com"
+        for ref in found
+    )
 
 
-def test_allowlist_drops_github_but_keeps_buckets(tmp_path: Path):
+def test_keep_allowlisted_with_filter_reason_but_keep_buckets(tmp_path: Path):
     (tmp_path / "app.py").write_text(
         "\n".join(
             [
@@ -38,11 +44,15 @@ def test_allowlist_drops_github_but_keeps_buckets(tmp_path: Path):
         + "\n"
     )
     found = extract(str(tmp_path))
-    names = {ref.host_or_bucket for ref in found}
-    assert "github.com" not in {ref.domain for ref in found}
-    assert "w3.org" not in {ref.domain for ref in found}
-    assert "my-orphan-bucket" in names
-    assert "my-gcs-bucket" in names
+    by_name = {ref.host_or_bucket: ref for ref in found}
+    assert by_name["github.com"].filter_reason == "allowlisted"
+    assert by_name["www.w3.org"].filter_reason == "allowlisted"
+    assert by_name["my-orphan-bucket"].filter_reason is None
+    assert by_name["my-gcs-bucket"].filter_reason is None
+    assert {ref.host_or_bucket for ref in actionable(found)} == {
+        "my-orphan-bucket",
+        "my-gcs-bucket",
+    }
     assert "example.com" not in ALLOWLIST_DOMAINS
 
 
@@ -73,7 +83,7 @@ def test_skips_lockfiles_minified_and_sourcemaps(tmp_path: Path):
     }
 
 
-def test_drops_license_and_schema_namespace_hosts(tmp_path: Path):
+def test_license_schema_and_noise_hosts_get_filter_reasons(tmp_path: Path):
     (tmp_path / "note.txt").write_text(
         "\n".join(
             [
@@ -81,12 +91,25 @@ def test_drops_license_and_schema_namespace_hosts(tmp_path: Path):
                 "http://www.apache.org/licenses/LICENSE-2.0",
                 "http://schemas.xmlsoap.org/soap/envelope/",
                 "https://kept.example.net/api",
+                "https://127.0.0.1/health",
+                "https://8.8.8.8/dns",
+                "https://{host}/x",
+                "https://cdn.dead-host.invalid/a.js",
+                "https://no-suffix-at-all/x",
             ]
         )
         + "\n"
     )
-    found = extract(str(tmp_path))
-    assert {ref.domain for ref in found} == {"example.net"}
+    found = {ref.host_or_bucket: ref.filter_reason for ref in extract(str(tmp_path))}
+    assert found["opensource.org"] == "allowlisted"
+    assert found["www.apache.org"] == "allowlisted"
+    assert found["schemas.xmlsoap.org"] == "allowlisted"
+    assert found["kept.example.net"] == "reserved_domain"
+    assert found["127.0.0.1"] == "ip_address"
+    assert found["8.8.8.8"] == "ip_address"
+    assert found["{host}"] == "placeholder"
+    assert found["cdn.dead-host.invalid"] == "reserved_tld"
+    assert found["no-suffix-at-all"] == "no_public_suffix"
 
 
 def test_github_url_uses_shallow_clone(tmp_path: Path):

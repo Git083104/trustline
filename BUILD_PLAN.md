@@ -186,8 +186,9 @@ claimable demo bucket and the non-resolving script domain both appear in its evi
 
 `scanner/cli.py`: `uv run trustmap <path-or-url> [--json out.json]` prints a ranked table.
 
-**Accept when:** on the fixture, the claimable bucket and the dead script domain are the top two
-findings; README and test-file references are `low`/`info`.
+**Accept when:** on the fixture, the claimable bucket and the unregistered `.com` script host
+(`cdn-assets-trustmap-7f3k2.com`) are the top two findings. The `.invalid` host is filtered as
+unbuyable (`reserved_tld`) and must not rank. README and test-file references are `low`/`info`.
 
 ## Phase 6 — Evaluation
 

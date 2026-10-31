@@ -46,6 +46,13 @@ SKIP_FILE_NAMES: frozenset[str] = frozenset(
         "uv.lock",
     }
 )
+RESERVED_TLDS: frozenset[str] = frozenset(
+    {"invalid", "test", "example", "localhost", "local"}
+)
+RFC2606_DOMAINS: frozenset[str] = frozenset(
+    {"example.com", "example.net", "example.org"}
+)
+
 SKIP_NAME_SUFFIXES: tuple[str, ...] = (
     ".min.js",
     ".min.mjs",

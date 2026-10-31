@@ -8,3 +8,4 @@ class Reference(BaseModel):
     host_or_bucket: str
     domain: str = ""
     context: str = ""
+    filter_reason: str | None = None

@@ -4,7 +4,24 @@ from pathlib import Path
 FIXTURE_ROOT = Path(__file__).parent / "fixtures" / "demo_repo"
 EXPECTED_PATH = Path(__file__).parent / "fixtures" / "expected.json"
 
-REQUIRED_KEYS = {"file", "line", "raw", "host_or_bucket", "type", "runs_in"}
+REQUIRED_KEYS = {
+    "file",
+    "line",
+    "raw",
+    "host_or_bucket",
+    "type",
+    "runs_in",
+    "filter_reason",
+}
+FILTER_REASONS = {
+    None,
+    "ip_address",
+    "placeholder",
+    "reserved_tld",
+    "no_public_suffix",
+    "reserved_domain",
+    "allowlisted",
+}
 TYPES = {"script", "api", "asset", "config", "bucket", "ci", "docs", "test"}
 RUNS_IN = {"browser", "server", "build", "ci", "docs_only"}
 
@@ -21,6 +38,7 @@ def test_expected_json_is_valid_and_complete():
         assert not missing, f"missing keys {missing} in {ref}"
         assert ref["type"] in TYPES
         assert ref["runs_in"] in RUNS_IN
+        assert ref["filter_reason"] in FILTER_REASONS
         assert isinstance(ref["line"], int) and ref["line"] >= 1
         assert ref["raw"]
         assert ref["host_or_bucket"]
