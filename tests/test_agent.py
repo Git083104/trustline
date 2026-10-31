@@ -1,0 +1,280 @@
+import asyncio
+import json
+from pathlib import Path
+
+import pytest
+
+from scanner.agent import BUDGET_NOTE, investigate
+from scanner.extract import extract
+from scanner.llm import FakeModelClient
+from scanner.lookups import LookupCache
+from scanner.models import (
+    BucketProbeResult,
+    Classification,
+    DnsResult,
+    RdapResult,
+    Reference,
+)
+from scanner.tools import ToolContext
+
+FIXTURE_ROOT = Path(__file__).parent / "fixtures" / "demo_repo"
+EXPECTED_PATH = Path(__file__).parent / "fixtures" / "expected.json"
+
+
+def _classification(ref: Reference, **kwargs) -> Classification:
+    return Classification(
+        id="0",
+        file=ref.file,
+        line=ref.line,
+        host_or_bucket=ref.host_or_bucket,
+        type=kwargs.get("type", "script"),
+        runs_in=kwargs.get("runs_in", "browser"),
+        blast_radius=kwargs.get("blast_radius", 2),
+        confidence=0.9,
+        reason="test",
+    )
+
+
+def _ctx(tmp_path, **impls) -> ToolContext:
+    async def fake_dns(host, cache=None, **kwargs):
+        status = "nxdomain" if "7f3k2" in host else "resolves"
+        addrs = [] if status == "nxdomain" else ["203.0.113.9"]
+        return DnsResult(host=host, status=status, addresses=addrs)
+
+    async def fake_bucket(name, provider, cache=None, **kwargs):
+        missing = "gone" in name
+        return BucketProbeResult(
+            name=name,
+            provider=provider,
+            status="NoSuchBucket" if missing else "exists",
+            http_status=404 if missing else 403,
+        )
+
+    async def fake_rdap(domain, cache=None, **kwargs):
+        return RdapResult(domain=domain, status="unregistered")
+
+    return ToolContext(
+        cache=LookupCache(tmp_path / "c.db"),
+        dns=impls.get("dns", fake_dns),
+        bucket_probe=impls.get("bucket_probe", fake_bucket),
+        rdap=impls.get("rdap", fake_rdap),
+    )
+
+
+def _scripted_client():
+    def tool_handler(request):
+        first = json.loads(request["messages"][0]["content"])
+        n_tools = sum(1 for msg in request["messages"] if msg["role"] == "assistant")
+        if first["reference"]["type"] == "bucket":
+            return {"name": "done", "arguments": {"summary": "bucket checked"}}
+        if n_tools == 0:
+            domain = first["reference"]["domain"] or first["reference"]["host_or_bucket"]
+            return {"name": "rdap", "arguments": {"domain": domain}}
+        return {"name": "done", "arguments": {"summary": "domain checked"}}
+
+    return FakeModelClient(tool_handler=tool_handler)
+
+
+@pytest.mark.asyncio
+async def test_prerun_dns_and_bucket_always_in_evidence(tmp_path):
+    domain_ref = Reference(
+        file="index.html",
+        line=7,
+        raw="https://cdn-assets-trustmap-7f3k2.com/lib.js",
+        host_or_bucket="cdn-assets-trustmap-7f3k2.com",
+        domain="cdn-assets-trustmap-7f3k2.com",
+    )
+    bucket_ref = Reference(
+        file="deploy/infra.yaml",
+        line=3,
+        raw="s3://trustmap-demo-gone-a3f91c2e",
+        host_or_bucket="trustmap-demo-gone-a3f91c2e",
+    )
+    client = FakeModelClient(
+        tool_handler=lambda request: {
+            "name": "done",
+            "arguments": {"summary": "precomputed only"},
+        }
+    )
+    results = await investigate(
+        [
+            (domain_ref, _classification(domain_ref, type="script")),
+            (bucket_ref, _classification(bucket_ref, type="bucket", runs_in="deploy")),
+        ],
+        client=client,
+        ctx=_ctx(tmp_path),
+    )
+    by_host = {item.host_or_bucket: item for item in results}
+    assert by_host["cdn-assets-trustmap-7f3k2.com"].evidence["dns"]["status"] == "nxdomain"
+    assert by_host["trustmap-demo-gone-a3f91c2e"].evidence["bucket_probe"]["status"] == (
+        "NoSuchBucket"
+    )
+    assert any(
+        "precomputed" in json.loads(call["messages"][0]["content"])
+        for call in client.calls
+    )
+
+
+@pytest.mark.asyncio
+async def test_fixture_gone_bucket_and_unregistered_host(tmp_path):
+    expected = json.loads(EXPECTED_PATH.read_text())["references"]
+    refs = extract(str(FIXTURE_ROOT))
+    by_loc = {(row["file"], row["line"]): row for row in expected}
+    pairs = []
+    for ref in refs:
+        exp = by_loc.get((ref.file, ref.line))
+        if not exp:
+            continue
+        blast = 2 if ref.filter_reason is None else 0
+        pairs.append(
+            (
+                ref,
+                _classification(
+                    ref,
+                    type=exp["type"],
+                    runs_in=exp["runs_in"],
+                    blast_radius=blast,
+                ),
+            )
+        )
+    results = await investigate(
+        pairs, client=_scripted_client(), ctx=_ctx(tmp_path)
+    )
+    hosts = {item.host_or_bucket for item in results}
+    assert "cdn-assets-trustmap-7f3k2.com" in hosts
+    assert "trustmap-demo-gone-a3f91c2e" in hosts
+    gone = next(item for item in results if "gone" in item.host_or_bucket)
+    domain = next(
+        item for item in results if item.host_or_bucket == "cdn-assets-trustmap-7f3k2.com"
+    )
+    assert gone.evidence["bucket_probe"]["status"] == "NoSuchBucket"
+    assert domain.evidence["dns"]["status"] == "nxdomain"
+    assert domain.evidence["rdap"]["status"] == "unregistered"
+    assert all(item.status == "done" for item in results)
+
+
+@pytest.mark.asyncio
+async def test_skips_filtered_and_low_blast(tmp_path):
+    ref = Reference(
+        file="a.py",
+        line=1,
+        raw="https://cdn-assets-trustmap-7f3k2.com/x",
+        host_or_bucket="cdn-assets-trustmap-7f3k2.com",
+        filter_reason="reserved_domain",
+    )
+    low = Reference(
+        file="b.py",
+        line=1,
+        raw="https://cdn-assets-trustmap-7f3k2.com/y",
+        host_or_bucket="cdn-assets-trustmap-7f3k2.com",
+    )
+    results = await investigate(
+        [
+            (ref, _classification(ref, blast_radius=3)),
+            (low, _classification(low, blast_radius=0)),
+        ],
+        client=_scripted_client(),
+        ctx=_ctx(tmp_path),
+    )
+    assert results == []
+
+
+@pytest.mark.asyncio
+async def test_concurrency_caps_at_four(tmp_path):
+    inflight = 0
+    max_seen = 0
+    gate = asyncio.Lock()
+
+    async def fake_dns(host, cache=None, **kwargs):
+        nonlocal inflight, max_seen
+        async with gate:
+            inflight += 1
+            max_seen = max(max_seen, inflight)
+        await asyncio.sleep(0.05)
+        async with gate:
+            inflight -= 1
+        return DnsResult(host=host, status="resolves", addresses=["203.0.113.9"])
+
+    refs = [
+        Reference(
+            file=f"f{i}.py",
+            line=1,
+            raw=f"https://host{i}.example.net/x",
+            host_or_bucket=f"host{i}.example.net",
+            domain="example.net",
+        )
+        for i in range(8)
+    ]
+    pairs = [
+        (ref, _classification(ref, type="script", blast_radius=2)) for ref in refs
+    ]
+    client = FakeModelClient(
+        tool_handler=lambda request: {
+            "name": "done",
+            "arguments": {"summary": "ok"},
+        }
+    )
+    await investigate(
+        pairs,
+        client=client,
+        ctx=_ctx(tmp_path, dns=fake_dns),
+        max_concurrent=4,
+        cost_cap=10.0,
+    )
+    assert max_seen <= 4
+    assert max_seen >= 2
+
+
+@pytest.mark.asyncio
+async def test_cost_cap_finishes_inflight_and_skips_rest(tmp_path):
+    usage = {"input_tokens": 320_000, "output_tokens": 0}
+    client = FakeModelClient(
+        tool_handler=lambda request: {
+            "name": "done",
+            "arguments": {"summary": "ok"},
+            "usage": usage,
+        }
+    )
+    refs = [
+        Reference(
+            file=f"f{i}.py",
+            line=1,
+            raw="https://cdn-assets-trustmap-7f3k2.com/x",
+            host_or_bucket=f"host{i}.example.net",
+            domain="example.net",
+        )
+        for i in range(3)
+    ]
+    pairs = [(ref, _classification(ref, blast_radius=2)) for ref in refs]
+    results = await investigate(
+        pairs,
+        client=client,
+        ctx=_ctx(tmp_path),
+        max_concurrent=1,
+        cost_cap=0.5,
+    )
+    statuses = [item.status for item in results]
+    assert statuses.count("done") == 2
+    assert statuses.count("budget") == 1
+    assert results[-1].summary == BUDGET_NOTE
+
+
+@pytest.mark.asyncio
+async def test_trace_is_plan_act_observe(tmp_path):
+    ref = Reference(
+        file="index.html",
+        line=7,
+        raw="https://cdn-assets-trustmap-7f3k2.com/lib.js",
+        host_or_bucket="cdn-assets-trustmap-7f3k2.com",
+        domain="cdn-assets-trustmap-7f3k2.com",
+    )
+    results = await investigate(
+        [(ref, _classification(ref, type="script"))],
+        client=_scripted_client(),
+        ctx=_ctx(tmp_path),
+    )
+    kinds = [event.kind for event in results[0].trace]
+    assert kinds[:3] == ["plan", "act", "observe"]
+    assert "rdap" in {event.tool for event in results[0].trace}
+    assert kinds[-3:] == ["plan", "act", "observe"]
+    assert results[0].trace[-1].tool == "done"

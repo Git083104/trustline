@@ -38,6 +38,16 @@ class ModelClient(Protocol):
         reasoning_effort: str,
     ) -> "RawCompletion": ...
 
+    def complete_turn(
+        self,
+        *,
+        model: str,
+        system: str,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
+        reasoning_effort: str,
+    ) -> "ToolTurn": ...
+
 
 @dataclass
 class RawCompletion:
@@ -45,11 +55,25 @@ class RawCompletion:
     usage: dict[str, Any] = field(default_factory=dict)
 
 
+@dataclass
+class ToolTurn:
+    name: str
+    arguments: dict[str, Any]
+    usage: dict[str, Any] = field(
+        default_factory=lambda: {"input_tokens": 10, "output_tokens": 5}
+    )
+
+
 class FakeModelClient:
     """Offline stand-in. Never calls the Meta API."""
 
-    def __init__(self, handler: Callable[..., Any]):
+    def __init__(
+        self,
+        handler: Callable[..., Any] | None = None,
+        tool_handler: Callable[..., Any] | None = None,
+    ):
         self.handler = handler
+        self.tool_handler = tool_handler
         self.calls: list[dict[str, Any]] = []
 
     def complete_json(
@@ -81,6 +105,35 @@ class FakeModelClient:
         return RawCompletion(
             text=json.dumps(payload),
             usage={"input_tokens": 10, "output_tokens": 5},
+        )
+
+    def complete_turn(
+        self,
+        *,
+        model: str,
+        system: str,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
+        reasoning_effort: str,
+    ) -> ToolTurn:
+        request = {
+            "model": model,
+            "system": system,
+            "messages": messages,
+            "tools": tools,
+            "reasoning_effort": reasoning_effort,
+        }
+        self.calls.append(request)
+        if self.tool_handler is None:
+            raise RuntimeError("FakeModelClient has no tool_handler")
+        payload = self.tool_handler(request)
+        if isinstance(payload, ToolTurn):
+            return payload
+        return ToolTurn(
+            name=payload["name"],
+            arguments=dict(payload.get("arguments") or {}),
+            usage=payload.get("usage")
+            or {"input_tokens": 10, "output_tokens": 5},
         )
 
 
@@ -121,6 +174,30 @@ class LiveModelClient:
         )
         text = response.choices[0].message.content or ""
         return RawCompletion(text=text, usage=_usage_dict(response))
+
+    def complete_turn(
+        self,
+        *,
+        model: str,
+        system: str,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
+        reasoning_effort: str,
+    ) -> ToolTurn:
+        response = self._client.chat.completions.create(
+            model=model,
+            messages=[{"role": "system", "content": system}, *messages],
+            tools=tools,
+            reasoning_effort=reasoning_effort,
+            tool_choice="required",
+        )
+        usage = _usage_dict(response)
+        calls = response.choices[0].message.tool_calls or []
+        if not calls:
+            raise ValueError("model did not pick a tool")
+        call = calls[0]
+        args = json.loads(call.function.arguments or "{}")
+        return ToolTurn(name=call.function.name, arguments=args, usage=usage)
 
 
 def redact_secrets(text: str) -> str:

@@ -91,3 +91,24 @@ class CallLog(BaseModel):
     cost_usd: float = 0
     cached: bool = False
     api_usage: dict[str, Any] | None = None
+
+
+class TraceEvent(BaseModel):
+    kind: Literal["plan", "act", "observe"]
+    tool: str | None = None
+    arguments: dict[str, Any] = Field(default_factory=dict)
+    result: Any = None
+    tokens: int = 0
+    cost_usd: float = 0
+    note: str = ""
+
+
+class Investigation(BaseModel):
+    file: str
+    line: int
+    host_or_bucket: str
+    status: Literal["done", "budget"]
+    summary: str = ""
+    evidence: dict[str, Any] = Field(default_factory=dict)
+    trace: list[TraceEvent] = Field(default_factory=list)
+    cost_usd: float = 0

@@ -83,6 +83,9 @@ AGENT_REASONING_EFFORT = "low"
 RANK_REASONING_EFFORT = "medium"
 LLM_MAX_RETRIES = 2
 CLASSIFY_BATCH_SIZE = 20
+MAX_AGENT_TOOL_CALLS = 6
+MAX_INVESTIGATION_CONCURRENCY = 4
+SCAN_COST_CAP_USD = 1.00
 # USD per million tokens
 MODEL_PRICES: dict[str, dict[str, float]] = {
     "muse-spark-1.3": {"input": 1.25, "output": 4.25},
