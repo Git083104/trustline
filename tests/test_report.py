@@ -14,7 +14,9 @@ from scanner.models import (
 )
 from scanner.report import (
     CLAIMABLE_FIX,
+    NO_ACTION_FIX,
     apply_floor,
+    evidence_line,
     finding_payload,
     floor_severity,
     format_table,
@@ -22,6 +24,7 @@ from scanner.report import (
     missing_claims,
     rank,
     scan,
+    usable_evidence,
 )
 from scanner.tools import ToolContext
 from tests.test_agent import _ctx, _scripted_client
@@ -58,7 +61,10 @@ def _inv(ref: Reference, evidence: dict, **kwargs) -> Investigation:
 def _rank_ok(**kwargs) -> dict:
     return {
         "severity": kwargs.get("severity", "medium"),
-        "risk": kwargs.get("risk", "bucket_probe status NoSuchBucket http 404"),
+        "risk": kwargs.get(
+            "risk",
+            "A stranger could create this missing bucket and serve files to deploy/infra.yaml:3.",
+        ),
         "fix": kwargs.get("fix", "re-register what you abandoned"),
         "uncertain_about": "",
         "blast_radius": kwargs.get("blast_radius", 3),
@@ -85,6 +91,48 @@ def test_group_by_target_merges_two_bucket_refs():
     assert len(groups) == 1
     assert groups[0]["target"] == gone
     assert len(groups[0]["rows"]) == 2
+
+
+def test_unavailable_lookup_is_unknown_not_evidence(tmp_path):
+    gone = "missing"
+    ref = Reference(
+        file="deploy/infra.yaml",
+        line=3,
+        raw=f"s3://{gone}",
+        host_or_bucket=gone,
+    )
+    evidence = {
+        "bucket_probe": {"status": "NoSuchBucket", "http_status": 404, "provider": "s3"},
+        "wayback": {"status": "unavailable", "url": "https://example"},
+    }
+    usable = usable_evidence(evidence)
+    assert "wayback" not in usable
+    assert usable["bucket_probe"]["status"] == "NoSuchBucket"
+    group = group_by_target([(ref, _cl(ref), _inv(ref, evidence))])[0]
+    payload = finding_payload(group)
+    assert "wayback" not in payload["evidence"]
+    line = evidence_line(group)
+    assert "unavailable" not in line.lower()
+    assert "wayback" not in line.lower()
+    assert "does not exist" in line
+    users: list[str] = []
+
+    def handler(request):
+        users.append(request["user"])
+        if "unknown lookups cited" in request["user"]:
+            return _rank_ok()
+        return _rank_ok(
+            risk="The archive is unavailable so this bucket was abandoned."
+        )
+
+    findings = rank(
+        [(ref, _cl(ref), _inv(ref, evidence))],
+        client=FakeModelClient(handler),
+        cache=LookupCache(tmp_path / "c.db"),
+    )
+    assert any("unknown lookups cited" in user for user in users)
+    assert findings[0].needs_review is False
+    assert "unavailable" not in findings[0].risk.lower()
 
 
 def test_missing_claims_requires_evidence_tokens():
@@ -225,6 +273,39 @@ def test_rank_overrides_blast_and_applies_floor(tmp_path):
     table = format_table(findings)
     assert "model=low" in table
     assert "final=critical" in table
+    assert "override:" in table
+    assert "Evidence:" in table
+
+
+def test_no_override_line_when_blast_unchanged(tmp_path):
+    ref = Reference(
+        file="deploy/infra.yaml",
+        line=4,
+        raw="s3://live",
+        host_or_bucket="live",
+    )
+    client = FakeModelClient(
+        handler=lambda request: _rank_ok(
+            severity="info",
+            risk="Nobody else can take this bucket; it already exists at deploy/infra.yaml:4.",
+            blast_radius=2,
+            override="should not print because blast did not change",
+        )
+    )
+    findings = rank(
+        [
+            (
+                ref,
+                _cl(ref, blast_radius=2),
+                _inv(ref, {"bucket_probe": {"status": "exists", "http_status": 403}}),
+            )
+        ],
+        client=client,
+        cache=LookupCache(tmp_path / "c.db"),
+    )
+    assert findings[0].blast_override_reason == ""
+    assert findings[0].fix == NO_ACTION_FIX
+    assert "override:" not in format_table(findings)
 
 
 def test_self_check_retries_then_needs_review(tmp_path):
@@ -279,23 +360,23 @@ def _fixture_handler():
             if "NoSuchBucket" in blob:
                 return _rank_ok(
                     severity="critical",
-                    risk="NoSuchBucket 404",
+                    risk="A stranger could create this missing bucket and serve files to deploy/infra.yaml.",
                     blast_radius=3,
                     override="claimable now",
                 )
             if "unregistered" in blob:
                 return _rank_ok(
                     severity="critical",
-                    risk="NXDOMAIN unregistered",
+                    risk="A stranger could register this domain and run script from index.html:7 in the browser.",
                     blast_radius=3,
                     override="claimable now",
                 )
             return {
-                "severity": "low",
-                "risk": "bucket_probe status exists http 403",
-                "fix": "remove dead reference",
+                "severity": "info",
+                "risk": "Nobody else can take this bucket; it already exists at deploy/infra.yaml.",
+                "fix": "self-host the asset",
                 "uncertain_about": "",
-                "blast_radius": 1,
+                "blast_radius": 2,
                 "blast_override_reason": "",
             }
         payload = json.loads(request["user"].split("\n", 1)[1])
@@ -357,7 +438,7 @@ async def test_fixture_scan_groups_and_ranks_claimable_first(tmp_path):
     assert gone_hit.references == ["deploy/infra.yaml:3", "deploy/infra.yaml:5"]
     live_hit = next(item for item in findings if item.target == live)
     assert live_hit.severity in {"low", "info"}
-    assert live_hit.fix != CLAIMABLE_FIX
+    assert live_hit.fix == NO_ACTION_FIX
     table = format_table(findings)
     assert gone in table
     assert "critical" in table

@@ -150,4 +150,5 @@ class Finding(BaseModel):
     floor_applied: str = ""
     floor_reason: str = ""
     evidence: dict[str, Any] = Field(default_factory=dict)
+    evidence_line: str = ""
     cost_usd: float = 0

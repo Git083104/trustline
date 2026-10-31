@@ -30,6 +30,18 @@ CLAIMABLE_FIX = (
     "Remove or replace this reference. If this was yours, re-create it in your own "
     "account to reclaim the name."
 )
+NO_ACTION_FIX = "No action needed"
+UNKNOWN_STATUSES = frozenset({"unavailable", "error", "timeout", "unknown"})
+BANNED_FIELD_NAMES = ("rdap", "runs_in", "blast_radius", "status")
+RUNS_IN_PHRASE = {
+    "browser": "in the browser",
+    "server": "on the server",
+    "build": "at build time",
+    "deploy": "in deploy",
+    "ci": "in CI",
+    "test": "in tests",
+    "docs_only": "in docs",
+}
 SEVERITY_ORDER: dict[str, int] = {
     "critical": 0,
     "high": 1,
@@ -52,7 +64,6 @@ STATUS_PHRASES = (
     "accessdenied",
     "permanentredirect",
     "resolves",
-    "unavailable",
     "forbidden",
 )
 # If evidence has any token in a row, every token in that row is the same fact.
@@ -64,15 +75,19 @@ STATUS_MEANING = (
     frozenset({"exists", "403", "accessdenied", "forbidden"}),
     frozenset({"permanentredirect", "301"}),
     frozenset({"resolves"}),
-    frozenset({"unavailable"}),
 )
 
 RANK_SYSTEM_PROMPT = (
     "You rank takeover risk for one outside target (a bucket or a registrable domain). "
     "Use only the supplied classification and evidence. Do not invent dates, DNS results, "
-    "HTTP statuses, or counts. risk is what a stranger could do from this position. "
-    "You may raise or lower blast_radius versus classify when evidence shows the reference "
-    "matters more or less; if you change it, set blast_override_reason. "
+    "HTTP statuses, or counts. "
+    "risk is 1-2 plain-English sentences for a developer: what a stranger could do and "
+    "where it lands in the repo. Do not use field names such as rdap, runs_in, "
+    "blast_radius, or status. "
+    "A lookup whose status is unavailable or error is unknown: never treat it as "
+    "evidence for or against risk. "
+    "You may raise or lower blast_radius versus classify when evidence shows the "
+    "reference matters more or less; if you change it, set blast_override_reason. "
     "fix must be one of the allowed values."
 )
 
@@ -164,8 +179,19 @@ def finding_payload(group: dict[str, Any]) -> dict[str, Any]:
             }
             for ref, cl, _ in rows
         ],
-        "evidence": group["evidence"],
+        "evidence": usable_evidence(group["evidence"]),
     }
+
+
+def usable_evidence(evidence: dict[str, Any]) -> dict[str, Any]:
+    usable: dict[str, Any] = {}
+    for name, value in evidence.items():
+        if isinstance(value, dict):
+            status = str(value.get("status", "")).lower()
+            if status in UNKNOWN_STATUSES:
+                continue
+        usable[name] = value
+    return usable
 
 
 def claims_from_risk(risk: str) -> list[str]:
@@ -190,13 +216,35 @@ def _meaning_allowed(claim: str, blob: str) -> bool:
 
 
 def missing_claims(risk: str, allowed: dict[str, Any] | None = None, evidence: dict[str, Any] | None = None) -> list[str]:
-    payload = allowed if allowed is not None else {"evidence": evidence or {}}
+    payload = allowed if allowed is not None else {"evidence": usable_evidence(evidence or {})}
     blob = json.dumps(payload, default=str).casefold()
     missing = []
     for claim in claims_from_risk(risk):
         if not _meaning_allowed(claim, blob):
             missing.append(claim)
     return missing
+
+
+def banned_fields(risk: str) -> list[str]:
+    found = []
+    for name in BANNED_FIELD_NAMES:
+        if re.search(rf"\b{re.escape(name)}\b", risk, re.IGNORECASE):
+            found.append(name)
+    return found
+
+
+def cited_unknown(risk: str, evidence: dict[str, Any]) -> list[str]:
+    folded = risk.casefold()
+    hits: list[str] = []
+    for name, value in evidence.items():
+        if not isinstance(value, dict):
+            continue
+        status = str(value.get("status", "")).lower()
+        if status not in UNKNOWN_STATUSES:
+            continue
+        if name.casefold() in folded or status in folded:
+            hits.append(name)
+    return hits
 
 
 def executing_runs_in(rows: list[tuple[Reference, Classification, Investigation]]) -> bool:
@@ -209,10 +257,72 @@ def is_claimable(evidence: dict[str, Any]) -> bool:
     return bucket.get("status") == "NoSuchBucket" or str(rdap.get("status", "")).lower() == "unregistered"
 
 
-def choose_fix(evidence: dict[str, Any], model_fix: str) -> str:
+def has_risk_signal(evidence: dict[str, Any]) -> bool:
+    usable = usable_evidence(evidence)
+    if is_claimable(usable):
+        return True
+    dns = usable.get("dns") or {}
+    rdap = usable.get("rdap") or {}
+    if str(dns.get("status", "")).lower() == "nxdomain":
+        return True
+    days = rdap.get("days_to_expiry")
+    return isinstance(days, int) and days <= EXPIRY_INVESTIGATE_DAYS
+
+
+def choose_fix(evidence: dict[str, Any], model_fix: str, final_severity: Severity) -> str:
     if is_claimable(evidence):
         return CLAIMABLE_FIX
+    if final_severity == "info" or not has_risk_signal(evidence):
+        return NO_ACTION_FIX
     return model_fix
+
+
+def evidence_line(group: dict[str, Any]) -> str:
+    usable = usable_evidence(group.get("evidence") or {})
+    parts: list[str] = []
+    dns = usable.get("dns") or {}
+    dns_status = str(dns.get("status", "")).lower()
+    if dns_status == "nxdomain":
+        parts.append("DNS does not resolve")
+    elif dns_status == "resolves":
+        parts.append("DNS resolves")
+    rdap = usable.get("rdap") or {}
+    rdap_status = str(rdap.get("status", "")).lower()
+    if rdap_status == "unregistered":
+        parts.append("domain not registered")
+    elif rdap_status == "registered":
+        parts.append("domain is registered")
+        days = rdap.get("days_to_expiry")
+        if isinstance(days, int) and days <= EXPIRY_INVESTIGATE_DAYS:
+            parts.append(f"expires in {days} days")
+    bucket = usable.get("bucket_probe") or {}
+    bucket_status = str(bucket.get("status", ""))
+    provider = str(bucket.get("provider") or "")
+    label = "GCS bucket" if provider == "gcs" else "S3 bucket" if provider == "s3" else "bucket"
+    if bucket_status == "NoSuchBucket":
+        parts.append(f"{label} does not exist")
+    elif bucket_status.lower() == "exists":
+        parts.append(f"{label} exists")
+    certs = usable.get("cert_history") or {}
+    if str(certs.get("status", "")).lower() == "ok":
+        issuers = certs.get("issuers") or []
+        if issuers:
+            parts.append("certificates found")
+        else:
+            parts.append("no certificates found")
+    by_run: dict[str, list[str]] = {}
+    for ref, cl, _inv in group.get("rows") or []:
+        by_run.setdefault(cl.runs_in, []).append(f"{ref.file}:{ref.line}")
+    for runs_in, locs in by_run.items():
+        place = RUNS_IN_PHRASE.get(runs_in, runs_in)
+        joined = " and ".join(locs)
+        if runs_in == "browser":
+            parts.append(f"loaded by {joined} {place}")
+        elif runs_in == "deploy":
+            parts.append(f"named in {joined} {place}")
+        else:
+            parts.append(f"referenced at {joined} {place}")
+    return "Evidence: " + " · ".join(parts)
 
 
 def floor_severity(group: dict[str, Any]) -> str | None:
@@ -303,13 +413,17 @@ def _rank_group(
 
     def check(parsed: RankModelOut) -> None:
         missing = missing_claims(parsed.risk, payload)
-        missing.extend(
-            token
-            for token in missing_claims(parsed.fix, payload)
-            if token not in missing
-        )
+        banned = banned_fields(parsed.risk)
+        unknown = cited_unknown(parsed.risk, group["evidence"])
+        problems = []
         if missing:
-            raise ValueError(f"claims not in evidence: {missing}")
+            problems.append(f"claims not in evidence: {missing}")
+        if banned:
+            problems.append(f"banned field names: {banned}")
+        if unknown:
+            problems.append(f"unknown lookups cited: {unknown}")
+        if problems:
+            raise ValueError("; ".join(problems))
 
     for attempt in range(LLM_MAX_RETRIES + 1):
         try:
@@ -382,9 +496,12 @@ def _finding_from_rank(
     else:
         model_severity = parsed.severity
         ranked_blast = parsed.blast_radius
-        override = parsed.blast_override_reason
-        if parsed.blast_radius != classified_blast and not override:
-            override = "ranker changed blast_radius versus classify"
+        if parsed.blast_radius != classified_blast:
+            override = parsed.blast_override_reason or (
+                "ranker changed blast_radius versus classify"
+            )
+        else:
+            override = ""
         risk = parsed.risk
         model_fix = parsed.fix
         uncertain = parsed.uncertain_about
@@ -401,12 +518,13 @@ def _finding_from_rank(
         ranked_blast_radius=ranked_blast,
         blast_override_reason=override,
         risk=risk,
-        fix=choose_fix(evidence, model_fix),
+        fix=choose_fix(evidence, model_fix, final),
         uncertain_about=uncertain,
         needs_review=needs_review,
         floor_applied=raised,
         floor_reason=floor_reason,
         evidence=evidence,
+        evidence_line=evidence_line(group),
         cost_usd=cost_total,
     )
 
@@ -527,4 +645,6 @@ def format_table(findings: list[Finding]) -> str:
         if item.needs_review:
             lines.append("         needs_review")
         lines.append(f"         {item.risk}")
+        if item.evidence_line:
+            lines.append(f"         {item.evidence_line}")
     return "\n".join(lines)
