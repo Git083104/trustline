@@ -11,7 +11,7 @@ from typing import Any, Callable, TextIO
 from scanner.agent import has_hard_signal, precheck
 from scanner.config import EVAL_SAMPLE_SEED, EVAL_TARGET_CAP
 from scanner.extract import GITHUB_RE, extract, _clone_github
-from scanner.lookups import LookupCache
+from scanner.lookups import LookupCache, consistent_evidence
 from scanner.models import Classification, Investigation, Reference
 from scanner.report import evidence_line
 from scanner.tools import ToolContext
@@ -147,6 +147,7 @@ async def gather_groups(
             order.append(key)
         grouped[key]["rows"].append((ref, cl, inv))
         grouped[key]["evidence"].update(evidence)
+        grouped[key]["evidence"] = consistent_evidence(grouped[key]["evidence"])
     return [grouped[key] for key in order]
 
 

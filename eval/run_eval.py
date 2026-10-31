@@ -8,7 +8,7 @@ from pathlib import Path
 
 from scanner.config import EVAL_SCAN_COST_CAP_USD, EXPIRY_INVESTIGATE_DAYS
 from scanner.llm import LiveModelClient
-from scanner.lookups import LookupCache
+from scanner.lookups import LookupCache, consistent_evidence
 from scanner.report import ScanOutcome, is_claimable, run_scan
 from scanner.tools import ToolContext
 
@@ -41,6 +41,7 @@ def load_labels(path: Path) -> list[dict]:
 
 
 def baseline_severity(evidence: dict) -> str:
+    evidence = consistent_evidence(evidence)
     if is_claimable(evidence):
         return "critical"
     dns = evidence.get("dns") or {}

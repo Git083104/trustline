@@ -139,7 +139,8 @@ and expected `type` and `runs_in`. Demo S3 bucket names come from env
 
 `scanner/lookups.py`, all async with timeouts and SQLite cache, each returning a Pydantic model:
 - `rdap(domain)`: status, registrar, expiry date, days_to_expiry (computed in code). Use the IANA
-  bootstrap file to find the right RDAP server; fall back to rdap.org.
+  bootstrap file to find the TLD's RDAP server. Only a 404 from that server is unregistered;
+  missing TLD RDAP or rdap.org-only answers are unknown. DNS that resolves is never unregistered.
 - `dns(host)`: resolves / NXDOMAIN / other error, plus CNAME chain.
 - `bucket_probe(name, provider)`: exists / NoSuchBucket (claimable) / access denied, from a plain
   HTTP GET. Never PUT or create.

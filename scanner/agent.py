@@ -14,6 +14,7 @@ from scanner.config import (
 )
 from scanner.llm import CallLog, ModelClient, ToolTurn, cost_usd
 from scanner.llm import _tokens
+from scanner.lookups import consistent_evidence
 from scanner.models import (
     Classification,
     Investigation,
@@ -40,6 +41,7 @@ def _bucket_provider(raw: str) -> str:
 
 
 def has_hard_signal(evidence: dict[str, Any]) -> bool:
+    evidence = consistent_evidence(evidence)
     bucket = evidence.get("bucket_probe") or {}
     if bucket.get("status") == "NoSuchBucket":
         return True
@@ -73,7 +75,7 @@ async def precheck(
     domain = ref.domain or ""
     if domain:
         evidence["rdap"] = await run_tool("rdap", {"domain": domain}, ctx)
-    return evidence
+    return consistent_evidence(evidence)
 
 
 def should_investigate(ref: Reference, cl: Classification, evidence: dict[str, Any]) -> bool:
@@ -194,6 +196,7 @@ async def investigate_one(
             refused = True
         if turn.name != "done" and not refused:
             evidence[turn.name] = result
+            evidence = consistent_evidence(evidence)
         observe = "refused" if refused else "ok"
         trace.append(
             TraceEvent(

@@ -4,16 +4,20 @@ import dns.resolver as dns_resolver
 import httpx
 import pytest
 
+from scanner.agent import has_hard_signal
 from scanner.lookups import (
     LookupCache,
     bucket_probe,
     cert_history,
+    consistent_evidence,
     dns,
     rdap,
     wayback,
 )
+from eval.run_eval import baseline_severity
+from scanner.report import evidence_line, is_claimable
 
-BOOTSTRAP = {"services": [[["com"], ["https://rdap.test/com/"]]]}
+BOOTSTRAP = {"services": [[["com"], ["https://rdap.verisign.com/com/v1/"]]]}
 
 
 def _rdap_transport() -> httpx.MockTransport:
@@ -22,7 +26,9 @@ def _rdap_transport() -> httpx.MockTransport:
         url = str(request.url)
         if "data.iana.org/rdap/dns.json" in url:
             return httpx.Response(200, json=BOOTSTRAP)
-        if url.endswith("/domain/gone.com"):
+        if url.endswith("/domain/gone.com") or url.endswith(
+            "/domain/cdn-assets-trustmap-7f3k2.com"
+        ):
             return httpx.Response(404)
         if url.endswith("/domain/live.com"):
             return httpx.Response(
@@ -46,6 +52,8 @@ def _rdap_transport() -> httpx.MockTransport:
                     ],
                 },
             )
+        if "rdap.org" in url:
+            return httpx.Response(404)
         return httpx.Response(500, text="unexpected " + url)
 
     return httpx.MockTransport(handler)
@@ -63,6 +71,78 @@ async def test_rdap_404_is_unregistered(tmp_path):
     assert live.expiry == date(2099, 1, 1)
     assert live.days_to_expiry is not None
     assert live.days_to_expiry > 0
+
+
+@pytest.mark.asyncio
+async def test_rdap_ro_without_service_is_unknown(tmp_path):
+    cache = LookupCache(tmp_path / "c.db")
+    seen: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        url = str(request.url)
+        seen.append(url)
+        if "data.iana.org/rdap/dns.json" in url:
+            return httpx.Response(200, json=BOOTSTRAP)
+        if "rdap.org" in url:
+            return httpx.Response(404)
+        return httpx.Response(500, text="unexpected " + url)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        result = await rdap("ionelmc.ro", client=client, cache=cache)
+    assert result.status == "unknown"
+    assert not any("rdap.org" in url for url in seen)
+
+
+@pytest.mark.asyncio
+async def test_rdap_verisign_com_404_is_unregistered(tmp_path):
+    cache = LookupCache(tmp_path / "c.db")
+    seen: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        url = str(request.url)
+        seen.append(url)
+        if "data.iana.org/rdap/dns.json" in url:
+            return httpx.Response(200, json=BOOTSTRAP)
+        if "rdap.verisign.com/com/v1/domain/cdn-assets-trustmap-7f3k2.com" in url:
+            return httpx.Response(404)
+        if "rdap.org" in url:
+            return httpx.Response(404)
+        return httpx.Response(500, text="unexpected " + url)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        result = await rdap(
+            "cdn-assets-trustmap-7f3k2.com", client=client, cache=cache
+        )
+    assert result.status == "unregistered"
+    assert any("rdap.verisign.com" in url for url in seen)
+    assert not any("rdap.org" in url for url in seen)
+
+
+def test_dns_resolves_and_rdap_404_is_not_unregistered(caplog):
+    caplog.set_level("WARNING", logger="trustmap")
+    evidence = consistent_evidence(
+        {
+            "dns": {"status": "resolves", "host": "ionelmc.ro"},
+            "rdap": {"status": "unregistered", "domain": "ionelmc.ro"},
+        }
+    )
+    assert evidence["rdap"]["status"] == "unknown"
+    assert not has_hard_signal(evidence)
+    assert not is_claimable(evidence)
+    assert baseline_severity(evidence) == "low"
+    line = evidence_line(
+        {
+            "target": "ionelmc.ro",
+            "rows": [],
+            "evidence": {
+                "dns": {"status": "resolves", "host": "ionelmc.ro"},
+                "rdap": {"status": "unregistered", "domain": "ionelmc.ro"},
+            },
+        }
+    )
+    assert "not registered" not in line
+    assert "DNS resolves" in line
+    assert "contradicts DNS resolves" in caplog.text
 
 
 @pytest.mark.asyncio

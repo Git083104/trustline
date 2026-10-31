@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import sqlite3
 import time
@@ -31,7 +32,9 @@ from scanner.models import (
 )
 
 S3_NOSUCH = "NoSuchBucket"
+BOOTSTRAP_CACHE_KEY = "rdap-bootstrap"
 DnsQuery = Callable  # async (name, rdtype) -> list[str], raises NXDOMAIN
+log = logging.getLogger("trustmap")
 
 
 class LookupCache:
@@ -92,13 +95,37 @@ def _client(timeout: float = HTTP_TIMEOUT_S) -> httpx.AsyncClient:
     return httpx.AsyncClient(timeout=timeout, follow_redirects=True)
 
 
+def consistent_evidence(evidence: dict[str, Any]) -> dict[str, Any]:
+    """DNS that resolves means the domain is registered; never keep RDAP unregistered."""
+    out = dict(evidence)
+    rdap = out.get("rdap")
+    dns = out.get("dns") or {}
+    if not isinstance(rdap, dict):
+        return out
+    rdap = dict(rdap)
+    if (
+        str(rdap.get("status", "")).lower() == "unregistered"
+        and str(dns.get("status", "")).lower() == "resolves"
+    ):
+        name = rdap.get("domain") or dns.get("host")
+        log.warning(
+            "RDAP unregistered contradicts DNS resolves for %s; treating RDAP as unknown",
+            name,
+        )
+        rdap["status"] = "unknown"
+        out["rdap"] = rdap
+    elif rdap:
+        out["rdap"] = rdap
+    return out
+
+
 async def rdap(
     domain: str,
     *,
     client: httpx.AsyncClient | None = None,
     cache: LookupCache | None = None,
 ) -> RdapResult:
-    """Look up a registrable domain. HTTP 404 means unregistered."""
+    """Look up a registrable domain via the TLD's IANA-bootstrap RDAP server."""
     cache = cache or default_cache()
     key = f"rdap:{domain.lower()}"
     hit = cache.get_json(key)
@@ -108,7 +135,7 @@ async def rdap(
     own_client = client is None
     client = client or _client()
     try:
-        result = await _rdap_fetch(domain.lower(), client)
+        result = await _rdap_fetch(domain.lower(), client, cache)
     finally:
         if own_client:
             await client.aclose()
@@ -116,36 +143,72 @@ async def rdap(
     return result
 
 
-async def _rdap_fetch(domain: str, client: httpx.AsyncClient) -> RdapResult:
-    try:
-        base = await _rdap_base_for(domain, client)
-        url = urljoin(base if base.endswith("/") else base + "/", f"domain/{domain}")
-        response = await client.get(url)
-    except httpx.HTTPError:
-        return RdapResult(domain=domain, status="unavailable")
-    if response.status_code == 404:
-        return RdapResult(domain=domain, status="unregistered")
-    if response.status_code >= 400:
-        return RdapResult(domain=domain, status="unavailable")
-    try:
-        payload = response.json()
-    except ValueError:
-        return RdapResult(domain=domain, status="unavailable")
-    return _parse_rdap(domain, payload)
+def _rdap_url(base: str, domain: str) -> str:
+    root = base if base.endswith("/") else base + "/"
+    return urljoin(root, f"domain/{domain}")
 
 
-async def _rdap_base_for(domain: str, client: httpx.AsyncClient) -> str:
+def _is_rdap_fallback(url: str) -> bool:
+    return url.rstrip("/").lower().startswith(RDAP_FALLBACK_BASE.rstrip("/").lower())
+
+
+async def _rdap_fetch(
+    domain: str, client: httpx.AsyncClient, cache: LookupCache
+) -> RdapResult:
+    bootstrap = await _rdap_bootstrap(client, cache)
+    if bootstrap is None:
+        return RdapResult(domain=domain, status="unknown")
+    bases = [
+        base for base in _rdap_bases_for(domain, bootstrap) if not _is_rdap_fallback(base)
+    ]
+    if not bases:
+        return RdapResult(domain=domain, status="unknown")
+    last_status = "unavailable"
+    for base in bases:
+        url = _rdap_url(base, domain)
+        try:
+            response = await client.get(url)
+        except httpx.HTTPError:
+            last_status = "unavailable"
+            continue
+        if response.status_code == 404:
+            return RdapResult(domain=domain, status="unregistered")
+        if response.status_code >= 400:
+            last_status = "unavailable"
+            continue
+        try:
+            payload = response.json()
+        except ValueError:
+            last_status = "unavailable"
+            continue
+        return _parse_rdap(domain, payload)
+    return RdapResult(domain=domain, status=last_status)
+
+
+async def _rdap_bootstrap(
+    client: httpx.AsyncClient, cache: LookupCache
+) -> dict[str, Any] | None:
+    hit = cache.get_json(BOOTSTRAP_CACHE_KEY)
+    if isinstance(hit, dict):
+        return hit
     try:
         response = await client.get(RDAP_BOOTSTRAP_URL)
         response.raise_for_status()
         bootstrap = response.json()
-    except (httpx.HTTPError, ValueError):
-        return RDAP_FALLBACK_BASE
-    labels = domain.split(".")
-    best = ""
+    except (httpx.HTTPError, ValueError, TypeError):
+        return None
+    if not isinstance(bootstrap, dict):
+        return None
+    cache.set_json(BOOTSTRAP_CACHE_KEY, bootstrap)
+    return bootstrap
+
+
+def _rdap_bases_for(domain: str, bootstrap: dict[str, Any]) -> list[str]:
+    labels = domain.lower().split(".")
+    best: list[str] = []
     best_len = 0
     for service in bootstrap.get("services", []):
-        if len(service) < 2:
+        if not isinstance(service, list) or len(service) < 2:
             continue
         tlds, urls = service[0], service[1]
         if not urls:
@@ -153,10 +216,12 @@ async def _rdap_base_for(domain: str, client: httpx.AsyncClient) -> str:
         for tld in tlds:
             tld = str(tld).lower().lstrip(".")
             parts = tld.split(".")
-            if labels[-len(parts) :] == parts and len(parts) > best_len:
-                best = str(urls[0])
+            if labels[-len(parts) :] != parts:
+                continue
+            if len(parts) > best_len:
+                best = [str(url) for url in urls]
                 best_len = len(parts)
-    return best or RDAP_FALLBACK_BASE
+    return best
 
 
 def _parse_rdap(domain: str, payload: dict[str, Any]) -> RdapResult:

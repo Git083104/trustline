@@ -17,7 +17,7 @@ from scanner.config import (
 )
 from scanner.extract import extract
 from scanner.llm import CallLog, ModelClient, call_json
-from scanner.lookups import LookupCache
+from scanner.lookups import LookupCache, consistent_evidence
 from scanner.models import (
     Classification,
     Finding,
@@ -166,6 +166,7 @@ def group_by_target(
         groups[key]["rows"].append((ref, cl, inv))
         for name, value in inv.evidence.items():
             groups[key]["evidence"][name] = value
+        groups[key]["evidence"] = consistent_evidence(groups[key]["evidence"])
     return [groups[key] for key in order]
 
 
@@ -269,6 +270,7 @@ def executing_runs_in(rows: list[tuple[Reference, Classification, Investigation]
 
 
 def is_claimable(evidence: dict[str, Any]) -> bool:
+    evidence = consistent_evidence(evidence)
     bucket = evidence.get("bucket_probe") or {}
     rdap = evidence.get("rdap") or {}
     return bucket.get("status") == "NoSuchBucket" or str(rdap.get("status", "")).lower() == "unregistered"
@@ -295,7 +297,7 @@ def choose_fix(evidence: dict[str, Any], model_fix: str, final_severity: Severit
 
 
 def evidence_line(group: dict[str, Any], *, include_runs_in: bool = True) -> str:
-    usable = usable_evidence(group.get("evidence") or {})
+    usable = usable_evidence(consistent_evidence(group.get("evidence") or {}))
     parts: list[str] = []
     dns = usable.get("dns") or {}
     dns_status = str(dns.get("status", "")).lower()
@@ -355,7 +357,7 @@ def floor_severity(group: dict[str, Any]) -> str | None:
 def floor_decision(group: dict[str, Any]) -> tuple[str | None, str]:
     if not executing_runs_in(group["rows"]):
         return None, ""
-    evidence = group["evidence"]
+    evidence = consistent_evidence(group["evidence"])
     runs = sorted(
         {cl.runs_in for _, cl, _ in group["rows"] if cl.runs_in in EXECUTING}
     )
@@ -659,7 +661,7 @@ def hydrate_evidence(
     wayback = cache.get_json(f"wayback:{ref.raw}")
     if wayback:
         evidence["wayback"] = wayback
-    return evidence
+    return consistent_evidence(evidence)
 
 
 def rows_from_lookup_cache(
