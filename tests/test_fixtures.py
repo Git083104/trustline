@@ -41,3 +41,4 @@ def test_expected_json_is_valid_and_complete():
     assert "BUCKET_DEMO_CLAIMABLE" in joined
     assert "BUCKET_DEMO_LIVE" in joined
     assert any("invalid" in h for h in host_or_buckets)
+    assert any(h.endswith(".com") and "example.com" not in h for h in host_or_buckets)
