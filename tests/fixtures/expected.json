@@ -93,8 +93,8 @@
     {
       "file": "deploy/infra.yaml",
       "line": 3,
-      "raw": "s3://trustmap-demo-gone-a3f91c2e",
-      "host_or_bucket": "trustmap-demo-gone-a3f91c2e",
+      "raw": "s3://acme-legacy-uploads-a3f91c2e",
+      "host_or_bucket": "acme-legacy-uploads-a3f91c2e",
       "type": "bucket",
       "runs_in": "deploy",
       "filter_reason": null
@@ -102,8 +102,8 @@
     {
       "file": "deploy/infra.yaml",
       "line": 4,
-      "raw": "https://trustmap-demo-live-a3f91c2e.s3.amazonaws.com/public",
-      "host_or_bucket": "trustmap-demo-live-a3f91c2e",
+      "raw": "https://acme-static-assets-a3f91c2e.s3.amazonaws.com/public",
+      "host_or_bucket": "acme-static-assets-a3f91c2e",
       "type": "bucket",
       "runs_in": "deploy",
       "filter_reason": null
@@ -111,8 +111,8 @@
     {
       "file": "deploy/infra.yaml",
       "line": 5,
-      "raw": "https://s3.amazonaws.com/trustmap-demo-gone-a3f91c2e",
-      "host_or_bucket": "trustmap-demo-gone-a3f91c2e",
+      "raw": "https://s3.amazonaws.com/acme-legacy-uploads-a3f91c2e",
+      "host_or_bucket": "acme-legacy-uploads-a3f91c2e",
       "type": "bucket",
       "runs_in": "deploy",
       "filter_reason": null
@@ -120,8 +120,8 @@
     {
       "file": "deploy/infra.yaml",
       "line": 6,
-      "raw": "https://s3.us-east-2.amazonaws.com/trustmap-demo-live-a3f91c2e",
-      "host_or_bucket": "trustmap-demo-live-a3f91c2e",
+      "raw": "https://s3.us-east-2.amazonaws.com/acme-static-assets-a3f91c2e",
+      "host_or_bucket": "acme-static-assets-a3f91c2e",
       "type": "bucket",
       "runs_in": "deploy",
       "filter_reason": null
