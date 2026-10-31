@@ -23,8 +23,8 @@ FILTER_REASONS = {
     "reserved_domain",
     "allowlisted",
 }
-TYPES = {"script", "api", "asset", "config", "bucket", "ci", "docs", "test"}
-RUNS_IN = {"browser", "server", "build", "ci", "docs_only"}
+TYPES = {"script", "api", "asset", "bucket", "docs_link", "other"}
+RUNS_IN = {"browser", "server", "build", "deploy", "ci", "test", "docs_only"}
 
 
 def test_expected_json_is_valid_and_complete():

@@ -21,9 +21,26 @@ from scanner.models import (
 CLASSIFY_SYSTEM_PROMPT = (
     "You classify outside infrastructure references found in a software repo. "
     "Return JSON only. Use each provided id exactly once. "
-    "type must be one of: script, api, asset, config, bucket, ci, docs, test. "
-    "runs_in must be one of: browser, server, build, ci, docs_only. "
-    "blast_radius is 0-3. Do not invent hosts, dates, or counts."
+    "blast_radius is 0-3. Do not invent hosts, dates, or counts. "
+    "type is what the URL points to, not which file it sits in: "
+    "script = downloaded and executed (JS, shell, Python). Example: "
+    "<script src=\"https://cdn.example/app.js\"> or curl https://ci.example/tool.sh | sh; "
+    "api = HTTP API base or endpoint. Example: const API = \"https://api.example.com/v1\"; "
+    "asset = static file that is not executed (css, image, font). Example: "
+    "<link href=\"https://cdn.example/app.css\">; "
+    "bucket = object-storage name. Example: s3://my-bucket; "
+    "docs_link = documentation, status, or handbook URL. Example: README link to "
+    "https://docs.example/setup; "
+    "other = anything else. Example: an unknown binary download URL. "
+    "runs_in is when/where it is used: "
+    "browser = loaded in the user's browser. Example: script src in HTML; "
+    "server = used by backend at runtime. Example: BILLING_URL in settings.py; "
+    "build = used while building an image or package. Example: ADD https://.../get-pip.py "
+    "in a Dockerfile; "
+    "deploy = named in deploy/infra config. Example: s3://bucket in infra.yaml; "
+    "ci = used in CI workflows. Example: curl of a script in .github/workflows; "
+    "test = used only in tests. Example: MOCK_HEALTH in tests/test_client.py; "
+    "docs_only = comments, README, or docs. Example: a handbook link in README.md."
 )
 
 _ITEM_SCHEMA = {
@@ -32,11 +49,11 @@ _ITEM_SCHEMA = {
         "id": {"type": "string"},
         "type": {
             "type": "string",
-            "enum": ["script", "api", "asset", "config", "bucket", "ci", "docs", "test"],
+            "enum": ["script", "api", "asset", "bucket", "docs_link", "other"],
         },
         "runs_in": {
             "type": "string",
-            "enum": ["browser", "server", "build", "ci", "docs_only"],
+            "enum": ["browser", "server", "build", "deploy", "ci", "test", "docs_only"],
         },
         "blast_radius": {"type": "integer", "minimum": 0, "maximum": 3},
         "confidence": {"type": "number", "minimum": 0, "maximum": 1},
@@ -148,4 +165,18 @@ def type_mismatch_table(
         got_type = found.type if found else "(missing)"
         if got_type != exp["type"]:
             rows.append((exp["file"], exp["line"], exp["type"], got_type))
+    return rows
+
+
+def runs_in_mismatch_table(
+    got: list[Classification], expected: list[dict]
+) -> list[tuple[str, int, str, str]]:
+    by_loc = {(row.file, row.line): row for row in got}
+    rows: list[tuple[str, int, str, str]] = []
+    for exp in expected:
+        key = (exp["file"], exp["line"])
+        found = by_loc.get(key)
+        got_runs = found.runs_in if found else "(missing)"
+        if got_runs != exp["runs_in"]:
+            rows.append((exp["file"], exp["line"], exp["runs_in"], got_runs))
     return rows

@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from scanner.classify import classify, type_mismatch_table
+from scanner.classify import classify, runs_in_mismatch_table, type_mismatch_table
 from scanner.extract import actionable, extract
 from scanner.llm import FakeModelClient, RawCompletion
 from scanner.lookups import LookupCache
@@ -61,6 +61,7 @@ def test_include_filtered_fixture_type_accuracy(tmp_path):
     )
     assert len(got) == len(expected)
     mismatches = type_mismatch_table(got, expected)
+    runs_m = runs_in_mismatch_table(got, expected)
     print("type mismatches:")
     if not mismatches:
         print("(none)")
@@ -68,6 +69,7 @@ def test_include_filtered_fixture_type_accuracy(tmp_path):
         print(f"  {file}:{line} expected={exp} got={actual}")
     matched = len(expected) - len(mismatches)
     assert matched / len(expected) >= 0.9
+    assert len(runs_m) == 0
     assert logs and logs[0].api_usage is not None
 
 

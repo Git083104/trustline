@@ -54,8 +54,8 @@ class WaybackResult(BaseModel):
     last_digest: str | None = None
 
 
-RefType = Literal["script", "api", "asset", "config", "bucket", "ci", "docs", "test"]
-RunsIn = Literal["browser", "server", "build", "ci", "docs_only"]
+RefType = Literal["script", "api", "asset", "bucket", "docs_link", "other"]
+RunsIn = Literal["browser", "server", "build", "deploy", "ci", "test", "docs_only"]
 
 
 class ClassificationItem(BaseModel):

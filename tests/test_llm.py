@@ -84,7 +84,7 @@ def test_cache_hit_skips_client_and_costs_zero(tmp_path):
             "items": [
                 {
                     "id": "0",
-                    "type": "docs",
+                    "type": "docs_link",
                     "runs_in": "docs_only",
                     "blast_radius": 0,
                     "confidence": 1,
