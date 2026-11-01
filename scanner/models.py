@@ -51,6 +51,19 @@ class PlatformTakeoverResult(BaseModel):
     http_status: int | None = None
 
 
+class LiveFetchResult(BaseModel):
+    url: str
+    final_url: str
+    status: str
+    http_status: int | None = None
+    redirect_chain: list[str] = Field(default_factory=list)
+    title: str = ""
+    parked: bool = False
+    for_sale: bool = False
+    signal: str | None = None
+    nameservers: list[str] = Field(default_factory=list)
+
+
 class GithubOwnerResult(BaseModel):
     owner: str
     status: str

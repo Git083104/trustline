@@ -368,7 +368,10 @@ def has_risk_signal(evidence: dict[str, Any]) -> bool:
     if str(platform.get("status", "")).lower() == "unclaimed":
         return True
     days = rdap.get("days_to_expiry")
-    return isinstance(days, int) and days <= EXPIRY_INVESTIGATE_DAYS
+    if isinstance(days, int) and days <= EXPIRY_INVESTIGATE_DAYS:
+        return True
+    live = usable.get("live_fetch") or {}
+    return bool(live.get("parked") or live.get("for_sale"))
 
 
 def _browser_script_rows(
@@ -539,6 +542,11 @@ def evidence_line(group: dict[str, Any], *, include_runs_in: bool = True) -> str
     elif status == "associated":
         parts.append("associated domain")
     sri_values = [ref.sri for ref, _cl, _inv in group.get("rows") or []]
+    live = usable.get("live_fetch") or {}
+    if live.get("for_sale"):
+        parts.append("domain listed for sale")
+    elif live.get("parked"):
+        parts.append("domain is parked")
     rank = evidence.get("tranco_rank")
     if isinstance(rank, int):
         parts.append(f"Tranco rank {rank}")
@@ -658,6 +666,27 @@ def floor_decision(group: dict[str, Any]) -> tuple[str | None, str]:
         )
     if str(rdap.get("status", "")).lower() == "unregistered":
         return _claimable_now_floor(group, "RDAP unregistered", where)
+    live = evidence.get("live_fetch") or {}
+    for_sale = bool(live.get("for_sale"))
+    parked = bool(live.get("parked"))
+    if for_sale or parked:
+        website = any(ref.page_url for ref, _cl, _inv in group["rows"])
+        if (
+            website
+            and for_sale
+            and has_script
+            and not sri_ok
+        ):
+            return (
+                "critical",
+                "Domain is listed for sale → raised to critical.",
+            )
+        note = (
+            "Domain is listed for sale → raised to high."
+            if for_sale
+            else "Domain is parked → raised to high."
+        )
+        return "high", note
     if str(dns.get("status", "")).lower() == "nxdomain":
         return (
             "high",

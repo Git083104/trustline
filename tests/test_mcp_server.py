@@ -19,6 +19,7 @@ async def test_mcp_tools_are_readonly_lookups_plus_scan(tmp_path):
         "wayback",
         "platform_takeover",
         "github_owner",
+        "live_fetch",
         "scan",
     }
     for item in tools.values():

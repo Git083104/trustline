@@ -4,7 +4,8 @@ Finds abandoned outside infrastructure a repository or website still trusts (exp
 domains, claimable buckets, dangling hosts). Detection only: it never registers or
 claims names.
 
-Lookup and classification code draws on [jwang2007/trustline](https://github.com/jwang2007/trustline).
+Lookup, classification, and parked/for-sale live-fetch signals draw on
+[jwang2007/trustline](https://github.com/jwang2007/trustline).
 
 ## Run locally
 

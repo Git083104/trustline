@@ -40,7 +40,7 @@ Severity = Literal["critical", "high", "medium", "low", "info"]
 CI_PROMPT = """You review added lines from a pull request for abandoned infrastructure a repo still trusts.
 
 Rules:
-- Use only Trustmap MCP tools (dns, rdap, bucket_probe, cert_history, wayback, platform_takeover, github_owner).
+- Use only Trustmap MCP tools (dns, rdap, bucket_probe, cert_history, wayback, platform_takeover, github_owner, live_fetch).
 - Do not call scan. Do not use shell. Do not write files. Do not browse the workspace.
 - Extract hosts, URLs, and bucket names from the added lines only.
 - Lookups produce the facts. Do not invent DNS, RDAP, HTTP, or expiry values.
@@ -274,6 +274,7 @@ LOOKUP_TOOLS = frozenset(
         "wayback",
         "platform_takeover",
         "github_owner",
+        "live_fetch",
     }
 )
 

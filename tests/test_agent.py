@@ -80,6 +80,9 @@ def _ctx(tmp_path, **impls) -> ToolContext:
             http_status=404 if missing else 200,
         )
 
+    async def fake_nameservers(host, cache=None, **kwargs):
+        return []
+
     return ToolContext(
         cache=LookupCache(tmp_path / "c.db"),
         dns=impls.get("dns", fake_dns),
@@ -87,6 +90,8 @@ def _ctx(tmp_path, **impls) -> ToolContext:
         rdap=impls.get("rdap", fake_rdap),
         platform_takeover=impls.get("platform_takeover", fake_platform),
         github_owner=impls.get("github_owner", fake_github_owner),
+        nameservers=impls.get("nameservers", fake_nameservers),
+        fetch=impls.get("fetch"),
     )
 
 

@@ -715,3 +715,23 @@ async def github_owner(
             await client.aclose()
     cache.set_json(key, result.model_dump(mode="json"))
     return result
+
+
+async def nameservers(
+    host: str,
+    *,
+    cache: LookupCache | None = None,
+    query: DnsQuery | None = None,
+) -> list[str]:
+    cache = cache or default_cache()
+    key = f"ns:{host.lower()}"
+    hit = cache.get_json(key)
+    if isinstance(hit, list):
+        return [str(item) for item in hit]
+    lookup = query or _dns_query
+    try:
+        names = await asyncio.wait_for(lookup(host, "NS"), timeout=DNS_TIMEOUT_S)
+    except Exception:
+        names = []
+    cache.set_json(key, names)
+    return names

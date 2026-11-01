@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import inspect
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from html.parser import HTMLParser
 from typing import Any, Callable
 from urllib.parse import urljoin, urlparse
@@ -43,6 +43,7 @@ class FetchResult:
     status_code: int
     body: str
     content_type: str = ""
+    redirect_chain: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -101,6 +102,7 @@ async def safe_get(
     resolve = resolve or resolve_host
     send = send or _default_send
     current = url
+    chain: list[str] = []
     for _ in range(MAX_REDIRECTS + 1):
         scheme, host, port, path = parse_public_url(current, allow_local=allow_local)
         resolved = resolve(host)
@@ -125,6 +127,7 @@ async def safe_get(
             location = headers.get("location")
             if not location:
                 raise ScanBlockedError()
+            chain.append(current)
             current = urljoin(current, location)
             continue
         text = body[:max_bytes].decode("utf-8", errors="replace")
@@ -133,6 +136,7 @@ async def safe_get(
             status_code=status,
             body=text,
             content_type=headers.get("content-type", ""),
+            redirect_chain=chain,
         )
     raise ScanBlockedError()
 

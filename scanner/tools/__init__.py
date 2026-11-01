@@ -8,6 +8,7 @@ from scanner.lookups import (
     cert_history as lookup_certs,
     dns as lookup_dns,
     github_owner as lookup_github_owner,
+    nameservers as lookup_nameservers,
     platform_takeover as lookup_platform,
     rdap as lookup_rdap,
     wayback as lookup_wayback,
@@ -18,6 +19,7 @@ from scanner.tools import (
     dns,
     done,
     github_owner,
+    live_fetch,
     platform_takeover,
     rdap,
     wayback,
@@ -31,6 +33,7 @@ _MODULES = {
     wayback.NAME: wayback,
     platform_takeover.NAME: platform_takeover,
     github_owner.NAME: github_owner,
+    live_fetch.NAME: live_fetch,
     done.NAME: done,
 }
 
@@ -45,6 +48,8 @@ class ToolContext:
     wayback: Callable = lookup_wayback
     platform_takeover: Callable = lookup_platform
     github_owner: Callable = lookup_github_owner
+    nameservers: Callable = lookup_nameservers
+    fetch: Callable | None = None
 
 
 def definitions() -> list[dict[str, Any]]:

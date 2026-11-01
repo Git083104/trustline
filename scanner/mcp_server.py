@@ -68,6 +68,10 @@ def create_server(
         """Check whether a GitHub user or org exists. GET only. Never creates an account."""
         return await run_lookup("github_owner", {"owner": owner}, ctx)
 
+    async def live_fetch(url: str) -> dict[str, Any]:
+        """GET a URL and report parked/for-sale facts. Never executes JavaScript."""
+        return await run_lookup("live_fetch", {"url": url}, ctx)
+
     async def scan(target: str) -> dict[str, Any]:
         """Scan a local path, GitHub URL, or website. Detection only; never claims names."""
         if scan_fn is not None:
@@ -91,6 +95,7 @@ def create_server(
         wayback,
         platform_takeover,
         github_owner,
+        live_fetch,
         scan,
     ):
         mcp.add_tool(fn, annotations=READONLY)

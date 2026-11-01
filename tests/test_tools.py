@@ -15,6 +15,7 @@ def test_definitions_include_lookup_tools_and_done():
         "wayback",
         "platform_takeover",
         "github_owner",
+        "live_fetch",
         "done",
     }
 
