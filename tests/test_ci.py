@@ -186,6 +186,9 @@ def test_workflow_file_matches_policy():
     assert SKIP_NO_SECRET in text
     assert "mkdtemp" in text
     assert "github.event.pull_request.base.sha" in text
+    assert "| sh" not in text
+    assert 'bash "$RUNNER_TEMP/muse-install.sh"' in text
+    assert "META_API_KEY: ${{ secrets.MODEL_API_KEY }}" in text
     assert "--disable-sandbox" not in Path("scanner/ci.py").read_text().split("muse_argv")[1][:800]
 
 
