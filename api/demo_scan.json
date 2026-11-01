@@ -3,11 +3,17 @@
   "kind": "path",
   "target": "tests/fixtures/demo_repo",
   "status": "done",
-  "cost_usd": 0.00064125,
+  "cost_usd": 0.0008775,
   "classify_cost_usd": 6.75e-05,
-  "agent_cost_usd": 0.0003375,
-  "rank_cost_usd": 0.00023625,
+  "agent_cost_usd": 0.0004725,
+  "rank_cost_usd": 0.0003375,
   "budget_targets": [],
+  "coverage": {
+    "files_scanned": 10,
+    "files_total": 10,
+    "truncated": false,
+    "reason": ""
+  },
   "findings": [
     {
       "target": "acme-legacy-uploads-a3f91c2e",
@@ -15,9 +21,25 @@
       "severity": "critical",
       "model_severity": "critical",
       "floor_reason": "",
+      "floor_applied": "",
       "risk": "A stranger could create this missing bucket and serve files to deploy/infra.yaml.",
       "fix": "Remove or replace this reference. If this was yours, re-create it in your own account to reclaim the name.",
-      "evidence_line": "Evidence: S3 bucket does not exist \u00b7 named in deploy/infra.yaml:3 and deploy/infra.yaml:5 in deploy",
+      "evidence_line": "Evidence: S3 bucket does not exist \u00b7 Tranco rank 3 \u00b7 named in deploy/infra.yaml:3 and deploy/infra.yaml:5 in deploy",
+      "evidence": {
+        "bucket_probe": {
+          "name": "acme-legacy-uploads-a3f91c2e",
+          "provider": "s3",
+          "status": "NoSuchBucket",
+          "http_status": 404
+        },
+        "tranco_rank": 3
+      },
+      "tranco_rank": 3,
+      "parked": false,
+      "for_sale": false,
+      "live_signal": null,
+      "action_ref": "",
+      "action_sha_pinned": null,
       "references": [
         "deploy/infra.yaml:3",
         "deploy/infra.yaml:5"
@@ -30,9 +52,33 @@
       "severity": "critical",
       "model_severity": "critical",
       "floor_reason": "",
+      "floor_applied": "",
       "risk": "A stranger could register this domain and run script from index.html:7 in the browser.",
       "fix": "Remove or replace this reference. If this was yours, re-create it in your own account to reclaim the name.",
       "evidence_line": "Evidence: DNS does not resolve \u00b7 domain not registered \u00b7 loaded by index.html:7 in the browser",
+      "evidence": {
+        "dns": {
+          "host": "cdn-assets-trustmap-7f3k2.com",
+          "status": "nxdomain",
+          "addresses": [],
+          "cnames": []
+        },
+        "rdap": {
+          "domain": "cdn-assets-trustmap-7f3k2.com",
+          "status": "unregistered",
+          "registrar": null,
+          "expiry": null,
+          "days_to_expiry": null,
+          "statuses": []
+        },
+        "tranco_rank": null
+      },
+      "tranco_rank": null,
+      "parked": false,
+      "for_sale": false,
+      "live_signal": null,
+      "action_ref": "",
+      "action_sha_pinned": null,
       "references": [
         "index.html:7"
       ],
@@ -44,11 +90,66 @@
       "severity": "critical",
       "model_severity": "critical",
       "floor_reason": "",
+      "floor_applied": "",
       "risk": "A stranger could register this GitHub account and ship install.sh into CI.",
       "fix": "Remove or replace this reference. If this was yours, re-create it in your own account to reclaim the name.",
       "evidence_line": "Evidence: GitHub owner does not exist \u00b7 referenced at .github/workflows/ci.yml:11 in CI",
+      "evidence": {
+        "github_owner": {
+          "owner": "trustmap-missing-owner-a3f91c2e",
+          "status": "missing",
+          "exists": false,
+          "kind": null,
+          "http_status": 404
+        },
+        "tranco_rank": null
+      },
+      "tranco_rank": null,
+      "parked": false,
+      "for_sale": false,
+      "live_signal": null,
+      "action_ref": "",
+      "action_sha_pinned": null,
       "references": [
         ".github/workflows/ci.yml:11"
+      ],
+      "cost_usd": 3.375e-05
+    },
+    {
+      "target": "github.com/trustmap-missing-owner-act/tools",
+      "kind": "domain",
+      "severity": "critical",
+      "model_severity": "critical",
+      "floor_reason": "",
+      "floor_applied": "",
+      "risk": "A stranger could register this GitHub account and ship install.sh into CI.",
+      "fix": "Remove or replace this action. If this was yours, re-create it in your own account to reclaim the name. Pin to a full commit SHA.",
+      "evidence_line": "Evidence: GitHub owner does not exist \u00b7 GitHub repo exists \u00b7 referenced at .github/workflows/actions.yml:8 in CI",
+      "evidence": {
+        "github_owner": {
+          "owner": "trustmap-missing-owner-act",
+          "status": "missing",
+          "exists": false,
+          "kind": null,
+          "http_status": 404
+        },
+        "github_repo": {
+          "owner": "trustmap-missing-owner-act",
+          "repo": "tools",
+          "status": "exists",
+          "exists": true,
+          "http_status": 200
+        },
+        "tranco_rank": null
+      },
+      "tranco_rank": null,
+      "parked": false,
+      "for_sale": false,
+      "live_signal": null,
+      "action_ref": "v1",
+      "action_sha_pinned": false,
+      "references": [
+        ".github/workflows/actions.yml:8"
       ],
       "cost_usd": 3.375e-05
     },
@@ -58,9 +159,25 @@
       "severity": "critical",
       "model_severity": "critical",
       "floor_reason": "",
+      "floor_applied": "",
       "risk": "A stranger could create this missing bucket and serve files to deploy/infra.yaml.",
       "fix": "Remove or replace this reference. If this was yours, re-create it in your own account to reclaim the name.",
-      "evidence_line": "Evidence: GCS bucket does not exist \u00b7 named in deploy/infra.yaml:7 in deploy",
+      "evidence_line": "Evidence: GCS bucket does not exist \u00b7 Tranco rank 8 \u00b7 named in deploy/infra.yaml:7 in deploy",
+      "evidence": {
+        "bucket_probe": {
+          "name": "trustmap-demo-assets",
+          "provider": "gcs",
+          "status": "NoSuchBucket",
+          "http_status": 404
+        },
+        "tranco_rank": 8
+      },
+      "tranco_rank": 8,
+      "parked": false,
+      "for_sale": false,
+      "live_signal": null,
+      "action_ref": "",
+      "action_sha_pinned": null,
       "references": [
         "deploy/infra.yaml:7"
       ],
@@ -71,10 +188,51 @@
       "kind": "domain",
       "severity": "critical",
       "model_severity": "medium",
-      "floor_reason": "GitHub Pages unclaimed (vulnerable) in executing position (browser) is at least critical",
+      "floor_reason": "GitHub Pages unclaimed (vulnerable) for a script/api/config download in executing position (browser) is at least critical",
+      "floor_applied": "critical",
       "risk": "A stranger could publish GitHub Pages and run script from index.html:8 in the browser.",
       "fix": "Remove or replace this reference. If this was yours, re-create it in your own account to reclaim the name.",
-      "evidence_line": "Evidence: DNS resolves \u00b7 domain is registered \u00b7 GitHub owner exists \u00b7 GitHub Pages unclaimed (vulnerable) \u00b7 loaded by index.html:8 in the browser",
+      "evidence_line": "Evidence: DNS resolves \u00b7 domain is registered \u00b7 GitHub owner exists \u00b7 GitHub Pages unclaimed (vulnerable) \u00b7 Tranco rank 135 \u00b7 loaded by index.html:8 in the browser",
+      "evidence": {
+        "dns": {
+          "host": "trustmap-demo-pages.github.io",
+          "status": "resolves",
+          "addresses": [
+            "203.0.113.9"
+          ],
+          "cnames": []
+        },
+        "rdap": {
+          "domain": "github.io",
+          "status": "registered",
+          "registrar": null,
+          "expiry": null,
+          "days_to_expiry": 400,
+          "statuses": []
+        },
+        "platform_takeover": {
+          "host": "trustmap-demo-pages.github.io",
+          "status": "unclaimed",
+          "platform": "GitHub Pages",
+          "takeover": "vulnerable",
+          "signal": "There isn't a GitHub Pages site here",
+          "http_status": 404
+        },
+        "github_owner": {
+          "owner": "trustmap-demo-pages",
+          "status": "exists",
+          "exists": true,
+          "kind": null,
+          "http_status": 200
+        },
+        "tranco_rank": 135
+      },
+      "tranco_rank": 135,
+      "parked": false,
+      "for_sale": false,
+      "live_signal": null,
+      "action_ref": "",
+      "action_sha_pinned": null,
       "references": [
         "index.html:8"
       ],
@@ -86,11 +244,65 @@
       "severity": "critical",
       "model_severity": "critical",
       "floor_reason": "",
+      "floor_applied": "",
       "risk": "A stranger could create this missing bucket and serve files to deploy/infra.yaml.",
       "fix": "Remove or replace this reference. If this was yours, re-create it in your own account to reclaim the name.",
-      "evidence_line": "Evidence: Azure blob does not exist \u00b7 named in deploy/infra.yaml:8 in deploy",
+      "evidence_line": "Evidence: Azure blob does not exist \u00b7 Tranco rank 58 \u00b7 named in deploy/infra.yaml:8 in deploy",
+      "evidence": {
+        "bucket_probe": {
+          "name": "trustmapdemoassets",
+          "provider": "azure",
+          "status": "NoSuchBucket",
+          "http_status": 404
+        },
+        "tranco_rank": 58
+      },
+      "tranco_rank": 58,
+      "parked": false,
+      "for_sale": false,
+      "live_signal": null,
+      "action_ref": "",
+      "action_sha_pinned": null,
       "references": [
         "deploy/infra.yaml:8"
+      ],
+      "cost_usd": 3.375e-05
+    },
+    {
+      "target": "github.com/actions/trustmap-missing-repo",
+      "kind": "domain",
+      "severity": "high",
+      "model_severity": "high",
+      "floor_reason": "",
+      "floor_applied": "",
+      "risk": "A stranger could recreate this GitHub action repo and run it in CI.",
+      "fix": "Remove or replace this action. If this was yours, re-create it in your own account to reclaim the name. Pin to a full commit SHA.",
+      "evidence_line": "Evidence: GitHub owner exists \u00b7 GitHub repo does not exist \u00b7 referenced at .github/workflows/actions.yml:9 in CI",
+      "evidence": {
+        "github_owner": {
+          "owner": "actions",
+          "status": "exists",
+          "exists": true,
+          "kind": null,
+          "http_status": 200
+        },
+        "github_repo": {
+          "owner": "actions",
+          "repo": "trustmap-missing-repo",
+          "status": "missing",
+          "exists": false,
+          "http_status": 404
+        },
+        "tranco_rank": null
+      },
+      "tranco_rank": null,
+      "parked": false,
+      "for_sale": false,
+      "live_signal": null,
+      "action_ref": "main",
+      "action_sha_pinned": false,
+      "references": [
+        ".github/workflows/actions.yml:9"
       ],
       "cost_usd": 3.375e-05
     },
@@ -100,12 +312,67 @@
       "severity": "info",
       "model_severity": "info",
       "floor_reason": "",
+      "floor_applied": "",
       "risk": "Nobody else can take this bucket; it already exists at deploy/infra.yaml.",
       "fix": "No action needed",
-      "evidence_line": "Evidence: S3 bucket exists \u00b7 named in deploy/infra.yaml:4 and deploy/infra.yaml:6 in deploy",
+      "evidence_line": "Evidence: S3 bucket exists \u00b7 Tranco rank 3 \u00b7 named in deploy/infra.yaml:4 and deploy/infra.yaml:6 in deploy",
+      "evidence": {
+        "bucket_probe": {
+          "name": "acme-static-assets-a3f91c2e",
+          "provider": "s3",
+          "status": "exists",
+          "http_status": 403
+        },
+        "tranco_rank": 3
+      },
+      "tranco_rank": 3,
+      "parked": false,
+      "for_sale": false,
+      "live_signal": null,
+      "action_ref": "",
+      "action_sha_pinned": null,
       "references": [
         "deploy/infra.yaml:4",
         "deploy/infra.yaml:6"
+      ],
+      "cost_usd": 3.375e-05
+    },
+    {
+      "target": "github.com/actions/checkout",
+      "kind": "domain",
+      "severity": "info",
+      "model_severity": "info",
+      "floor_reason": "",
+      "floor_applied": "",
+      "risk": "Nobody else can take this bucket; it already exists at deploy/infra.yaml.",
+      "fix": "Pin to a full commit SHA.",
+      "evidence_line": "Evidence: GitHub owner exists \u00b7 GitHub repo exists \u00b7 referenced at .github/workflows/actions.yml:10 and .github/workflows/ci.yml:7 in CI",
+      "evidence": {
+        "github_owner": {
+          "owner": "actions",
+          "status": "exists",
+          "exists": true,
+          "kind": null,
+          "http_status": 200
+        },
+        "github_repo": {
+          "owner": "actions",
+          "repo": "checkout",
+          "status": "exists",
+          "exists": true,
+          "http_status": 200
+        },
+        "tranco_rank": null
+      },
+      "tranco_rank": null,
+      "parked": false,
+      "for_sale": false,
+      "live_signal": null,
+      "action_ref": "8f4b7f84864484a7bf31766abe9204da3cbe65b3",
+      "action_sha_pinned": true,
+      "references": [
+        ".github/workflows/actions.yml:10",
+        ".github/workflows/ci.yml:7"
       ],
       "cost_usd": 3.375e-05
     }
@@ -115,17 +382,55 @@
       "type": "started",
       "kind": "path",
       "target": "tests/fixtures/demo_repo",
-      "cost_cap_usd": 1.0,
+      "cost_cap_usd": 1,
       "scan_id": "demo",
-      "ts": 1793554116.7510452
+      "ts": 1793574950.48501
     },
     {
       "type": "extracted",
-      "references": 22,
-      "actionable": 9,
+      "references": 26,
+      "actionable": 13,
       "filtered": 13,
+      "coverage": {
+        "files_scanned": 10,
+        "files_total": 10,
+        "truncated": false,
+        "reason": ""
+      },
       "scan_id": "demo",
-      "ts": 1793554116.7688901
+      "ts": 1793574950.504721
+    },
+    {
+      "type": "precheck",
+      "target": "github.com/trustmap-missing-owner-act/tools",
+      "kind": "domain",
+      "hard_signal": true,
+      "scan_id": "demo",
+      "ts": 1793574950.506392
+    },
+    {
+      "type": "precheck",
+      "target": "github.com/actions/trustmap-missing-repo",
+      "kind": "domain",
+      "hard_signal": true,
+      "scan_id": "demo",
+      "ts": 1793574950.506409
+    },
+    {
+      "type": "precheck",
+      "target": "github.com/actions/checkout",
+      "kind": "domain",
+      "hard_signal": false,
+      "scan_id": "demo",
+      "ts": 1793574950.506423
+    },
+    {
+      "type": "precheck",
+      "target": "github.com/actions/checkout",
+      "kind": "domain",
+      "hard_signal": false,
+      "scan_id": "demo",
+      "ts": 1793574950.506433
     },
     {
       "type": "precheck",
@@ -133,7 +438,7 @@
       "kind": "domain",
       "hard_signal": true,
       "scan_id": "demo",
-      "ts": 1793554116.770862
+      "ts": 1793574950.506457
     },
     {
       "type": "precheck",
@@ -141,7 +446,7 @@
       "kind": "bucket",
       "hard_signal": true,
       "scan_id": "demo",
-      "ts": 1793554116.77088
+      "ts": 1793574950.506465
     },
     {
       "type": "precheck",
@@ -149,7 +454,7 @@
       "kind": "bucket",
       "hard_signal": false,
       "scan_id": "demo",
-      "ts": 1793554116.77089
+      "ts": 1793574950.53477
     },
     {
       "type": "precheck",
@@ -157,7 +462,7 @@
       "kind": "bucket",
       "hard_signal": true,
       "scan_id": "demo",
-      "ts": 1793554116.770894
+      "ts": 1793574950.534805
     },
     {
       "type": "precheck",
@@ -165,7 +470,7 @@
       "kind": "bucket",
       "hard_signal": false,
       "scan_id": "demo",
-      "ts": 1793554116.770899
+      "ts": 1793574950.534812
     },
     {
       "type": "precheck",
@@ -173,7 +478,7 @@
       "kind": "bucket",
       "hard_signal": true,
       "scan_id": "demo",
-      "ts": 1793554116.770902
+      "ts": 1793574950.534817
     },
     {
       "type": "precheck",
@@ -181,7 +486,7 @@
       "kind": "bucket",
       "hard_signal": true,
       "scan_id": "demo",
-      "ts": 1793554116.770905
+      "ts": 1793574950.534821
     },
     {
       "type": "precheck",
@@ -189,7 +494,7 @@
       "kind": "domain",
       "hard_signal": true,
       "scan_id": "demo",
-      "ts": 1793554116.7709508
+      "ts": 1793574950.5348961
     },
     {
       "type": "precheck",
@@ -197,7 +502,147 @@
       "kind": "domain",
       "hard_signal": true,
       "scan_id": "demo",
-      "ts": 1793554116.770986
+      "ts": 1793574950.534948
+    },
+    {
+      "type": "plan",
+      "target": "github.com/trustmap-missing-owner-act/tools",
+      "tool": "done",
+      "args": {
+        "summary": "precomputed only"
+      },
+      "tokens": 15,
+      "cost_usd": 3.375e-05,
+      "scan_id": "demo",
+      "ts": 1793574950.5362701
+    },
+    {
+      "type": "act",
+      "target": "github.com/trustmap-missing-owner-act/tools",
+      "tool": "done",
+      "args": {
+        "summary": "precomputed only"
+      },
+      "scan_id": "demo",
+      "ts": 1793574950.5362759
+    },
+    {
+      "type": "observe",
+      "target": "github.com/trustmap-missing-owner-act/tools",
+      "tool": "done",
+      "args": {
+        "summary": "precomputed only"
+      },
+      "result_summary": "{\"done\": true, \"summary\": \"precomputed only\"}",
+      "tokens": 0,
+      "cost_usd": 0.0,
+      "scan_id": "demo",
+      "ts": 1793574950.536292
+    },
+    {
+      "type": "plan",
+      "target": "github.com/actions/trustmap-missing-repo",
+      "tool": "done",
+      "args": {
+        "summary": "precomputed only"
+      },
+      "tokens": 15,
+      "cost_usd": 3.375e-05,
+      "scan_id": "demo",
+      "ts": 1793574950.536321
+    },
+    {
+      "type": "act",
+      "target": "github.com/actions/trustmap-missing-repo",
+      "tool": "done",
+      "args": {
+        "summary": "precomputed only"
+      },
+      "scan_id": "demo",
+      "ts": 1793574950.536326
+    },
+    {
+      "type": "observe",
+      "target": "github.com/actions/trustmap-missing-repo",
+      "tool": "done",
+      "args": {
+        "summary": "precomputed only"
+      },
+      "result_summary": "{\"done\": true, \"summary\": \"precomputed only\"}",
+      "tokens": 0,
+      "cost_usd": 0.0,
+      "scan_id": "demo",
+      "ts": 1793574950.5363379
+    },
+    {
+      "type": "plan",
+      "target": "github.com/actions/checkout",
+      "tool": "done",
+      "args": {
+        "summary": "precomputed only"
+      },
+      "tokens": 15,
+      "cost_usd": 3.375e-05,
+      "scan_id": "demo",
+      "ts": 1793574950.5363588
+    },
+    {
+      "type": "act",
+      "target": "github.com/actions/checkout",
+      "tool": "done",
+      "args": {
+        "summary": "precomputed only"
+      },
+      "scan_id": "demo",
+      "ts": 1793574950.536364
+    },
+    {
+      "type": "observe",
+      "target": "github.com/actions/checkout",
+      "tool": "done",
+      "args": {
+        "summary": "precomputed only"
+      },
+      "result_summary": "{\"done\": true, \"summary\": \"precomputed only\"}",
+      "tokens": 0,
+      "cost_usd": 0.0,
+      "scan_id": "demo",
+      "ts": 1793574950.536373
+    },
+    {
+      "type": "plan",
+      "target": "github.com/actions/checkout",
+      "tool": "done",
+      "args": {
+        "summary": "precomputed only"
+      },
+      "tokens": 15,
+      "cost_usd": 3.375e-05,
+      "scan_id": "demo",
+      "ts": 1793574950.536593
+    },
+    {
+      "type": "act",
+      "target": "github.com/actions/checkout",
+      "tool": "done",
+      "args": {
+        "summary": "precomputed only"
+      },
+      "scan_id": "demo",
+      "ts": 1793574950.536599
+    },
+    {
+      "type": "observe",
+      "target": "github.com/actions/checkout",
+      "tool": "done",
+      "args": {
+        "summary": "precomputed only"
+      },
+      "result_summary": "{\"done\": true, \"summary\": \"precomputed only\"}",
+      "tokens": 0,
+      "cost_usd": 0.0,
+      "scan_id": "demo",
+      "ts": 1793574950.5366132
     },
     {
       "type": "plan",
@@ -209,7 +654,7 @@
       "tokens": 15,
       "cost_usd": 3.375e-05,
       "scan_id": "demo",
-      "ts": 1793554116.772128
+      "ts": 1793574950.536743
     },
     {
       "type": "act",
@@ -219,7 +664,7 @@
         "summary": "precomputed only"
       },
       "scan_id": "demo",
-      "ts": 1793554116.772137
+      "ts": 1793574950.5367522
     },
     {
       "type": "observe",
@@ -232,7 +677,7 @@
       "tokens": 0,
       "cost_usd": 0.0,
       "scan_id": "demo",
-      "ts": 1793554116.7721548
+      "ts": 1793574950.536767
     },
     {
       "type": "plan",
@@ -244,7 +689,7 @@
       "tokens": 15,
       "cost_usd": 3.375e-05,
       "scan_id": "demo",
-      "ts": 1793554116.772177
+      "ts": 1793574950.536781
     },
     {
       "type": "act",
@@ -254,7 +699,7 @@
         "summary": "bucket checked"
       },
       "scan_id": "demo",
-      "ts": 1793554116.772178
+      "ts": 1793574950.5367832
     },
     {
       "type": "observe",
@@ -267,7 +712,7 @@
       "tokens": 0,
       "cost_usd": 0.0,
       "scan_id": "demo",
-      "ts": 1793554116.772186
+      "ts": 1793574950.536789
     },
     {
       "type": "plan",
@@ -279,7 +724,7 @@
       "tokens": 15,
       "cost_usd": 3.375e-05,
       "scan_id": "demo",
-      "ts": 1793554116.772199
+      "ts": 1793574950.5368
     },
     {
       "type": "act",
@@ -289,7 +734,7 @@
         "summary": "bucket checked"
       },
       "scan_id": "demo",
-      "ts": 1793554116.772201
+      "ts": 1793574950.536801
     },
     {
       "type": "observe",
@@ -302,7 +747,7 @@
       "tokens": 0,
       "cost_usd": 0.0,
       "scan_id": "demo",
-      "ts": 1793554116.772206
+      "ts": 1793574950.5368059
     },
     {
       "type": "plan",
@@ -314,7 +759,7 @@
       "tokens": 15,
       "cost_usd": 3.375e-05,
       "scan_id": "demo",
-      "ts": 1793554116.7724001
+      "ts": 1793574950.536978
     },
     {
       "type": "act",
@@ -324,7 +769,7 @@
         "summary": "bucket checked"
       },
       "scan_id": "demo",
-      "ts": 1793554116.772406
+      "ts": 1793574950.53698
     },
     {
       "type": "observe",
@@ -337,7 +782,7 @@
       "tokens": 0,
       "cost_usd": 0.0,
       "scan_id": "demo",
-      "ts": 1793554116.772419
+      "ts": 1793574950.536986
     },
     {
       "type": "plan",
@@ -349,7 +794,7 @@
       "tokens": 15,
       "cost_usd": 3.375e-05,
       "scan_id": "demo",
-      "ts": 1793554116.772542
+      "ts": 1793574950.537075
     },
     {
       "type": "act",
@@ -359,7 +804,7 @@
         "summary": "bucket checked"
       },
       "scan_id": "demo",
-      "ts": 1793554116.772544
+      "ts": 1793574950.537077
     },
     {
       "type": "observe",
@@ -372,7 +817,7 @@
       "tokens": 0,
       "cost_usd": 0.0,
       "scan_id": "demo",
-      "ts": 1793554116.772552
+      "ts": 1793574950.5370848
     },
     {
       "type": "plan",
@@ -384,7 +829,7 @@
       "tokens": 15,
       "cost_usd": 3.375e-05,
       "scan_id": "demo",
-      "ts": 1793554116.772564
+      "ts": 1793574950.5371
     },
     {
       "type": "act",
@@ -394,7 +839,7 @@
         "summary": "bucket checked"
       },
       "scan_id": "demo",
-      "ts": 1793554116.772566
+      "ts": 1793574950.537102
     },
     {
       "type": "observe",
@@ -407,7 +852,7 @@
       "tokens": 0,
       "cost_usd": 0.0,
       "scan_id": "demo",
-      "ts": 1793554116.7725708
+      "ts": 1793574950.537109
     },
     {
       "type": "plan",
@@ -419,7 +864,7 @@
       "tokens": 15,
       "cost_usd": 3.375e-05,
       "scan_id": "demo",
-      "ts": 1793554116.772581
+      "ts": 1793574950.537162
     },
     {
       "type": "act",
@@ -429,7 +874,7 @@
         "summary": "bucket checked"
       },
       "scan_id": "demo",
-      "ts": 1793554116.772583
+      "ts": 1793574950.537164
     },
     {
       "type": "observe",
@@ -442,7 +887,7 @@
       "tokens": 0,
       "cost_usd": 0.0,
       "scan_id": "demo",
-      "ts": 1793554116.772588
+      "ts": 1793574950.53717
     },
     {
       "type": "plan",
@@ -454,7 +899,7 @@
       "tokens": 15,
       "cost_usd": 3.375e-05,
       "scan_id": "demo",
-      "ts": 1793554116.772651
+      "ts": 1793574950.5371919
     },
     {
       "type": "act",
@@ -464,7 +909,7 @@
         "domain": "cdn-assets-trustmap-7f3k2.com"
       },
       "scan_id": "demo",
-      "ts": 1793554116.7726588
+      "ts": 1793574950.537199
     },
     {
       "type": "observe",
@@ -477,7 +922,7 @@
       "tokens": 0,
       "cost_usd": 0.0,
       "scan_id": "demo",
-      "ts": 1793554116.77268
+      "ts": 1793574950.5372212
     },
     {
       "type": "plan",
@@ -489,7 +934,7 @@
       "tokens": 15,
       "cost_usd": 3.375e-05,
       "scan_id": "demo",
-      "ts": 1793554116.7727911
+      "ts": 1793574950.53736
     },
     {
       "type": "act",
@@ -499,7 +944,7 @@
         "summary": "precomputed only"
       },
       "scan_id": "demo",
-      "ts": 1793554116.7727969
+      "ts": 1793574950.537365
     },
     {
       "type": "observe",
@@ -512,7 +957,7 @@
       "tokens": 0,
       "cost_usd": 0.0,
       "scan_id": "demo",
-      "ts": 1793554116.77281
+      "ts": 1793574950.537374
     },
     {
       "type": "plan",
@@ -524,7 +969,7 @@
       "tokens": 15,
       "cost_usd": 3.375e-05,
       "scan_id": "demo",
-      "ts": 1793554116.772832
+      "ts": 1793574950.5373929
     },
     {
       "type": "act",
@@ -534,7 +979,7 @@
         "summary": "domain checked"
       },
       "scan_id": "demo",
-      "ts": 1793554116.7728388
+      "ts": 1793574950.5374
     },
     {
       "type": "observe",
@@ -547,7 +992,7 @@
       "tokens": 0,
       "cost_usd": 0.0,
       "scan_id": "demo",
-      "ts": 1793554116.772851
+      "ts": 1793574950.537411
     },
     {
       "type": "ranked",
@@ -556,16 +1001,32 @@
       "severity": "critical",
       "model_severity": "critical",
       "floor_reason": "",
+      "floor_applied": "",
       "risk": "A stranger could create this missing bucket and serve files to deploy/infra.yaml.",
       "fix": "Remove or replace this reference. If this was yours, re-create it in your own account to reclaim the name.",
-      "evidence_line": "Evidence: S3 bucket does not exist \u00b7 named in deploy/infra.yaml:3 and deploy/infra.yaml:5 in deploy",
+      "evidence_line": "Evidence: S3 bucket does not exist \u00b7 Tranco rank 3 \u00b7 named in deploy/infra.yaml:3 and deploy/infra.yaml:5 in deploy",
+      "evidence": {
+        "bucket_probe": {
+          "name": "acme-legacy-uploads-a3f91c2e",
+          "provider": "s3",
+          "status": "NoSuchBucket",
+          "http_status": 404
+        },
+        "tranco_rank": 3
+      },
+      "tranco_rank": 3,
+      "parked": false,
+      "for_sale": false,
+      "live_signal": null,
+      "action_ref": "",
+      "action_sha_pinned": null,
       "references": [
         "deploy/infra.yaml:3",
         "deploy/infra.yaml:5"
       ],
       "cost_usd": 3.375e-05,
       "scan_id": "demo",
-      "ts": 1793554116.777319
+      "ts": 1793574950.5449128
     },
     {
       "type": "ranked",
@@ -574,15 +1035,39 @@
       "severity": "critical",
       "model_severity": "critical",
       "floor_reason": "",
+      "floor_applied": "",
       "risk": "A stranger could register this domain and run script from index.html:7 in the browser.",
       "fix": "Remove or replace this reference. If this was yours, re-create it in your own account to reclaim the name.",
       "evidence_line": "Evidence: DNS does not resolve \u00b7 domain not registered \u00b7 loaded by index.html:7 in the browser",
+      "evidence": {
+        "dns": {
+          "host": "cdn-assets-trustmap-7f3k2.com",
+          "status": "nxdomain",
+          "addresses": [],
+          "cnames": []
+        },
+        "rdap": {
+          "domain": "cdn-assets-trustmap-7f3k2.com",
+          "status": "unregistered",
+          "registrar": null,
+          "expiry": null,
+          "days_to_expiry": null,
+          "statuses": []
+        },
+        "tranco_rank": null
+      },
+      "tranco_rank": null,
+      "parked": false,
+      "for_sale": false,
+      "live_signal": null,
+      "action_ref": "",
+      "action_sha_pinned": null,
       "references": [
         "index.html:7"
       ],
       "cost_usd": 3.375e-05,
       "scan_id": "demo",
-      "ts": 1793554116.777323
+      "ts": 1793574950.544917
     },
     {
       "type": "ranked",
@@ -591,15 +1076,73 @@
       "severity": "critical",
       "model_severity": "critical",
       "floor_reason": "",
+      "floor_applied": "",
       "risk": "A stranger could register this GitHub account and ship install.sh into CI.",
       "fix": "Remove or replace this reference. If this was yours, re-create it in your own account to reclaim the name.",
       "evidence_line": "Evidence: GitHub owner does not exist \u00b7 referenced at .github/workflows/ci.yml:11 in CI",
+      "evidence": {
+        "github_owner": {
+          "owner": "trustmap-missing-owner-a3f91c2e",
+          "status": "missing",
+          "exists": false,
+          "kind": null,
+          "http_status": 404
+        },
+        "tranco_rank": null
+      },
+      "tranco_rank": null,
+      "parked": false,
+      "for_sale": false,
+      "live_signal": null,
+      "action_ref": "",
+      "action_sha_pinned": null,
       "references": [
         ".github/workflows/ci.yml:11"
       ],
       "cost_usd": 3.375e-05,
       "scan_id": "demo",
-      "ts": 1793554116.7773252
+      "ts": 1793574950.544919
+    },
+    {
+      "type": "ranked",
+      "target": "github.com/trustmap-missing-owner-act/tools",
+      "kind": "domain",
+      "severity": "critical",
+      "model_severity": "critical",
+      "floor_reason": "",
+      "floor_applied": "",
+      "risk": "A stranger could register this GitHub account and ship install.sh into CI.",
+      "fix": "Remove or replace this action. If this was yours, re-create it in your own account to reclaim the name. Pin to a full commit SHA.",
+      "evidence_line": "Evidence: GitHub owner does not exist \u00b7 GitHub repo exists \u00b7 referenced at .github/workflows/actions.yml:8 in CI",
+      "evidence": {
+        "github_owner": {
+          "owner": "trustmap-missing-owner-act",
+          "status": "missing",
+          "exists": false,
+          "kind": null,
+          "http_status": 404
+        },
+        "github_repo": {
+          "owner": "trustmap-missing-owner-act",
+          "repo": "tools",
+          "status": "exists",
+          "exists": true,
+          "http_status": 200
+        },
+        "tranco_rank": null
+      },
+      "tranco_rank": null,
+      "parked": false,
+      "for_sale": false,
+      "live_signal": null,
+      "action_ref": "v1",
+      "action_sha_pinned": false,
+      "references": [
+        ".github/workflows/actions.yml:8"
+      ],
+      "cost_usd": 3.375e-05,
+      "scan_id": "demo",
+      "ts": 1793574950.54492
     },
     {
       "type": "ranked",
@@ -608,15 +1151,31 @@
       "severity": "critical",
       "model_severity": "critical",
       "floor_reason": "",
+      "floor_applied": "",
       "risk": "A stranger could create this missing bucket and serve files to deploy/infra.yaml.",
       "fix": "Remove or replace this reference. If this was yours, re-create it in your own account to reclaim the name.",
-      "evidence_line": "Evidence: GCS bucket does not exist \u00b7 named in deploy/infra.yaml:7 in deploy",
+      "evidence_line": "Evidence: GCS bucket does not exist \u00b7 Tranco rank 8 \u00b7 named in deploy/infra.yaml:7 in deploy",
+      "evidence": {
+        "bucket_probe": {
+          "name": "trustmap-demo-assets",
+          "provider": "gcs",
+          "status": "NoSuchBucket",
+          "http_status": 404
+        },
+        "tranco_rank": 8
+      },
+      "tranco_rank": 8,
+      "parked": false,
+      "for_sale": false,
+      "live_signal": null,
+      "action_ref": "",
+      "action_sha_pinned": null,
       "references": [
         "deploy/infra.yaml:7"
       ],
       "cost_usd": 3.375e-05,
       "scan_id": "demo",
-      "ts": 1793554116.7773252
+      "ts": 1793574950.544922
     },
     {
       "type": "ranked",
@@ -624,16 +1183,57 @@
       "kind": "domain",
       "severity": "critical",
       "model_severity": "medium",
-      "floor_reason": "GitHub Pages unclaimed (vulnerable) in executing position (browser) is at least critical",
+      "floor_reason": "GitHub Pages unclaimed (vulnerable) for a script/api/config download in executing position (browser) is at least critical",
+      "floor_applied": "critical",
       "risk": "A stranger could publish GitHub Pages and run script from index.html:8 in the browser.",
       "fix": "Remove or replace this reference. If this was yours, re-create it in your own account to reclaim the name.",
-      "evidence_line": "Evidence: DNS resolves \u00b7 domain is registered \u00b7 GitHub owner exists \u00b7 GitHub Pages unclaimed (vulnerable) \u00b7 loaded by index.html:8 in the browser",
+      "evidence_line": "Evidence: DNS resolves \u00b7 domain is registered \u00b7 GitHub owner exists \u00b7 GitHub Pages unclaimed (vulnerable) \u00b7 Tranco rank 135 \u00b7 loaded by index.html:8 in the browser",
+      "evidence": {
+        "dns": {
+          "host": "trustmap-demo-pages.github.io",
+          "status": "resolves",
+          "addresses": [
+            "203.0.113.9"
+          ],
+          "cnames": []
+        },
+        "rdap": {
+          "domain": "github.io",
+          "status": "registered",
+          "registrar": null,
+          "expiry": null,
+          "days_to_expiry": 400,
+          "statuses": []
+        },
+        "platform_takeover": {
+          "host": "trustmap-demo-pages.github.io",
+          "status": "unclaimed",
+          "platform": "GitHub Pages",
+          "takeover": "vulnerable",
+          "signal": "There isn't a GitHub Pages site here",
+          "http_status": 404
+        },
+        "github_owner": {
+          "owner": "trustmap-demo-pages",
+          "status": "exists",
+          "exists": true,
+          "kind": null,
+          "http_status": 200
+        },
+        "tranco_rank": 135
+      },
+      "tranco_rank": 135,
+      "parked": false,
+      "for_sale": false,
+      "live_signal": null,
+      "action_ref": "",
+      "action_sha_pinned": null,
       "references": [
         "index.html:8"
       ],
       "cost_usd": 3.375e-05,
       "scan_id": "demo",
-      "ts": 1793554116.777326
+      "ts": 1793574950.5449228
     },
     {
       "type": "ranked",
@@ -642,15 +1242,72 @@
       "severity": "critical",
       "model_severity": "critical",
       "floor_reason": "",
+      "floor_applied": "",
       "risk": "A stranger could create this missing bucket and serve files to deploy/infra.yaml.",
       "fix": "Remove or replace this reference. If this was yours, re-create it in your own account to reclaim the name.",
-      "evidence_line": "Evidence: Azure blob does not exist \u00b7 named in deploy/infra.yaml:8 in deploy",
+      "evidence_line": "Evidence: Azure blob does not exist \u00b7 Tranco rank 58 \u00b7 named in deploy/infra.yaml:8 in deploy",
+      "evidence": {
+        "bucket_probe": {
+          "name": "trustmapdemoassets",
+          "provider": "azure",
+          "status": "NoSuchBucket",
+          "http_status": 404
+        },
+        "tranco_rank": 58
+      },
+      "tranco_rank": 58,
+      "parked": false,
+      "for_sale": false,
+      "live_signal": null,
+      "action_ref": "",
+      "action_sha_pinned": null,
       "references": [
         "deploy/infra.yaml:8"
       ],
       "cost_usd": 3.375e-05,
       "scan_id": "demo",
-      "ts": 1793554116.777327
+      "ts": 1793574950.544924
+    },
+    {
+      "type": "ranked",
+      "target": "github.com/actions/trustmap-missing-repo",
+      "kind": "domain",
+      "severity": "high",
+      "model_severity": "high",
+      "floor_reason": "",
+      "floor_applied": "",
+      "risk": "A stranger could recreate this GitHub action repo and run it in CI.",
+      "fix": "Remove or replace this action. If this was yours, re-create it in your own account to reclaim the name. Pin to a full commit SHA.",
+      "evidence_line": "Evidence: GitHub owner exists \u00b7 GitHub repo does not exist \u00b7 referenced at .github/workflows/actions.yml:9 in CI",
+      "evidence": {
+        "github_owner": {
+          "owner": "actions",
+          "status": "exists",
+          "exists": true,
+          "kind": null,
+          "http_status": 200
+        },
+        "github_repo": {
+          "owner": "actions",
+          "repo": "trustmap-missing-repo",
+          "status": "missing",
+          "exists": false,
+          "http_status": 404
+        },
+        "tranco_rank": null
+      },
+      "tranco_rank": null,
+      "parked": false,
+      "for_sale": false,
+      "live_signal": null,
+      "action_ref": "main",
+      "action_sha_pinned": false,
+      "references": [
+        ".github/workflows/actions.yml:9"
+      ],
+      "cost_usd": 3.375e-05,
+      "scan_id": "demo",
+      "ts": 1793574950.544926
     },
     {
       "type": "ranked",
@@ -659,27 +1316,85 @@
       "severity": "info",
       "model_severity": "info",
       "floor_reason": "",
+      "floor_applied": "",
       "risk": "Nobody else can take this bucket; it already exists at deploy/infra.yaml.",
       "fix": "No action needed",
-      "evidence_line": "Evidence: S3 bucket exists \u00b7 named in deploy/infra.yaml:4 and deploy/infra.yaml:6 in deploy",
+      "evidence_line": "Evidence: S3 bucket exists \u00b7 Tranco rank 3 \u00b7 named in deploy/infra.yaml:4 and deploy/infra.yaml:6 in deploy",
+      "evidence": {
+        "bucket_probe": {
+          "name": "acme-static-assets-a3f91c2e",
+          "provider": "s3",
+          "status": "exists",
+          "http_status": 403
+        },
+        "tranco_rank": 3
+      },
+      "tranco_rank": 3,
+      "parked": false,
+      "for_sale": false,
+      "live_signal": null,
+      "action_ref": "",
+      "action_sha_pinned": null,
       "references": [
         "deploy/infra.yaml:4",
         "deploy/infra.yaml:6"
       ],
       "cost_usd": 3.375e-05,
       "scan_id": "demo",
-      "ts": 1793554116.777328
+      "ts": 1793574950.544928
+    },
+    {
+      "type": "ranked",
+      "target": "github.com/actions/checkout",
+      "kind": "domain",
+      "severity": "info",
+      "model_severity": "info",
+      "floor_reason": "",
+      "floor_applied": "",
+      "risk": "Nobody else can take this bucket; it already exists at deploy/infra.yaml.",
+      "fix": "Pin to a full commit SHA.",
+      "evidence_line": "Evidence: GitHub owner exists \u00b7 GitHub repo exists \u00b7 referenced at .github/workflows/actions.yml:10 and .github/workflows/ci.yml:7 in CI",
+      "evidence": {
+        "github_owner": {
+          "owner": "actions",
+          "status": "exists",
+          "exists": true,
+          "kind": null,
+          "http_status": 200
+        },
+        "github_repo": {
+          "owner": "actions",
+          "repo": "checkout",
+          "status": "exists",
+          "exists": true,
+          "http_status": 200
+        },
+        "tranco_rank": null
+      },
+      "tranco_rank": null,
+      "parked": false,
+      "for_sale": false,
+      "live_signal": null,
+      "action_ref": "8f4b7f84864484a7bf31766abe9204da3cbe65b3",
+      "action_sha_pinned": true,
+      "references": [
+        ".github/workflows/actions.yml:10",
+        ".github/workflows/ci.yml:7"
+      ],
+      "cost_usd": 3.375e-05,
+      "scan_id": "demo",
+      "ts": 1793574950.54493
     },
     {
       "type": "done",
-      "finding_count": 7,
-      "cost_usd": 0.00064125,
+      "finding_count": 10,
+      "cost_usd": 0.0008775,
       "classify_cost_usd": 6.75e-05,
-      "agent_cost_usd": 0.0003375,
-      "rank_cost_usd": 0.00023625,
+      "agent_cost_usd": 0.0004725,
+      "rank_cost_usd": 0.0003375,
       "budget_targets": [],
       "scan_id": "demo",
-      "ts": 1793554116.777389
+      "ts": 1793574950.544966
     }
   ]
 }

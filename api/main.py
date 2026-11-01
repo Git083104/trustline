@@ -10,6 +10,7 @@ from typing import Any, Literal
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from api.classify_target import TargetError, classify_target
@@ -76,6 +77,8 @@ def create_app(
     @app.get("/")
     def index() -> FileResponse:
         return FileResponse(STATIC / "index.html", headers={"Cache-Control": "no-cache"})
+
+    app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
     @app.get("/api/health")
     def health() -> dict[str, bool]:

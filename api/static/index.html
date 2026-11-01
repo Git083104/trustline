@@ -4,48 +4,124 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Trustmap</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/app.css">
 </head>
 <body>
-  <h1>Trustmap</h1>
-  <p>Find abandoned outside infrastructure a repository still trusts.</p>
-  <p>
-    <label for="target">Target</label>
-    <input id="target" name="target" type="text" size="48"
-           placeholder="GitHub URL or website (UI next)">
-  </p>
-  <p>
-    <button type="button" id="demo">Try the demo</button>
-  </p>
-  <ul id="events"></ul>
-  <script>
-    (function () {
-      var button = document.getElementById("demo");
-      var list = document.getElementById("events");
-      var source = null;
-      button.addEventListener("click", function () {
-        if (source) {
-          source.close();
-        }
-        list.replaceChildren();
-        source = new EventSource("/api/scan/demo/events");
-        source.onmessage = function (event) {
-          var item = document.createElement("li");
-          item.textContent = event.data;
-          list.appendChild(item);
-          try {
-            var payload = JSON.parse(event.data);
-            if (payload.type === "done" || payload.type === "error") {
-              source.close();
-            }
-          } catch (err) {}
-        };
-        source.onerror = function () {
-          if (source) {
-            source.close();
-          }
-        };
-      });
-    })();
-  </script>
+  <p id="error" class="error-line" hidden></p>
+
+  <div id="page-home">
+    <nav class="top-nav">
+      <a class="brand" href="/">
+        <svg width="20" height="20" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round" aria-hidden="true"><path d="M24 4 40 10v12c0 11-7 19-16 22C15 41 8 33 8 22V10Z"></path><rect x="14" y="20" width="12" height="8" rx="4"></rect><rect x="22" y="20" width="12" height="8" rx="4"></rect></svg>
+        Trustmap
+      </a>
+      <a href="#how">How it works</a>
+    </nav>
+    <header class="hero">
+      <div class="hero-inner">
+        <h1>Find the parts of your code a stranger could take over.</h1>
+        <p class="lede">Trustmap scans a repo or website for expired domains, deleted buckets and abandoned accounts, then tells you what to fix first.</p>
+        <form id="scan-form" class="scan-form">
+          <div class="scan-row">
+            <label class="sr-only" for="target">GitHub repo or website URL</label>
+            <input id="target" class="input hero-input" name="target" type="url" autocomplete="off"
+                   placeholder="Paste a GitHub repo or website URL">
+            <span id="kind-chip" class="tag tag-accent" hidden></span>
+            <button class="btn btn-primary hero-scan" type="submit">Scan</button>
+          </div>
+          <div class="hero-actions">
+            <button type="button" id="demo" class="btn btn-secondary">Watch the demo scan</button>
+          </div>
+        </form>
+      </div>
+    </header>
+    <section id="how" class="panel">
+      <p class="kicker">How it works</p>
+      <h2>Five layers, from raw files to a ranked fix list.</h2>
+      <ol class="layers">
+        <li><strong>Find</strong> outside URLs, buckets, and Actions <code>uses:</code></li>
+        <li><strong>Check</strong> DNS, RDAP, GitHub, and bucket probes in code</li>
+        <li><strong>Investigate</strong> with an agent (live_fetch, certs, wayback)</li>
+        <li><strong>Rank</strong> with Muse; code floors set a minimum severity</li>
+        <li><strong>Report</strong> fixes, evidence, and what was checked and safe</li>
+      </ol>
+    </section>
+  </div>
+
+  <div id="page-scan" hidden>
+    <nav class="app-nav">
+      <a class="brand" href="/">Trustmap</a>
+      <button type="button" class="btn btn-secondary" data-home>New scan</button>
+    </nav>
+    <div class="scan-hero">
+      <div class="scan-hero-inner">
+        <div class="scan-meta">
+          <span id="scan-target-label" class="mono"></span>
+          <span id="scan-kind-chip" class="tag tag-accent"></span>
+          <span id="scan-status" class="muted">Scanning</span>
+        </div>
+        <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+          <div id="progress-bar"></div>
+        </div>
+        <ol id="stepper" class="stepper"></ol>
+      </div>
+    </div>
+    <div class="scan-body">
+      <div class="feed-card">
+        <div class="card-head">
+          <span>Agent investigation</span>
+          <span class="mono muted">muse-spark · live</span>
+        </div>
+        <div id="feed"></div>
+      </div>
+      <aside class="side">
+        <div class="card">
+          <div class="kicker">Found so far</div>
+          <div><span id="found-count" class="big">0</span> <span class="muted">outside targets</span></div>
+          <div id="found-list"></div>
+        </div>
+        <div class="card">
+          <div class="kicker">Agent calls</div>
+          <div><span id="calls-used" class="big">0</span> <span class="muted">of <span id="calls-max">6</span></span></div>
+          <div id="calls-pips" class="pips"></div>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <div id="page-results" hidden>
+    <nav class="app-nav">
+      <a class="brand" href="/">Trustmap</a>
+      <button type="button" class="btn btn-secondary" data-home>New scan</button>
+    </nav>
+    <div class="results-hero">
+      <div class="results-hero-inner">
+        <div class="scan-meta">
+          <span id="res-target" class="mono"></span>
+          <span id="res-kind-chip" class="tag tag-accent"></span>
+        </div>
+        <h1 id="res-headline"></h1>
+        <div id="res-chips" class="chips"></div>
+        <p id="res-coverage" class="muted"></p>
+      </div>
+    </div>
+    <div class="results-body">
+      <div class="tabs" role="tablist">
+        <button type="button" role="tab" class="tab" data-tab="fix" aria-selected="true">Fix first</button>
+        <button type="button" role="tab" class="tab" data-tab="all">All targets</button>
+        <button type="button" role="tab" class="tab" data-tab="trace">Agent trace</button>
+        <button type="button" role="tab" class="tab" data-tab="raw">Raw JSON</button>
+      </div>
+      <div id="tab-fix"></div>
+      <div id="tab-all" hidden></div>
+      <div id="tab-trace" hidden></div>
+      <pre id="tab-raw" hidden class="raw-json"></pre>
+    </div>
+  </div>
+
+  <script src="/static/app.js"></script>
 </body>
 </html>

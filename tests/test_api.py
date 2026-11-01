@@ -60,9 +60,12 @@ def test_placeholder_home_and_demo_button():
         body = home.text
         assert "<title>Trustmap</title>" in body
         assert 'id="target"' in body
-        assert "Try the demo" in body
-        assert "/api/scan/demo/events" in body
-        assert "EventSource" in body
+        assert "Watch the demo scan" in body
+        css = client.get("/static/app.css")
+        js = client.get("/static/app.js")
+        assert css.status_code == 200
+        assert js.status_code == 200
+        assert "EventSource" in js.text
         demo = client.get("/api/scan/demo/events", params={"speed": "0"})
         assert demo.status_code == 200
         types = [item.get("type") for item in _parse_sse(demo.text)]

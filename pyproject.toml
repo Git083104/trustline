@@ -29,6 +29,8 @@ packages = ["scanner", "api"]
 [tool.hatch.build.targets.wheel.force-include]
 "api/demo_scan.json" = "api/demo_scan.json"
 "api/static/index.html" = "api/static/index.html"
+"api/static/app.css" = "api/static/app.css"
+"api/static/app.js" = "api/static/app.js"
 "scanner/compromised.json" = "scanner/compromised.json"
 "scanner/data/tranco_top100k.txt.gz" = "scanner/data/tranco_top100k.txt.gz"
 "scanner/data/README.md" = "scanner/data/README.md"
