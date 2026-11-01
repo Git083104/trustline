@@ -14,7 +14,6 @@ from scanner.config import (
 )
 from scanner.llm import CallLog, ModelClient, ToolTurn, cost_usd
 from scanner.llm import _tokens
-from scanner.extract import is_bucket_ref
 from scanner.lookups import consistent_evidence
 from scanner.models import (
     Classification,
@@ -22,6 +21,8 @@ from scanner.models import (
     Reference,
     TraceEvent,
 )
+from scanner.events import OnEvent, emit, summarize
+from scanner.extract import is_bucket_ref as _is_bucket_ref
 from scanner.tools import ToolContext, definitions, run as run_tool
 
 AGENT_SYSTEM_PROMPT = (
@@ -62,7 +63,7 @@ async def precheck(
     ref: Reference, cl: Classification, ctx: ToolContext
 ) -> dict[str, Any]:
     evidence: dict[str, Any] = {}
-    if cl.type == "bucket" or is_bucket_ref(ref):
+    if cl.type == "bucket" or _is_bucket_ref(ref):
         evidence["bucket_probe"] = await run_tool(
             "bucket_probe",
             {
@@ -92,12 +93,22 @@ async def investigate(
     ctx: ToolContext,
     cost_cap: float = SCAN_COST_CAP_USD,
     max_concurrent: int = MAX_INVESTIGATION_CONCURRENCY,
+    on_event: OnEvent | None = None,
 ) -> list[Investigation]:
     actionable = [(ref, cl) for ref, cl in pairs if ref.filter_reason is None]
     checked: list[tuple[Reference, Classification, dict[str, Any]]] = []
     for ref, cl in actionable:
         evidence = await precheck(ref, cl, ctx)
         checked.append((ref, cl, evidence))
+        emit(
+            on_event,
+            {
+                "type": "precheck",
+                "target": _event_target(ref, cl),
+                "kind": _event_kind(ref, cl),
+                "hard_signal": has_hard_signal(evidence),
+            },
+        )
     eligible = [
         item for item in checked if should_investigate(item[0], item[1], item[2])
     ]
@@ -120,7 +131,12 @@ async def investigate(
                     results[index] = _budget_skip(ref, cl)
                     return
             inv = await investigate_one(
-                ref, cl, client=client, ctx=ctx, evidence=evidence
+                ref,
+                cl,
+                client=client,
+                ctx=ctx,
+                evidence=evidence,
+                on_event=on_event,
             )
             async with lock:
                 spent += inv.cost_usd
@@ -137,6 +153,7 @@ async def investigate_one(
     client: ModelClient,
     ctx: ToolContext,
     evidence: dict[str, Any] | None = None,
+    on_event: OnEvent | None = None,
 ) -> Investigation:
     if evidence is None:
         evidence = await precheck(ref, cl, ctx)
@@ -182,12 +199,32 @@ async def investigate_one(
                 note=f"pick {turn.name}",
             )
         )
+        emit(
+            on_event,
+            {
+                "type": "plan",
+                "target": _event_target(ref, cl),
+                "tool": turn.name,
+                "args": turn.arguments,
+                "tokens": log.input_tokens + log.output_tokens,
+                "cost_usd": log.cost_usd,
+            },
+        )
         trace.append(
             TraceEvent(
                 kind="act",
                 tool=turn.name,
                 arguments=turn.arguments,
             )
+        )
+        emit(
+            on_event,
+            {
+                "type": "act",
+                "target": _event_target(ref, cl),
+                "tool": turn.name,
+                "args": turn.arguments,
+            },
         )
         try:
             result = await run_tool(turn.name, turn.arguments, ctx)
@@ -207,6 +244,18 @@ async def investigate_one(
                 result=result,
                 note=observe,
             )
+        )
+        emit(
+            on_event,
+            {
+                "type": "observe",
+                "target": _event_target(ref, cl),
+                "tool": turn.name,
+                "args": turn.arguments,
+                "result_summary": summarize(result),
+                "tokens": 0,
+                "cost_usd": 0.0,
+            },
         )
         messages.append(
             {
@@ -233,6 +282,18 @@ async def investigate_one(
         trace=trace,
         cost_usd=cost_total,
     )
+
+
+def _event_kind(ref: Reference, cl: Classification) -> str:
+    if cl.type == "bucket" or _is_bucket_ref(ref):
+        return "bucket"
+    return "domain"
+
+
+def _event_target(ref: Reference, cl: Classification) -> str:
+    if _event_kind(ref, cl) == "bucket":
+        return ref.host_or_bucket
+    return ref.domain or ref.host_or_bucket
 
 
 def _budget_skip(ref: Reference, cl: Classification) -> Investigation:

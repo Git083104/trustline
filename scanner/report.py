@@ -15,6 +15,7 @@ from scanner.config import (
     RANK_REASONING_EFFORT,
     SCAN_COST_CAP_USD,
 )
+from scanner.events import OnEvent, emit, finding_public
 from scanner.extract import extract, is_bucket_ref
 from scanner.llm import CallLog, ModelClient, call_json
 from scanner.lookups import LookupCache, consistent_evidence
@@ -415,12 +416,17 @@ def rank(
     client: ModelClient,
     cache: LookupCache | None = None,
     logs: list[CallLog] | None = None,
+    on_event: OnEvent | None = None,
 ) -> list[Finding]:
-    findings = [
-        _rank_group(group, client=client, cache=cache, logs=logs)
-        for group in group_by_target(rows)
-    ]
-    return sort_findings(findings)
+    findings = sort_findings(
+        [
+            _rank_group(group, client=client, cache=cache, logs=logs)
+            for group in group_by_target(rows)
+        ]
+    )
+    for item in findings:
+        emit(on_event, {"type": "ranked", **finding_public(item)})
+    return findings
 
 
 def _rank_group(
@@ -562,6 +568,7 @@ async def scan(
     ctx: ToolContext | None = None,
     hydrate_only: bool = True,
     cost_cap: float = SCAN_COST_CAP_USD,
+    on_event: OnEvent | None = None,
 ) -> list[Finding]:
     outcome = await run_scan(
         source,
@@ -570,6 +577,7 @@ async def scan(
         ctx=ctx,
         hydrate_only=hydrate_only,
         cost_cap=cost_cap,
+        on_event=on_event,
     )
     return outcome.findings
 
@@ -583,8 +591,19 @@ async def run_scan(
     hydrate_only: bool = True,
     allow_partial_cache: bool = False,
     cost_cap: float = SCAN_COST_CAP_USD,
+    on_event: OnEvent | None = None,
 ) -> ScanOutcome:
     refs = extract(source)
+    actionable = sum(1 for item in refs if item.filter_reason is None)
+    emit(
+        on_event,
+        {
+            "type": "extracted",
+            "references": len(refs),
+            "actionable": actionable,
+            "filtered": len(refs) - actionable,
+        },
+    )
     class_logs: list[CallLog] = []
     classified = classify(
         refs, client=client, include_filtered=True, cache=cache, logs=class_logs
@@ -606,7 +625,11 @@ async def run_scan(
         rows = cached_rows
     else:
         investigations = await investigate(
-            pairs, client=client, ctx=ctx, cost_cap=cost_cap
+            pairs,
+            client=client,
+            ctx=ctx,
+            cost_cap=cost_cap,
+            on_event=on_event,
         )
         inv_by_loc = {(item.file, item.line): item for item in investigations}
         rows = [
@@ -615,7 +638,9 @@ async def run_scan(
             if (ref.file, ref.line) in inv_by_loc
         ]
     rank_logs: list[CallLog] = []
-    findings = rank(rows, client=client, cache=cache, logs=rank_logs)
+    findings = rank(
+        rows, client=client, cache=cache, logs=rank_logs, on_event=on_event
+    )
     budget = sorted(
         {
             item.host_or_bucket

@@ -1,0 +1,463 @@
+{
+  "scan_id": "demo",
+  "kind": "path",
+  "target": "tests/fixtures/demo_repo",
+  "status": "done",
+  "cost_usd": 0.000405,
+  "classify_cost_usd": 3.375e-05,
+  "agent_cost_usd": 0.00023625,
+  "rank_cost_usd": 0.000135,
+  "budget_targets": [],
+  "findings": [
+    {
+      "target": "acme-legacy-uploads-a3f91c2e",
+      "kind": "bucket",
+      "severity": "critical",
+      "model_severity": "critical",
+      "floor_reason": "",
+      "risk": "A stranger could create this missing bucket and serve files to deploy/infra.yaml.",
+      "fix": "Remove or replace this reference. If this was yours, re-create it in your own account to reclaim the name.",
+      "evidence_line": "Evidence: S3 bucket does not exist \u00b7 named in deploy/infra.yaml:3 and deploy/infra.yaml:5 in deploy",
+      "references": [
+        "deploy/infra.yaml:3",
+        "deploy/infra.yaml:5"
+      ],
+      "cost_usd": 3.375e-05
+    },
+    {
+      "target": "cdn-assets-trustmap-7f3k2.com",
+      "kind": "domain",
+      "severity": "critical",
+      "model_severity": "critical",
+      "floor_reason": "",
+      "risk": "A stranger could register this domain and run script from index.html:7 in the browser.",
+      "fix": "Remove or replace this reference. If this was yours, re-create it in your own account to reclaim the name.",
+      "evidence_line": "Evidence: DNS does not resolve \u00b7 domain not registered \u00b7 loaded by index.html:7 in the browser",
+      "references": [
+        "index.html:7"
+      ],
+      "cost_usd": 3.375e-05
+    },
+    {
+      "target": "trustmap-demo-assets",
+      "kind": "bucket",
+      "severity": "critical",
+      "model_severity": "critical",
+      "floor_reason": "",
+      "risk": "A stranger could create this missing bucket and serve files to deploy/infra.yaml.",
+      "fix": "Remove or replace this reference. If this was yours, re-create it in your own account to reclaim the name.",
+      "evidence_line": "Evidence: GCS bucket does not exist \u00b7 named in deploy/infra.yaml:7 in deploy",
+      "references": [
+        "deploy/infra.yaml:7"
+      ],
+      "cost_usd": 3.375e-05
+    },
+    {
+      "target": "acme-static-assets-a3f91c2e",
+      "kind": "bucket",
+      "severity": "info",
+      "model_severity": "info",
+      "floor_reason": "",
+      "risk": "Nobody else can take this bucket; it already exists at deploy/infra.yaml.",
+      "fix": "No action needed",
+      "evidence_line": "Evidence: S3 bucket exists \u00b7 named in deploy/infra.yaml:4 and deploy/infra.yaml:6 in deploy",
+      "references": [
+        "deploy/infra.yaml:4",
+        "deploy/infra.yaml:6"
+      ],
+      "cost_usd": 3.375e-05
+    }
+  ],
+  "events": [
+    {
+      "type": "started",
+      "kind": "path",
+      "target": "tests/fixtures/demo_repo",
+      "cost_cap_usd": 1.0,
+      "scan_id": "demo",
+      "ts": 1793553014.070511
+    },
+    {
+      "type": "extracted",
+      "references": 19,
+      "actionable": 6,
+      "filtered": 13,
+      "scan_id": "demo",
+      "ts": 1793553014.0913448
+    },
+    {
+      "type": "precheck",
+      "target": "acme-legacy-uploads-a3f91c2e",
+      "kind": "bucket",
+      "hard_signal": true,
+      "scan_id": "demo",
+      "ts": 1793553014.092984
+    },
+    {
+      "type": "precheck",
+      "target": "acme-static-assets-a3f91c2e",
+      "kind": "bucket",
+      "hard_signal": false,
+      "scan_id": "demo",
+      "ts": 1793553014.092993
+    },
+    {
+      "type": "precheck",
+      "target": "acme-legacy-uploads-a3f91c2e",
+      "kind": "bucket",
+      "hard_signal": true,
+      "scan_id": "demo",
+      "ts": 1793553014.092997
+    },
+    {
+      "type": "precheck",
+      "target": "acme-static-assets-a3f91c2e",
+      "kind": "bucket",
+      "hard_signal": false,
+      "scan_id": "demo",
+      "ts": 1793553014.093002
+    },
+    {
+      "type": "precheck",
+      "target": "trustmap-demo-assets",
+      "kind": "bucket",
+      "hard_signal": true,
+      "scan_id": "demo",
+      "ts": 1793553014.093005
+    },
+    {
+      "type": "precheck",
+      "target": "cdn-assets-trustmap-7f3k2.com",
+      "kind": "domain",
+      "hard_signal": true,
+      "scan_id": "demo",
+      "ts": 1793553014.093041
+    },
+    {
+      "type": "plan",
+      "target": "acme-legacy-uploads-a3f91c2e",
+      "tool": "done",
+      "args": {
+        "summary": "bucket checked"
+      },
+      "tokens": 15,
+      "cost_usd": 3.375e-05,
+      "scan_id": "demo",
+      "ts": 1793553014.094076
+    },
+    {
+      "type": "act",
+      "target": "acme-legacy-uploads-a3f91c2e",
+      "tool": "done",
+      "args": {
+        "summary": "bucket checked"
+      },
+      "scan_id": "demo",
+      "ts": 1793553014.094079
+    },
+    {
+      "type": "observe",
+      "target": "acme-legacy-uploads-a3f91c2e",
+      "tool": "done",
+      "args": {
+        "summary": "bucket checked"
+      },
+      "result_summary": "{\"done\": true, \"summary\": \"bucket checked\"}",
+      "tokens": 0,
+      "cost_usd": 0.0,
+      "scan_id": "demo",
+      "ts": 1793553014.094091
+    },
+    {
+      "type": "plan",
+      "target": "acme-legacy-uploads-a3f91c2e",
+      "tool": "done",
+      "args": {
+        "summary": "bucket checked"
+      },
+      "tokens": 15,
+      "cost_usd": 3.375e-05,
+      "scan_id": "demo",
+      "ts": 1793553014.094113
+    },
+    {
+      "type": "act",
+      "target": "acme-legacy-uploads-a3f91c2e",
+      "tool": "done",
+      "args": {
+        "summary": "bucket checked"
+      },
+      "scan_id": "demo",
+      "ts": 1793553014.094115
+    },
+    {
+      "type": "observe",
+      "target": "acme-legacy-uploads-a3f91c2e",
+      "tool": "done",
+      "args": {
+        "summary": "bucket checked"
+      },
+      "result_summary": "{\"done\": true, \"summary\": \"bucket checked\"}",
+      "tokens": 0,
+      "cost_usd": 0.0,
+      "scan_id": "demo",
+      "ts": 1793553014.094122
+    },
+    {
+      "type": "plan",
+      "target": "acme-static-assets-a3f91c2e",
+      "tool": "done",
+      "args": {
+        "summary": "bucket checked"
+      },
+      "tokens": 15,
+      "cost_usd": 3.375e-05,
+      "scan_id": "demo",
+      "ts": 1793553014.094204
+    },
+    {
+      "type": "act",
+      "target": "acme-static-assets-a3f91c2e",
+      "tool": "done",
+      "args": {
+        "summary": "bucket checked"
+      },
+      "scan_id": "demo",
+      "ts": 1793553014.0942059
+    },
+    {
+      "type": "observe",
+      "target": "acme-static-assets-a3f91c2e",
+      "tool": "done",
+      "args": {
+        "summary": "bucket checked"
+      },
+      "result_summary": "{\"done\": true, \"summary\": \"bucket checked\"}",
+      "tokens": 0,
+      "cost_usd": 0.0,
+      "scan_id": "demo",
+      "ts": 1793553014.094214
+    },
+    {
+      "type": "plan",
+      "target": "acme-static-assets-a3f91c2e",
+      "tool": "done",
+      "args": {
+        "summary": "bucket checked"
+      },
+      "tokens": 15,
+      "cost_usd": 3.375e-05,
+      "scan_id": "demo",
+      "ts": 1793553014.094225
+    },
+    {
+      "type": "act",
+      "target": "acme-static-assets-a3f91c2e",
+      "tool": "done",
+      "args": {
+        "summary": "bucket checked"
+      },
+      "scan_id": "demo",
+      "ts": 1793553014.094226
+    },
+    {
+      "type": "observe",
+      "target": "acme-static-assets-a3f91c2e",
+      "tool": "done",
+      "args": {
+        "summary": "bucket checked"
+      },
+      "result_summary": "{\"done\": true, \"summary\": \"bucket checked\"}",
+      "tokens": 0,
+      "cost_usd": 0.0,
+      "scan_id": "demo",
+      "ts": 1793553014.094232
+    },
+    {
+      "type": "plan",
+      "target": "trustmap-demo-assets",
+      "tool": "done",
+      "args": {
+        "summary": "bucket checked"
+      },
+      "tokens": 15,
+      "cost_usd": 3.375e-05,
+      "scan_id": "demo",
+      "ts": 1793553014.0942981
+    },
+    {
+      "type": "act",
+      "target": "trustmap-demo-assets",
+      "tool": "done",
+      "args": {
+        "summary": "bucket checked"
+      },
+      "scan_id": "demo",
+      "ts": 1793553014.0942998
+    },
+    {
+      "type": "observe",
+      "target": "trustmap-demo-assets",
+      "tool": "done",
+      "args": {
+        "summary": "bucket checked"
+      },
+      "result_summary": "{\"done\": true, \"summary\": \"bucket checked\"}",
+      "tokens": 0,
+      "cost_usd": 0.0,
+      "scan_id": "demo",
+      "ts": 1793553014.0943098
+    },
+    {
+      "type": "plan",
+      "target": "cdn-assets-trustmap-7f3k2.com",
+      "tool": "rdap",
+      "args": {
+        "domain": "cdn-assets-trustmap-7f3k2.com"
+      },
+      "tokens": 15,
+      "cost_usd": 3.375e-05,
+      "scan_id": "demo",
+      "ts": 1793553014.094334
+    },
+    {
+      "type": "act",
+      "target": "cdn-assets-trustmap-7f3k2.com",
+      "tool": "rdap",
+      "args": {
+        "domain": "cdn-assets-trustmap-7f3k2.com"
+      },
+      "scan_id": "demo",
+      "ts": 1793553014.09434
+    },
+    {
+      "type": "observe",
+      "target": "cdn-assets-trustmap-7f3k2.com",
+      "tool": "rdap",
+      "args": {
+        "domain": "cdn-assets-trustmap-7f3k2.com"
+      },
+      "result_summary": "{\"days_to_expiry\": null, \"domain\": \"cdn-assets-trustmap-7f3k2.com\", \"expiry\": null, \"registrar\": null, \"status\": \"unregistered\", \"statuses\": []}",
+      "tokens": 0,
+      "cost_usd": 0.0,
+      "scan_id": "demo",
+      "ts": 1793553014.09436
+    },
+    {
+      "type": "plan",
+      "target": "cdn-assets-trustmap-7f3k2.com",
+      "tool": "done",
+      "args": {
+        "summary": "domain checked"
+      },
+      "tokens": 15,
+      "cost_usd": 3.375e-05,
+      "scan_id": "demo",
+      "ts": 1793553014.0944908
+    },
+    {
+      "type": "act",
+      "target": "cdn-assets-trustmap-7f3k2.com",
+      "tool": "done",
+      "args": {
+        "summary": "domain checked"
+      },
+      "scan_id": "demo",
+      "ts": 1793553014.094495
+    },
+    {
+      "type": "observe",
+      "target": "cdn-assets-trustmap-7f3k2.com",
+      "tool": "done",
+      "args": {
+        "summary": "domain checked"
+      },
+      "result_summary": "{\"done\": true, \"summary\": \"domain checked\"}",
+      "tokens": 0,
+      "cost_usd": 0.0,
+      "scan_id": "demo",
+      "ts": 1793553014.0945039
+    },
+    {
+      "type": "ranked",
+      "target": "acme-legacy-uploads-a3f91c2e",
+      "kind": "bucket",
+      "severity": "critical",
+      "model_severity": "critical",
+      "floor_reason": "",
+      "risk": "A stranger could create this missing bucket and serve files to deploy/infra.yaml.",
+      "fix": "Remove or replace this reference. If this was yours, re-create it in your own account to reclaim the name.",
+      "evidence_line": "Evidence: S3 bucket does not exist \u00b7 named in deploy/infra.yaml:3 and deploy/infra.yaml:5 in deploy",
+      "references": [
+        "deploy/infra.yaml:3",
+        "deploy/infra.yaml:5"
+      ],
+      "cost_usd": 3.375e-05,
+      "scan_id": "demo",
+      "ts": 1793553014.0969331
+    },
+    {
+      "type": "ranked",
+      "target": "cdn-assets-trustmap-7f3k2.com",
+      "kind": "domain",
+      "severity": "critical",
+      "model_severity": "critical",
+      "floor_reason": "",
+      "risk": "A stranger could register this domain and run script from index.html:7 in the browser.",
+      "fix": "Remove or replace this reference. If this was yours, re-create it in your own account to reclaim the name.",
+      "evidence_line": "Evidence: DNS does not resolve \u00b7 domain not registered \u00b7 loaded by index.html:7 in the browser",
+      "references": [
+        "index.html:7"
+      ],
+      "cost_usd": 3.375e-05,
+      "scan_id": "demo",
+      "ts": 1793553014.0969338
+    },
+    {
+      "type": "ranked",
+      "target": "trustmap-demo-assets",
+      "kind": "bucket",
+      "severity": "critical",
+      "model_severity": "critical",
+      "floor_reason": "",
+      "risk": "A stranger could create this missing bucket and serve files to deploy/infra.yaml.",
+      "fix": "Remove or replace this reference. If this was yours, re-create it in your own account to reclaim the name.",
+      "evidence_line": "Evidence: GCS bucket does not exist \u00b7 named in deploy/infra.yaml:7 in deploy",
+      "references": [
+        "deploy/infra.yaml:7"
+      ],
+      "cost_usd": 3.375e-05,
+      "scan_id": "demo",
+      "ts": 1793553014.0969348
+    },
+    {
+      "type": "ranked",
+      "target": "acme-static-assets-a3f91c2e",
+      "kind": "bucket",
+      "severity": "info",
+      "model_severity": "info",
+      "floor_reason": "",
+      "risk": "Nobody else can take this bucket; it already exists at deploy/infra.yaml.",
+      "fix": "No action needed",
+      "evidence_line": "Evidence: S3 bucket exists \u00b7 named in deploy/infra.yaml:4 and deploy/infra.yaml:6 in deploy",
+      "references": [
+        "deploy/infra.yaml:4",
+        "deploy/infra.yaml:6"
+      ],
+      "cost_usd": 3.375e-05,
+      "scan_id": "demo",
+      "ts": 1793553014.096936
+    },
+    {
+      "type": "done",
+      "finding_count": 4,
+      "cost_usd": 0.000405,
+      "classify_cost_usd": 3.375e-05,
+      "agent_cost_usd": 0.00023625,
+      "rank_cost_usd": 0.000135,
+      "budget_targets": [],
+      "scan_id": "demo",
+      "ts": 1793553014.096969
+    }
+  ]
+}
