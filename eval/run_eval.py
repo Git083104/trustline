@@ -6,7 +6,7 @@ import json
 from collections import defaultdict
 from pathlib import Path
 
-from scanner.config import EVAL_SCAN_COST_CAP_USD
+from scanner.config import EVAL_SCAN_COST_CAP_USD, EXPIRY_INVESTIGATE_DAYS
 from scanner.llm import LiveModelClient
 from scanner.lookups import LookupCache, consistent_evidence
 from scanner.report import ScanOutcome, is_claimable, run_scan
@@ -40,7 +40,7 @@ def load_labels(path: Path) -> list[dict]:
     return rows
 
 
-def baseline_severity(evidence: dict) -> str:
+def baseline_original(evidence: dict) -> str:
     evidence = consistent_evidence(evidence)
     if is_claimable(evidence):
         return "critical"
@@ -48,7 +48,60 @@ def baseline_severity(evidence: dict) -> str:
     rdap = evidence.get("rdap") or {}
     if str(dns.get("status", "")).lower() == "nxdomain":
         return "high"
+    days = rdap.get("days_to_expiry")
+    if isinstance(days, int) and days <= EXPIRY_INVESTIGATE_DAYS:
+        return "high"
     return "low"
+
+
+def baseline_revised(evidence: dict) -> str:
+    evidence = consistent_evidence(evidence)
+    if is_claimable(evidence):
+        return "critical"
+    dns = evidence.get("dns") or {}
+    if str(dns.get("status", "")).lower() == "nxdomain":
+        return "high"
+    return "low"
+
+
+def baseline_severity(evidence: dict) -> str:
+    return baseline_revised(evidence)
+
+
+def is_expiry_only(evidence: dict) -> bool:
+    evidence = consistent_evidence(evidence)
+    if is_claimable(evidence):
+        return False
+    dns = evidence.get("dns") or {}
+    rdap = evidence.get("rdap") or {}
+    if str(dns.get("status", "")).lower() != "resolves":
+        return False
+    if str(rdap.get("status", "")).lower() != "registered":
+        return False
+    days = rdap.get("days_to_expiry")
+    return isinstance(days, int) and days <= EXPIRY_INVESTIGATE_DAYS
+
+
+def apply_revised_rubric(labels: list[dict]) -> tuple[list[dict], list[dict]]:
+    mapped: list[dict] = []
+    changes: list[dict] = []
+    for row in labels:
+        copy = dict(row)
+        if is_expiry_only(row.get("evidence") or {}) and row.get("severity") != "info":
+            changes.append(
+                {
+                    "repo": row["repo"],
+                    "target": row["target"],
+                    "from": row["severity"],
+                    "to": "info",
+                    "days_to_expiry": (row.get("evidence") or {})
+                    .get("rdap", {})
+                    .get("days_to_expiry"),
+                }
+            )
+            copy["severity"] = "info"
+        mapped.append(copy)
+    return mapped, changes
 
 
 def precision_at_10(
@@ -193,14 +246,18 @@ def flag_stats(
 def render_table(
     *,
     title: str,
-    baseline_p: float | None,
-    baseline_r: float | None,
+    orig_p: float | None,
+    rev_p: float | None,
     trustmap_p: float | None,
+    orig_r: float | None,
+    rev_r: float | None,
     trustmap_r: float | None,
     cost: float,
-    baseline_conf: dict[str, dict[str, int]],
+    orig_conf: dict[str, dict[str, int]],
+    rev_conf: dict[str, dict[str, int]],
     trustmap_conf: dict[str, dict[str, int]],
-    baseline_flags: dict[str, float | int | None],
+    orig_flags: dict[str, float | int | None],
+    rev_flags: dict[str, float | int | None],
     trustmap_flags: dict[str, float | int | None],
     include_cost: bool,
 ) -> str:
@@ -210,7 +267,7 @@ def render_table(
             "false_alarms | recall | cost_usd |"
         )
         sep = "|---|---|---|---|---|---|---|---|"
-        b_cost = " 0.00000000 |"
+        zero = " 0.00000000 |"
         t_cost = f" {cost:.8f} |"
     else:
         header = (
@@ -218,7 +275,7 @@ def render_table(
             "false_alarms | recall |"
         )
         sep = "|---|---|---|---|---|---|---|"
-        b_cost = ""
+        zero = ""
         t_cost = ""
 
     def row(name: str, p, flags, cost_cell: str) -> str:
@@ -230,20 +287,24 @@ def render_table(
 
     return "\n".join(
         [
-            f"## {title}",
+            f"### {title}",
             "",
             "precision@10 ranks labeled targets only and is capped by the few gold "
             "critical/high labels per repo.",
             "",
             header,
             sep,
-            row("baseline", baseline_p, baseline_flags, b_cost),
+            row("baseline (original)", orig_p, orig_flags, zero),
+            row("baseline (revised)", rev_p, rev_flags, zero),
             row("trustmap", trustmap_p, trustmap_flags, t_cost),
             "",
-            "### Confusion (baseline, gold \\ predicted)",
-            _conf_md(baseline_conf),
+            "#### Confusion (baseline original, gold \\ predicted)",
+            _conf_md(orig_conf),
             "",
-            "### Confusion (trustmap, gold \\ predicted)",
+            "#### Confusion (baseline revised, gold \\ predicted)",
+            _conf_md(rev_conf),
+            "",
+            "#### Confusion (trustmap, gold \\ predicted)",
             _conf_md(trustmap_conf),
         ]
     )
@@ -304,8 +365,12 @@ def _metrics(labels: list[dict], outcomes: dict, cost: float) -> dict:
     by_repo: dict[str, list[dict]] = defaultdict(list)
     for row in labels:
         by_repo[row["repo"]].append(row)
-    baseline_pred = {
-        (row["repo"], row["target"]): baseline_severity(row.get("evidence") or {})
+    orig_pred = {
+        (row["repo"], row["target"]): baseline_original(row.get("evidence") or {})
+        for row in labels
+    }
+    rev_pred = {
+        (row["repo"], row["target"]): baseline_revised(row.get("evidence") or {})
         for row in labels
     }
     trustmap_pred = {}
@@ -332,14 +397,18 @@ def _metrics(labels: list[dict], outcomes: dict, cost: float) -> dict:
         return hits / len(gold)
 
     return {
-        "baseline_p": p_macro(baseline_pred),
-        "baseline_r": rec(baseline_pred),
+        "orig_p": p_macro(orig_pred),
+        "orig_r": rec(orig_pred),
+        "rev_p": p_macro(rev_pred),
+        "rev_r": rec(rev_pred),
         "trustmap_p": p_macro(trustmap_pred),
         "trustmap_r": rec(trustmap_pred),
         "cost": cost,
-        "baseline_conf": _confusion_unique(labels, baseline_pred),
+        "orig_conf": _confusion_unique(labels, orig_pred),
+        "rev_conf": _confusion_unique(labels, rev_pred),
         "trustmap_conf": _confusion_unique(labels, trustmap_pred),
-        "baseline_flags": flag_stats(labels, baseline_pred),
+        "orig_flags": flag_stats(labels, orig_pred),
+        "rev_flags": flag_stats(labels, rev_pred),
         "trustmap_flags": flag_stats(labels, trustmap_pred),
     }
 
@@ -348,34 +417,99 @@ def human_labels(labels: list[dict]) -> list[dict]:
     return [row for row in labels if row.get("source") != "auto"]
 
 
-def evaluate(labels, outcomes, cost, budget) -> str:
+def _empty_metrics(cost: float) -> dict:
     empty = {
         gold: {pred_s: 0 for pred_s in ALL_SEVERITIES} for gold in ALL_SEVERITIES
     }
-    all_m = _metrics(labels, outcomes, cost)
-    human = human_labels(labels)
-    human_m = _metrics(human, outcomes, cost) if human else {
-        "baseline_p": None,
-        "baseline_r": None,
+    flags = flag_stats([], {})
+    return {
+        "orig_p": None,
+        "orig_r": None,
+        "rev_p": None,
+        "rev_r": None,
         "trustmap_p": None,
         "trustmap_r": None,
         "cost": cost,
-        "baseline_conf": empty,
+        "orig_conf": empty,
+        "rev_conf": empty,
         "trustmap_conf": empty,
-        "baseline_flags": flag_stats([], {}),
-        "trustmap_flags": flag_stats([], {}),
+        "orig_flags": flags,
+        "rev_flags": flags,
+        "trustmap_flags": flags,
     }
+
+
+def _rubric_block(title: str, labels, outcomes, cost) -> str:
+    all_m = _metrics(labels, outcomes, cost)
+    human = human_labels(labels)
+    human_m = _metrics(human, outcomes, cost) if human else _empty_metrics(cost)
+    return "\n".join(
+        [
+            f"## {title}",
+            "",
+            render_table(title="All labels", include_cost=True, **all_m),
+            "",
+            render_table(title="Human-labeled only", include_cost=False, **human_m),
+        ]
+    )
+
+
+def render_changes(changes: list[dict]) -> str:
     lines = [
-        "# Eval results",
+        "## Labels remapped under the revised rubric",
         "",
-        render_table(title="All labels", include_cost=True, **all_m),
+        "Expiry-only targets (DNS resolves and RDAP registered, ≤ 90 days) mapped to info. "
+        "`eval/labels.jsonl` was not edited.",
         "",
-        render_table(title="Human-labeled only", include_cost=False, **human_m),
-        "",
-        debug_gold(labels, outcomes).rstrip(),
-        "",
-        "## Budget skips",
     ]
+    if not changes:
+        lines.append("- (none)")
+        lines.append("")
+        return "\n".join(lines)
+    for item in changes:
+        lines.append(
+            f"- {item['repo']} `{item['target']}`: {item['from']} → {item['to']} "
+            f"(days_to_expiry={item['days_to_expiry']})"
+        )
+    lines.append("")
+    return "\n".join(lines)
+
+
+def evaluate(labels, outcomes, cost, budget, *, rubric: str = "revised") -> str:
+    lines = ["# Eval results", ""]
+    if rubric in {"revised", "both"}:
+        mapped, changes = apply_revised_rubric(labels)
+        lines.append(render_changes(changes).rstrip())
+        lines.append("")
+        lines.append(_rubric_block("Original rubric", labels, outcomes, cost))
+        lines.append("")
+        lines.append(_rubric_block("Revised rubric", mapped, outcomes, cost))
+        lines.append("")
+        lines.append(
+            debug_gold(labels, outcomes)
+            .replace(
+                "## Gold critical/high debug",
+                "## Gold critical/high debug (original labels)",
+                1,
+            )
+            .rstrip()
+        )
+        lines.append("")
+        lines.append(
+            debug_gold(mapped, outcomes)
+            .replace(
+                "## Gold critical/high debug",
+                "## Gold critical/high debug (revised labels)",
+                1,
+            )
+            .rstrip()
+        )
+    else:
+        lines.append(_rubric_block("Original rubric", labels, outcomes, cost))
+        lines.append("")
+        lines.append(debug_gold(labels, outcomes).rstrip())
+    lines.append("")
+    lines.append("## Budget skips")
     if budget:
         lines.extend(f"- {item}" for item in budget)
     else:
@@ -393,6 +527,7 @@ async def run(
     ctx: ToolContext | None = None,
     scan_fn=run_scan,
     cost_cap: float = EVAL_SCAN_COST_CAP_USD,
+    rubric: str = "revised",
 ) -> str:
     labels = load_labels(labels_path)
     repos = sorted({row["repo"] for row in labels})
@@ -402,7 +537,7 @@ async def run(
     outcomes, cost, budget = await scan_repos(
         repos, client=client, cache=cache, ctx=ctx, cost_cap=cost_cap, scan_fn=scan_fn
     )
-    text = evaluate(labels, outcomes, cost, budget)
+    text = evaluate(labels, outcomes, cost, budget, rubric=rubric)
     results_path.write_text(text)
     return text
 
@@ -415,12 +550,19 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--labels", default=str(LABELS_FILE))
     parser.add_argument("--results", default=str(RESULTS_FILE))
     parser.add_argument("--cache", default="trustmap.db")
+    parser.add_argument(
+        "--rubric",
+        choices=("original", "revised", "both"),
+        default="revised",
+        help="original labels, or map expiry-only labels to info (still reports both rubrics)",
+    )
     args = parser.parse_args(argv)
     text = asyncio.run(
         run(
             labels_path=Path(args.labels),
             results_path=Path(args.results),
             cache=LookupCache(args.cache),
+            rubric=args.rubric,
         )
     )
     print(text)

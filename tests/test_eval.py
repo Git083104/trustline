@@ -17,10 +17,13 @@ from eval.label import (
     three_line_context,
 )
 from eval.run_eval import (
+    apply_revised_rubric,
+    baseline_original,
     baseline_severity,
     debug_gold,
     evaluate,
     flag_stats,
+    is_expiry_only,
     precision_at_10,
     run,
 )
@@ -291,6 +294,61 @@ def test_baseline_severity_rules():
         == "low"
     )
     assert (
+        baseline_original(
+            {
+                "dns": {"status": "resolves"},
+                "rdap": {"status": "registered", "days_to_expiry": 12},
+            }
+        )
+        == "high"
+    )
+
+
+def test_revised_rubric_maps_expiry_only_to_info():
+    expiry = {
+        "dns": {"status": "resolves"},
+        "rdap": {"status": "registered", "days_to_expiry": 80},
+    }
+    abandoned = {
+        "dns": {"status": "nxdomain"},
+        "rdap": {"status": "registered", "days_to_expiry": 70},
+    }
+    assert is_expiry_only(expiry)
+    assert not is_expiry_only(abandoned)
+    labels = [
+        {
+            "repo": "https://github.com/quantopian/zipline",
+            "target": "quandl.com",
+            "severity": "high",
+            "evidence": expiry,
+        },
+        {
+            "repo": "https://github.com/lbryio/lbry-desktop",
+            "target": "lbry.tech",
+            "severity": "high",
+            "evidence": abandoned,
+        },
+    ]
+    mapped, changes = apply_revised_rubric(labels)
+    assert mapped[0]["severity"] == "info"
+    assert mapped[1]["severity"] == "high"
+    assert labels[0]["severity"] == "high"
+    assert changes == [
+        {
+            "repo": "https://github.com/quantopian/zipline",
+            "target": "quandl.com",
+            "from": "high",
+            "to": "info",
+            "days_to_expiry": 80,
+        }
+    ]
+    text = evaluate(labels, {}, 0.0, [], rubric="revised")
+    assert "`quandl.com`: high → info" in text
+    assert "## Original rubric" in text
+    assert "## Revised rubric" in text
+    assert "baseline (original)" in text
+    assert "baseline (revised)" in text
+    assert (
         baseline_severity({"bucket_probe": {"status": "exists"}, "dns": {"status": "resolves"}})
         == "low"
     )
@@ -360,7 +418,8 @@ async def test_run_eval_labeled_only_metrics(tmp_path):
         client=object(),
         scan_fn=fake_scan,
     )
-    assert "| baseline |" in text
+    assert "| baseline (original) |" in text
+    assert "| baseline (revised) |" in text
     assert "| trustmap |" in text
     assert "0.06000000" in text
     assert "paused.example: not investigated (budget)" in text
@@ -397,8 +456,8 @@ def test_evaluate_precision_ignores_unlabeled():
     text = evaluate(labels, {"r": outcome}, 0.0, [])
     assert "unlabeled-critical" not in text.split("Budget")[0]
     # top 2 labeled: a critical, b low → 1/2 gold in top 2
-    assert "## All labels" in text
-    assert "## Human-labeled only" in text
+    assert "### All labels" in text
+    assert "### Human-labeled only" in text
     assert "| trustmap | 0.500 |" in text
     assert "flag_precision" in text
     assert "NO MATCH" not in text

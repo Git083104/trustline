@@ -203,10 +203,9 @@ host is filtered (`reserved_tld`) and must not rank.
   then random sample seed 42); `--auto` labels fact-decided targets (`source=auto`), then
   hand-label the rest (`source=human`) into `eval/labels.jsonl`. Resume keeps existing labels.
   `eval/repos.txt` is the default list. Labels file is gitignored.
-- `run_eval.py`: baseline (claimable-now → critical, NXDOMAIN/expiry≤90 → high, else low) vs
-  Trustmap full scan ($3 cap). Metrics only on labeled targets, reported for all labels and
-  human-labeled only. Precision@10, recall of critical/high, confusion table, model cost,
-  budget skips. Writes `eval/results.md`.
+- `run_eval.py`: `--rubric revised` maps expiry-only labels to info (file unchanged) and scores
+  original and revised gold against both baselines (expiry→high vs not) and Trustmap. Writes
+  `eval/results.md`. `eval/rubric.md` records the change.
 
 **Accept when:** offline tests pass and `run_eval.py` prints one comparison table on canned labels.
 
