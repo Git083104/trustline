@@ -46,8 +46,9 @@ That may call `scan` with the repo path. CI does **not** call `scan`; it only pa
 1. If `MODEL_API_KEY` is empty (typical for **fork PRs**), skip with a success message. Do not fail.
 2. `git diff base...head`, keep **added lines only** (workflow/Python, not the model).
 3. If those lines have no `http(s)` or `s3://` candidates, comment and succeed without calling Muse.
-4. Write `settings.json` into an empty `HOME`. Start `muse exec` with `cwd` set to a **new temp directory** (not the checkout). Pass the diff as `--prompt-file`. `--output-schema` is the findings JSON schema. Toolset: `run.toolset=["mcp__trustmap__*"]`. Flags: `--disable-shell --disable-write --disable-approval --disable-web-tools --approval-mode never --sandbox-network restricted`. **No `--yolo`.**
-5. Python validates Muse stdout as JSON. `gh pr comment` posts the report. The job fails **only** if a finding's `severity` is `critical`. Invalid JSON fails the job as a broken check, not as a finding.
+4. Install Muse with `bash` (not `sh`: Ubuntu dash trips on `[[` and reports `refusing to install into ~/.local/bin`). Create `$HOME/.local/bin` first, put it on `PATH` / `GITHUB_PATH`, and set `MUSE_INSTALL_DIR` to that directory. Headless auth is **`META_API_KEY`** (`muse login --help`: it always wins over browser login). The workflow copies the `MODEL_API_KEY` secret into both `META_API_KEY` (Muse) and `MODEL_API_KEY` (Trustmap MCP); never echo it. `muse auth set --api-key-stdin` also works; CI uses the env var.
+5. Write `settings.json` into an empty `HOME`. Start `muse exec` with `cwd` set to a **new temp directory** (not the checkout). Pass the diff as `--prompt-file`. `--output-schema` is the findings JSON schema. Toolset: `run.toolset=["mcp__trustmap__*"]`. Flags: `--disable-shell --disable-write --disable-approval --disable-web-tools --approval-mode never --sandbox-network restricted`. **No `--yolo`.**
+6. Python validates Muse stdout as JSON. `gh pr comment` posts the report. The job fails **only** if a finding's `severity` is `critical`. Invalid JSON fails the job as a broken check, not as a finding.
 
 The MCP server is started from the installed checkout Python so lookups can run; Muse's own workspace is the empty temp dir.
 

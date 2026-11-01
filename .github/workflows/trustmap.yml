@@ -66,8 +66,15 @@ jobs:
       - name: Install Muse Code
         if: steps.access.outputs.skip == 'false' && steps.diff.outputs.candidates == 'true'
         run: |
-          curl -fsSL https://dev.meta.ai/install.sh | sh
+          # install.sh is bash (`[[`); Ubuntu /bin/sh is dash and dies with
+          # "[[: not found", which then hits `|| die "refusing to install into $dir"`.
+          mkdir -p "$HOME/.local/bin"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          export PATH="$HOME/.local/bin:$PATH"
+          export MUSE_INSTALL_DIR="$HOME/.local/bin"
+          curl -fsSL https://dev.meta.ai/install.sh -o "$RUNNER_TEMP/muse-install.sh"
+          bash "$RUNNER_TEMP/muse-install.sh"
+          muse --version
 
       - name: Muse settings and argv
         if: steps.access.outputs.skip == 'false' && steps.diff.outputs.candidates == 'true'
@@ -83,6 +90,7 @@ jobs:
         env:
           HOME: ${{ runner.temp }}/muse-home
           MODEL_API_KEY: ${{ secrets.MODEL_API_KEY }}
+          META_API_KEY: ${{ secrets.MODEL_API_KEY }}
         run: |
           "$TRUSTMAP_PYTHON" - <<'PY'
           import json, os, subprocess, sys, tempfile
