@@ -297,11 +297,15 @@ def choose_fix(evidence: dict[str, Any], model_fix: str, final_severity: Severit
 
 
 def evidence_line(group: dict[str, Any], *, include_runs_in: bool = True) -> str:
-    usable = usable_evidence(consistent_evidence(group.get("evidence") or {}))
+    evidence = consistent_evidence(group.get("evidence") or {})
+    usable = usable_evidence(evidence)
     parts: list[str] = []
     dns = usable.get("dns") or {}
     dns_status = str(dns.get("status", "")).lower()
-    if dns_status == "nxdomain":
+    raw_dns = str((evidence.get("dns") or {}).get("status", "")).lower()
+    if raw_dns in {"timeout", "unknown"}:
+        parts.append("DNS unknown (timeout)")
+    elif dns_status == "nxdomain":
         parts.append("DNS does not resolve")
     elif dns_status == "resolves":
         parts.append("DNS resolves")

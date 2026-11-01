@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
@@ -288,7 +289,12 @@ async def dns(
         return DnsResult.model_validate(hit)
 
     lookup = query or _dns_query
-    result = await _dns_lookup(host, lookup)
+    try:
+        result = await asyncio.wait_for(
+            _dns_lookup(host, lookup), timeout=DNS_TIMEOUT_S
+        )
+    except TimeoutError:
+        result = DnsResult(host=host, status="timeout")
     cache.set_json(key, result.model_dump(mode="json"))
     return result
 
@@ -296,6 +302,7 @@ async def dns(
 async def _dns_query(name: str, rdtype: str) -> list[str]:
     resolver = dns_asyncresolver.Resolver()
     resolver.lifetime = DNS_TIMEOUT_S
+    resolver.timeout = DNS_TIMEOUT_S
     answer = await resolver.resolve(name, rdtype)
     if rdtype.upper() == "CNAME":
         return [str(rr.target).rstrip(".") for rr in answer]
@@ -313,6 +320,8 @@ async def _dns_lookup(host: str, query: DnsQuery) -> DnsResult:
                 return DnsResult(host=host, status="nxdomain", cnames=cnames)
             except (dns_resolver.NoAnswer, dns_resolver.NoNameservers):
                 names = []
+            except dns_exception.Timeout:
+                return DnsResult(host=host, status="timeout", cnames=cnames)
             except dns_exception.DNSException:
                 return DnsResult(host=host, status="error", cnames=cnames)
             if not names:
@@ -329,12 +338,16 @@ async def _dns_lookup(host: str, query: DnsQuery) -> DnsResult:
                 )
             except (dns_resolver.NoAnswer, dns_resolver.NoNameservers):
                 continue
+            except dns_exception.Timeout:
+                return DnsResult(host=host, status="timeout", cnames=cnames)
             except dns_exception.DNSException:
                 return DnsResult(host=host, status="error", cnames=cnames)
         status = "resolves" if addresses else "error"
         return DnsResult(host=host, status=status, addresses=addresses, cnames=cnames)
     except dns_resolver.NXDOMAIN:
         return DnsResult(host=host, status="nxdomain", cnames=cnames)
+    except dns_exception.Timeout:
+        return DnsResult(host=host, status="timeout", cnames=cnames)
     except dns_exception.DNSException:
         return DnsResult(host=host, status="error", cnames=cnames)
 

@@ -1,3 +1,4 @@
+import asyncio
 import json
 from io import StringIO
 from pathlib import Path
@@ -7,6 +8,7 @@ import pytest
 from eval.label import (
     auto_severity,
     format_target,
+    gather_groups,
     is_docs_test_path,
     label_source,
     load_labeled_keys,
@@ -14,7 +16,6 @@ from eval.label import (
     select_groups,
     three_line_context,
 )
-from scanner.models import BucketProbeResult, DnsResult, RdapResult
 from eval.run_eval import (
     baseline_severity,
     evaluate,
@@ -23,8 +24,8 @@ from eval.run_eval import (
 )
 from scanner.config import EVAL_SCAN_COST_CAP_USD
 from scanner.lookups import LookupCache
-from scanner.models import BucketProbeResult, Finding, Reference
-from scanner.report import ScanOutcome
+from scanner.models import BucketProbeResult, DnsResult, Finding, Reference
+from scanner.report import ScanOutcome, evidence_line
 from tests.test_agent import _ctx
 
 FIXTURE_ROOT = Path(__file__).parent / "fixtures" / "demo_repo"
@@ -135,6 +136,53 @@ def test_auto_docs_and_tests_low_if_claimable_else_info():
         {"dns": {"status": "nxdomain"}, "rdap": {"status": "unregistered"}},
     )
     assert auto_severity(runtime_nx) is None
+
+
+def test_evidence_line_records_dns_timeout():
+    line = evidence_line(
+        {
+            "target": "slow.example",
+            "rows": [],
+            "evidence": {"dns": {"status": "timeout", "host": "slow.example"}},
+        }
+    )
+    assert "DNS unknown (timeout)" in line
+
+
+@pytest.mark.asyncio
+async def test_gather_groups_progress_and_concurrency(tmp_path):
+    inflight = {"n": 0, "peak": 0}
+
+    async def fake_dns(host, cache=None, **kwargs):
+        inflight["n"] += 1
+        inflight["peak"] = max(inflight["peak"], inflight["n"])
+        await asyncio.sleep(0.02)
+        inflight["n"] -= 1
+        return DnsResult(host=host, status="resolves", addresses=["203.0.113.9"])
+
+    refs = [
+        Reference(
+            file="a.py",
+            line=i,
+            raw=f"https://h{i}.example/x",
+            host_or_bucket=f"h{i}.example",
+            domain=f"h{i}.example",
+        )
+        for i in range(1, 16)
+    ]
+    buf = StringIO()
+    groups = await gather_groups(
+        refs,
+        _ctx(tmp_path, dns=fake_dns),
+        progress=lambda done, total: print(f"checking {done} of {total}", file=buf),
+        concurrency=10,
+    )
+    text = buf.getvalue()
+    assert "checking 1 of 15" in text
+    assert "checking 15 of 15" in text
+    assert inflight["peak"] <= 10
+    assert inflight["peak"] >= 2
+    assert len(groups) == 15
 
 
 def test_select_groups_hard_first_then_seeded_sample():

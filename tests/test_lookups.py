@@ -1,3 +1,4 @@
+import asyncio
 from datetime import date
 
 import dns.resolver as dns_resolver
@@ -184,6 +185,18 @@ async def test_dns_nxdomain_and_cname_chain(tmp_path):
     assert ok.status == "resolves"
     assert ok.cnames == ["cdn.shop.test"]
     assert ok.addresses == ["203.0.113.9"]
+
+
+@pytest.mark.asyncio
+async def test_dns_timeout_status(tmp_path, monkeypatch):
+    monkeypatch.setattr("scanner.lookups.DNS_TIMEOUT_S", 0.05)
+
+    async def query(name: str, rdtype: str) -> list[str]:
+        await asyncio.sleep(1)
+        return ["203.0.113.9"]
+
+    result = await dns("slow.example", query=query, cache=LookupCache(tmp_path / "c.db"))
+    assert result.status == "timeout"
 
 
 @pytest.mark.asyncio

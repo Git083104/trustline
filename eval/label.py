@@ -9,7 +9,11 @@ from pathlib import Path
 from typing import Any, Callable, TextIO
 
 from scanner.agent import has_hard_signal, precheck
-from scanner.config import EVAL_SAMPLE_SEED, EVAL_TARGET_CAP
+from scanner.config import (
+    EVAL_LOOKUP_CONCURRENCY,
+    EVAL_SAMPLE_SEED,
+    EVAL_TARGET_CAP,
+)
 from scanner.extract import GITHUB_RE, extract, _clone_github
 from scanner.lookups import LookupCache, consistent_evidence
 from scanner.models import Classification, Investigation, Reference
@@ -171,23 +175,44 @@ def select_groups(
 
 
 async def gather_groups(
-    refs: list[Reference], ctx: ToolContext
+    refs: list[Reference],
+    ctx: ToolContext,
+    *,
+    progress: Callable[[int, int], None] | None = None,
+    concurrency: int = EVAL_LOOKUP_CONCURRENCY,
 ) -> list[dict[str, Any]]:
+    actionable = [ref for ref in refs if ref.filter_reason is None]
+    total = len(actionable)
+    sem = asyncio.Semaphore(max(1, concurrency))
+    started = 0
+    lock = asyncio.Lock()
+
+    async def check(
+        ref: Reference,
+    ) -> tuple[Reference, Classification, Investigation, dict[str, Any]]:
+        nonlocal started
+        async with sem:
+            async with lock:
+                started += 1
+                n = started
+            if progress is not None:
+                progress(n, total)
+            cl = stub_classification(ref)
+            evidence = await precheck(ref, cl, ctx)
+            inv = Investigation(
+                file=ref.file,
+                line=ref.line,
+                host_or_bucket=ref.host_or_bucket,
+                status="done",
+                evidence=evidence,
+            )
+            return ref, cl, inv, evidence
+
+    results = await asyncio.gather(*[check(ref) for ref in actionable])
     grouped: dict[str, dict[str, Any]] = {}
     order: list[str] = []
-    for ref in refs:
-        if ref.filter_reason is not None:
-            continue
+    for ref, cl, inv, evidence in results:
         key, kind = target_from_ref(ref)
-        cl = stub_classification(ref)
-        evidence = await precheck(ref, cl, ctx)
-        inv = Investigation(
-            file=ref.file,
-            line=ref.line,
-            host_or_bucket=ref.host_or_bucket,
-            status="done",
-            evidence=evidence,
-        )
         if key not in grouped:
             grouped[key] = {
                 "target": key,
@@ -277,11 +302,15 @@ async def label_source(
     root, refs, tmp = open_source(source)
     try:
         ctx = ctx or ToolContext(cache=cache)
-        groups = await gather_groups(refs, ctx)
+        prefix = f"repo {repo_index}{repo_name(source)}"
+
+        def progress(done: int, total: int) -> None:
+            print(f"{prefix}: checking {done} of {total}", file=out, flush=True)
+
+        groups = await gather_groups(refs, ctx, progress=progress)
         selected = select_groups(groups)
         written = 0
         total = len(selected)
-        prefix = f"repo {repo_index}{repo_name(source)}"
         pending: list[tuple[int, dict[str, Any]]] = []
         auto_count = 0
         for index, group in enumerate(selected, 1):
