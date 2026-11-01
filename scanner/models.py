@@ -200,3 +200,5 @@ class Finding(BaseModel):
     evidence_line: str = ""
     cost_usd: float = 0
     locations: list[dict[str, Any]] = Field(default_factory=list)
+    action_ref: str = ""
+    action_sha_pinned: bool | None = None

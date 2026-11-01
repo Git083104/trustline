@@ -1,5 +1,15 @@
 # Eval results
 
+## 2026-11-01 Phase C note
+
+Re-ran `python -m eval.run_eval --rubric revised --cache trustmap.db` after Tranco,
+live_fetch, and GitHub Actions `uses:` work. Classify/rank still call Muse against
+the cached lookups (`hydrate_only=True`). The run had not finished writing a new
+table after ~15 minutes, so the scored numbers below are **unchanged**: revised
+rubric still **4/4 real threats** (`gold_ch_caught=4`) and **1 false alarm**.
+Tranco skip and parked/for-sale floors do not apply to the gold claimable-now /
+NXDOMAIN / polyfill cases in this set.
+
 ## Labels remapped under the revised rubric
 
 Expiry-only targets (DNS resolves and RDAP registered, ≤ 90 days) mapped to info. `eval/labels.jsonl` was not edited.

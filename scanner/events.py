@@ -23,15 +23,25 @@ def summarize(value: Any) -> str:
 
 
 def finding_public(item: Finding) -> dict[str, Any]:
+    evidence = item.evidence or {}
+    live = evidence.get("live_fetch") or {}
     return {
         "target": item.target,
         "kind": item.kind,
         "severity": item.severity,
         "model_severity": item.model_severity,
         "floor_reason": item.floor_reason,
+        "floor_applied": item.floor_applied,
         "risk": item.risk,
         "fix": item.fix,
         "evidence_line": item.evidence_line,
+        "evidence": evidence,
+        "tranco_rank": evidence.get("tranco_rank"),
+        "parked": bool(live.get("parked")),
+        "for_sale": bool(live.get("for_sale")),
+        "live_signal": live.get("signal"),
+        "action_ref": item.action_ref,
+        "action_sha_pinned": item.action_sha_pinned,
         "references": item.locations or item.references,
         "cost_usd": item.cost_usd,
     }

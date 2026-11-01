@@ -46,16 +46,14 @@ def test_finding_public_fields():
         }
     )
     assert finding_public(with_loc)["references"][0]["page_url"] == "https://shop.example/"
-    assert set(public) == {
-        "target",
-        "kind",
-        "severity",
-        "model_severity",
-        "floor_reason",
-        "risk",
-        "fix",
-        "evidence_line",
-        "references",
-        "cost_usd",
-    }
-    assert "evidence" not in public
+    assert public["tranco_rank"] is None
+    assert public["parked"] is False
+    assert public["for_sale"] is False
+    for key in (
+        "evidence",
+        "floor_applied",
+        "tranco_rank",
+        "action_ref",
+        "action_sha_pinned",
+    ):
+        assert key in public

@@ -61,7 +61,7 @@ Replay buffered events, then live ones, then close on `done` or `error`.
 | `extracted` | after extract | `references`, `actionable`, `filtered`, `coverage` (`files_scanned`, `files_total`, `truncated`, `reason`) |
 | `precheck` | after lookups for one target | `target`, `kind` (bucket/domain), `hard_signal` |
 | `plan` / `act` / `observe` | each agent turn | `target`, `tool`, `args`, `result_summary`, `tokens`, `cost_usd` |
-| `ranked` | each finding after rank | `target`, `kind`, `severity`, `model_severity`, `floor_reason`, `risk`, `fix`, `evidence_line`, `references`, `cost_usd` |
+| `ranked` | each finding after rank | public finding fields (see report JSON) |
 | `done` | finished | `finding_count`, `cost_usd`, `classify_cost_usd`, `agent_cost_usd`, `rank_cost_usd`, `budget_targets` |
 | `error` | failure | `message` (no secrets) |
 
@@ -95,9 +95,28 @@ Final report. **409** if still running, **404** if unknown, **500** if the job f
       "severity": "critical",
       "model_severity": "high",
       "floor_reason": "RDAP unregistered in executing position (browser) is at least critical",
+      "floor_applied": "critical",
       "risk": "...",
       "fix": "Remove or replace this reference. If this was yours, re-create it in your own account to reclaim the name.",
       "evidence_line": "Evidence: DNS does not resolve · domain not registered",
+      "evidence": {
+        "dns": {"status": "nxdomain"},
+        "rdap": {"status": "unregistered"},
+        "tranco_rank": null,
+        "live_fetch": {
+          "parked": false,
+          "for_sale": false,
+          "signal": null,
+          "final_url": "https://cdn-assets-trustmap-7f3k2.com/lib.js",
+          "status": "ok"
+        }
+      },
+      "tranco_rank": null,
+      "parked": false,
+      "for_sale": false,
+      "live_signal": null,
+      "action_ref": "",
+      "action_sha_pinned": null,
       "references": ["index.html:7"],
       "cost_usd": 0.02
     }
@@ -105,8 +124,19 @@ Final report. **409** if still running, **404** if unknown, **500** if the job f
 }
 ```
 
+Extra finding fields:
+
+- `tranco_rank`: int or null (popularity; never lowers a code floor)
+- `floor_reason` / `floor_applied`: UI floor note, e.g. "Domain is listed for sale → raised to high."
+- `evidence.live_fetch`: `final_url`, `http_status`, `redirect_chain`, `title`, `parked`, `for_sale`, `signal`
+- `action_ref` / `action_sha_pinned`: GitHub Actions `uses:` pin (full 40-char SHA or not)
+- `evidence.github_repo`: `exists` / `missing` for `owner/repo` actions
+
 Website findings put page locations in `references` (`page_url`, `tag`, `attribute`,
 `line`, `sri`, `raw`) instead of `file:line`.
+
+Jobs are in-process only: `GET /api/scan/{id}` works for a finished scan until the
+process restarts. Shareable `?scan=<id>` is valid for that lifetime.
 
 ## `GET /api/health`
 

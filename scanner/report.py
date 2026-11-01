@@ -924,6 +924,13 @@ def _finding_from_rank(
     uncertain = _github_owner_note(uncertain, evidence)
     final, raised = apply_floor(model_severity, floor)
     floor_reason = floor_why if raised else ""
+    action_ref = ""
+    action_sha_pinned = None
+    for ref, _cl, _inv in group["rows"]:
+        if ref.action_ref:
+            action_ref = ref.action_ref
+            action_sha_pinned = ref.action_sha_pinned
+            break
     return Finding(
         target=group["target"],
         kind=group["kind"],
@@ -944,6 +951,8 @@ def _finding_from_rank(
         evidence_line=evidence_line(group),
         cost_usd=cost_total,
         locations=_reference_locations(group),
+        action_ref=action_ref,
+        action_sha_pinned=action_sha_pinned,
     )
 
 
