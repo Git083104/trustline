@@ -52,6 +52,23 @@ def _fixture_app(**kwargs):
     )
 
 
+def test_placeholder_home_and_demo_button():
+    app = create_app(model_client=FakeModelClient(handler=lambda r: {}))
+    with TestClient(app) as client:
+        home = client.get("/")
+        assert home.status_code == 200
+        body = home.text
+        assert "<title>Trustmap</title>" in body
+        assert 'id="target"' in body
+        assert "Try the demo" in body
+        assert "/api/scan/demo/events" in body
+        assert "EventSource" in body
+        demo = client.get("/api/scan/demo/events", params={"speed": "0"})
+        assert demo.status_code == 200
+        types = [item.get("type") for item in _parse_sse(demo.text)]
+        assert "done" in types
+
+
 def test_health_and_cors():
     app = create_app(model_client=FakeModelClient(handler=lambda r: {}))
     with TestClient(app) as client:

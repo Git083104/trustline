@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Trustmap</title>
+</head>
+<body>
+  <h1>Trustmap</h1>
+  <p>Find abandoned outside infrastructure a repository still trusts.</p>
+  <p>
+    <label for="target">Target</label>
+    <input id="target" name="target" type="text" size="48"
+           placeholder="GitHub URL or website (UI next)">
+  </p>
+  <p>
+    <button type="button" id="demo">Try the demo</button>
+  </p>
+  <ul id="events"></ul>
+  <script>
+    (function () {
+      var button = document.getElementById("demo");
+      var list = document.getElementById("events");
+      var source = null;
+      button.addEventListener("click", function () {
+        if (source) {
+          source.close();
+        }
+        list.replaceChildren();
+        source = new EventSource("/api/scan/demo/events");
+        source.onmessage = function (event) {
+          var item = document.createElement("li");
+          item.textContent = event.data;
+          list.appendChild(item);
+          try {
+            var payload = JSON.parse(event.data);
+            if (payload.type === "done" || payload.type === "error") {
+              source.close();
+            }
+          } catch (err) {}
+        };
+        source.onerror = function () {
+          if (source) {
+            source.close();
+          }
+        };
+      });
+    })();
+  </script>
+</body>
+</html>

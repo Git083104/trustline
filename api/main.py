@@ -3,12 +3,13 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+from pathlib import Path
 from collections.abc import AsyncIterator, Awaitable, Callable
 from typing import Any, Literal
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel
 
 from api.classify_target import TargetError, classify_target
@@ -22,6 +23,7 @@ from scanner.report import ScanOutcome, run_scan
 from scanner.tools import ToolContext
 
 ScanRunner = Callable[..., Awaitable[ScanOutcome]]
+STATIC = Path(__file__).resolve().parent / "static"
 
 
 class ScanIn(BaseModel):
@@ -70,6 +72,10 @@ def create_app(
             held = LiveModelClient()
             client_holder["client"] = held
         return held
+
+    @app.get("/")
+    def index() -> FileResponse:
+        return FileResponse(STATIC / "index.html", headers={"Cache-Control": "no-cache"})
 
     @app.get("/api/health")
     def health() -> dict[str, bool]:

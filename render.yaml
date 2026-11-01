@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: trustmap
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    disk:
+      name: trustmap-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: MODEL_API_KEY
+        sync: false
+      - key: GITHUB_TOKEN
+        sync: false
+      - key: PYTHON_VERSION
+        value: "3.12.7"
+      - key: TRUSTMAP_ALLOW_LOCAL_SCAN
+        value: "0"
+      - key: TRUSTMAP_TRUSTED_PROXY_HOPS
+        value: "1"
+      - key: TRUSTMAP_DAILY_CAP_USD
+        value: "10"
+      - key: TRUSTMAP_IP_SCANS_PER_HOUR
+        value: "5"
+      - key: TRUSTMAP_CACHE_DB
+        value: /var/data/trustmap.db

@@ -28,6 +28,7 @@ packages = ["scanner", "api"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "api/demo_scan.json" = "api/demo_scan.json"
+"api/static/index.html" = "api/static/index.html"
 "scanner/compromised.json" = "scanner/compromised.json"
 
 [tool.uv]
