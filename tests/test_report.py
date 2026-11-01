@@ -15,6 +15,7 @@ from scanner.models import (
 )
 from scanner.compromised import POLYFILL_FIX, SRI_FIX
 from scanner.report import (
+    ACTION_MISSING_FIX,
     CLAIMABLE_FIX,
     GITHUB_OWNER_NOTE,
     NO_ACTION_FIX,
@@ -248,6 +249,32 @@ def test_floor_claimable_is_critical_other_hard_is_high():
         "evidence": {"github_owner": {"status": "missing", "exists": False}},
     }
     assert floor_severity(owner_missing) == "critical"
+    action_ref = Reference(
+        file=".github/workflows/actions.yml",
+        line=9,
+        raw="actions/trustmap-missing-repo@main",
+        host_or_bucket="github.com/actions/trustmap-missing-repo",
+        action_owner="actions",
+        action_repo="trustmap-missing-repo",
+        action_ref="main",
+        action_sha_pinned=False,
+    )
+    repo_missing = {
+        "target": "github.com/actions/trustmap-missing-repo",
+        "rows": [
+            (
+                action_ref,
+                _cl(action_ref, type="script", runs_in="ci"),
+                _inv(action_ref, {}),
+            )
+        ],
+        "evidence": {
+            "github_owner": {"status": "exists", "exists": True},
+            "github_repo": {"status": "missing", "exists": False},
+        },
+    }
+    assert floor_severity(repo_missing) == "high"
+    assert choose_fix(repo_missing["evidence"], "remove dead reference", "high", repo_missing["rows"]) == ACTION_MISSING_FIX
     pages = Reference(
         file="index.html",
         line=8,
@@ -612,7 +639,20 @@ def _fixture_handler():
                     blast_radius=3,
                     override="claimable now",
                 )
-            if '"status": "missing"' in blob or '"exists": false' in blob:
+            evidence = payload.get("evidence") or {}
+            repo = evidence.get("github_repo") or {}
+            owner = evidence.get("github_owner") or {}
+            if (
+                str(repo.get("status", "")).lower() == "missing"
+                and str(owner.get("status", "")).lower() != "missing"
+            ):
+                return _rank_ok(
+                    severity="high",
+                    risk="A stranger could recreate this GitHub action repo and run it in CI.",
+                    blast_radius=3,
+                    override="repo missing",
+                )
+            if str(owner.get("status", "")).lower() == "missing" or '"exists": false' in blob:
                 return _rank_ok(
                     severity="critical",
                     risk="A stranger could register this GitHub account and ship install.sh into CI.",

@@ -55,6 +55,45 @@ def test_keep_allowlisted_with_filter_reason_but_keep_buckets(tmp_path: Path):
     }
 
 
+def test_extract_github_actions_uses(tmp_path: Path):
+    workflows = tmp_path / ".github" / "workflows"
+    workflows.mkdir(parents=True)
+    (workflows / "ci.yml").write_text(
+        "\n".join(
+            [
+                "jobs:",
+                "  demo:",
+                "    steps:",
+                "      - uses: ./local",
+                "      - uses: docker://alpine:3.19",
+                "      - uses: gone-owner/tools@v1",
+                "      - uses: actions/missing-repo@main",
+                "      - uses: actions/checkout@8f4b7f84864484a7bf31766abe9204da3cbe65b3",
+                "      - uses: owner/repo/path@v1",
+            ]
+        )
+        + "\n"
+    )
+    (tmp_path / "action.yml").write_text("runs:\n  using: composite\n  steps:\n    - uses: other/tool@v2\n")
+    found = extract(str(tmp_path))
+    by_raw = {ref.raw: ref for ref in found}
+    assert "./local" not in by_raw
+    assert "docker://alpine:3.19" not in by_raw
+    gone = by_raw["gone-owner/tools@v1"]
+    assert gone.host_or_bucket == "github.com/gone-owner/tools"
+    assert gone.action_owner == "gone-owner"
+    assert gone.action_sha_pinned is False
+    assert gone.file == ".github/workflows/ci.yml"
+    missing = by_raw["actions/missing-repo@main"]
+    assert missing.action_repo == "missing-repo"
+    sha = by_raw["actions/checkout@8f4b7f84864484a7bf31766abe9204da3cbe65b3"]
+    assert sha.action_sha_pinned is True
+    nested = by_raw["owner/repo/path@v1"]
+    assert nested.action_repo == "repo"
+    composite = by_raw["other/tool@v2"]
+    assert composite.file == "action.yml"
+
+
 def test_extract_azure_and_github_owner_shapes(tmp_path: Path):
     workflows = tmp_path / ".github" / "workflows"
     workflows.mkdir(parents=True)

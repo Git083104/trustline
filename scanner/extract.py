@@ -44,6 +44,11 @@ PIPE_TO_SHELL_RE = re.compile(
 GITHUB_RE = re.compile(
     r"^https?://github\.com/([^/]+)/([^/#?]+?)(?:\.git)?(?:/.*)?$", re.IGNORECASE
 )
+USES_RE = re.compile(
+    r"""^\s*(?:-\s+)?uses:\s*['"]?([^'"\s#]+)['"]?\s*$""",
+    re.IGNORECASE,
+)
+SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 TRAILING_JUNK = ".,;:)]}>'\""
 HIGH_SUFFIXES = frozenset(
     {
@@ -370,6 +375,26 @@ def _scan_text(rel: str, text: str, found: dict[tuple[str, str, int], Reference]
                 context=context,
                 filter_reason=reason,
             )
+        if _is_workflow_or_action_file(rel):
+            action = _action_from_uses(line)
+            if action is not None:
+                owner, repo, ref, sha_pinned, raw = action
+                host = f"github.com/{owner}/{repo}"
+                key = (host, rel, line_no)
+                if key not in found:
+                    found[key] = Reference(
+                        file=rel,
+                        line=line_no,
+                        raw=raw,
+                        host_or_bucket=host,
+                        domain="",
+                        context=context,
+                        filter_reason=None,
+                        action_owner=owner,
+                        action_repo=repo,
+                        action_ref=ref,
+                        action_sha_pinned=sha_pinned,
+                    )
 
 
 def _context(lines: list[str], index: int) -> str:
@@ -452,13 +477,25 @@ def _bucket_from_http(host: str, host_l: str, first: str) -> str | None:
     return None
 
 
+def is_github_action_ref(ref: Reference) -> bool:
+    return bool(ref.action_owner and ref.action_repo)
+
+
 def is_github_owner_ref(ref: Reference) -> bool:
+    if is_github_action_ref(ref):
+        return False
     return github_login(ref) is not None and ref.host_or_bucket.lower().startswith(
         "github.com/"
     )
 
 
 def github_login(ref: Reference) -> str | None:
+    if ref.action_owner:
+        return (
+            ref.action_owner.lower()
+            if _valid_github_owner(ref.action_owner)
+            else None
+        )
     host = ref.host_or_bucket.lower()
     if host.startswith("github.com/"):
         owner = host.split("/", 1)[1]
@@ -471,6 +508,36 @@ def github_login(ref: Reference) -> str | None:
 
 def _valid_github_owner(owner: str) -> bool:
     return bool(GH_OWNER_RE.match(owner)) and owner.lower() not in GITHUB_RESERVED
+
+
+def _is_workflow_or_action_file(rel: str) -> bool:
+    path = rel.replace("\\", "/").lower()
+    name = path.rsplit("/", 1)[-1]
+    if path.startswith(".github/workflows/") and name.endswith((".yml", ".yaml")):
+        return True
+    return name in {"action.yml", "action.yaml"}
+
+
+def _action_from_uses(
+    line: str,
+) -> tuple[str, str, str, bool, str] | None:
+    match = USES_RE.match(line)
+    if not match:
+        return None
+    spec = match.group(1).strip()
+    if spec.startswith("./") or spec.startswith("docker://"):
+        return None
+    if "@" not in spec:
+        return None
+    name, ref = spec.rsplit("@", 1)
+    parts = [part for part in name.split("/") if part]
+    if len(parts) < 2:
+        return None
+    owner, repo = parts[0], parts[1]
+    if not _valid_github_owner(owner):
+        return None
+    sha_pinned = bool(SHA_RE.fullmatch(ref.lower()))
+    return owner.lower(), repo.lower(), ref, sha_pinned, spec
 
 
 def _github_owner_target(

@@ -26,6 +26,7 @@ from scanner.compromised import compromised_status
 from scanner.extract import (
     github_login,
     is_bucket_ref as _is_bucket_ref,
+    is_github_action_ref,
     is_github_owner_ref,
 )
 from scanner.tools.platform_takeover import matching_platform
@@ -61,6 +62,9 @@ def has_hard_signal(evidence: dict[str, Any]) -> bool:
         return True
     owner = evidence.get("github_owner") or {}
     if str(owner.get("status", "")).lower() == "missing":
+        return True
+    repo = evidence.get("github_repo") or {}
+    if str(repo.get("status", "")).lower() == "missing":
         return True
     platform = evidence.get("platform_takeover") or {}
     if str(platform.get("status", "")).lower() == "unclaimed":
@@ -109,6 +113,18 @@ async def precheck(
             },
             ctx,
         )
+        return _attach_tranco(ref, evidence)
+    if is_github_action_ref(ref):
+        login = github_login(ref)
+        if login:
+            evidence["github_owner"] = await run_tool(
+                "github_owner", {"owner": login}, ctx
+            )
+        evidence["github_repo"] = (
+            await ctx.github_repo(
+                ref.action_owner, ref.action_repo, cache=ctx.cache
+            )
+        ).model_dump(mode="json")
         return _attach_tranco(ref, evidence)
     if is_github_owner_ref(ref):
         login = github_login(ref)

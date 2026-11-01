@@ -1,0 +1,10 @@
+name: actions-takeover
+on: [push]
+jobs:
+  demo:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: ./local
+      - uses: trustmap-missing-owner-act/tools@v1
+      - uses: actions/trustmap-missing-repo@main
+      - uses: actions/checkout@8f4b7f84864484a7bf31766abe9204da3cbe65b3

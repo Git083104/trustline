@@ -15,6 +15,7 @@ from scanner.models import (
     Classification,
     DnsResult,
     GithubOwnerResult,
+    GithubRepoResult,
     PlatformTakeoverResult,
     RdapResult,
     Reference,
@@ -83,6 +84,16 @@ def _ctx(tmp_path, **impls) -> ToolContext:
     async def fake_nameservers(host, cache=None, **kwargs):
         return []
 
+    async def fake_github_repo(owner, repo, cache=None, **kwargs):
+        missing = "missing" in repo.lower()
+        return GithubRepoResult(
+            owner=owner,
+            repo=repo,
+            status="missing" if missing else "exists",
+            exists=not missing,
+            http_status=404 if missing else 200,
+        )
+
     return ToolContext(
         cache=LookupCache(tmp_path / "c.db"),
         dns=impls.get("dns", fake_dns),
@@ -90,6 +101,7 @@ def _ctx(tmp_path, **impls) -> ToolContext:
         rdap=impls.get("rdap", fake_rdap),
         platform_takeover=impls.get("platform_takeover", fake_platform),
         github_owner=impls.get("github_owner", fake_github_owner),
+        github_repo=impls.get("github_repo", fake_github_repo),
         nameservers=impls.get("nameservers", fake_nameservers),
         fetch=impls.get("fetch"),
     )

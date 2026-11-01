@@ -27,6 +27,7 @@ from scanner.extract import (
     extract_scan,
     github_login,
     is_bucket_ref,
+    is_github_action_ref,
     is_github_owner_ref,
     is_website_source,
     website_coverage,
@@ -65,6 +66,11 @@ EXECUTING = frozenset({"browser", "server", "build", "deploy", "ci"})
 CLAIMABLE_FIX = (
     "Remove or replace this reference. If this was yours, re-create it in your own "
     "account to reclaim the name."
+)
+ACTION_PIN_FIX = "Pin to a full commit SHA."
+ACTION_MISSING_FIX = (
+    "Remove or replace this action. If this was yours, re-create it in your own "
+    "account to reclaim the name. Pin to a full commit SHA."
 )
 NO_ACTION_FIX = "No action needed"
 FIX_SENTENCES = {
@@ -263,6 +269,8 @@ def finding_payload(group: dict[str, Any]) -> dict[str, Any]:
                 "runs_in": cl.runs_in,
                 "blast_radius": cl.blast_radius,
                 "reason": cl.reason,
+                "action_ref": ref.action_ref,
+                "action_sha_pinned": ref.action_sha_pinned,
             }
             for ref, cl, _ in rows
         ],
@@ -366,6 +374,9 @@ def has_risk_signal(evidence: dict[str, Any]) -> bool:
     if str(dns.get("status", "")).lower() == "nxdomain":
         return True
     if str(platform.get("status", "")).lower() == "unclaimed":
+        return True
+    repo = usable.get("github_repo") or {}
+    if str(repo.get("status", "")).lower() == "missing":
         return True
     days = rdap.get("days_to_expiry")
     if isinstance(days, int) and days <= EXPIRY_INVESTIGATE_DAYS:
@@ -482,6 +493,20 @@ def choose_fix(
                 third_party_no_sri = True
     if third_party_no_sri:
         return SRI_FIX
+    if any(is_github_action_ref(ref) for ref, _cl, _inv in rows):
+        owner = evidence.get("github_owner") or {}
+        repo = evidence.get("github_repo") or {}
+        if (
+            str(owner.get("status", "")).lower() == "missing"
+            or str(repo.get("status", "")).lower() == "missing"
+        ):
+            return ACTION_MISSING_FIX
+        text = human_fix(model_fix) if has_risk_signal(evidence) else NO_ACTION_FIX
+        if ACTION_PIN_FIX not in text:
+            if text == NO_ACTION_FIX:
+                return ACTION_PIN_FIX
+            return f"{text.rstrip('.')} {ACTION_PIN_FIX}"
+        return text
     if is_claimable(evidence):
         return CLAIMABLE_FIX
     if final_severity == "info" or not has_risk_signal(evidence):
@@ -531,6 +556,11 @@ def evidence_line(group: dict[str, Any], *, include_runs_in: bool = True) -> str
         parts.append("GitHub owner does not exist")
     elif str(owner.get("status", "")).lower() == "exists":
         parts.append("GitHub owner exists")
+    repo = usable.get("github_repo") or {}
+    if str(repo.get("status", "")).lower() == "missing":
+        parts.append("GitHub repo does not exist")
+    elif str(repo.get("status", "")).lower() == "exists":
+        parts.append("GitHub repo exists")
     platform = usable.get("platform_takeover") or {}
     if str(platform.get("status", "")).lower() == "unclaimed":
         plat_name = platform.get("platform") or "platform"
@@ -651,6 +681,13 @@ def floor_decision(group: dict[str, Any]) -> tuple[str | None, str]:
     owner = evidence.get("github_owner") or {}
     if str(owner.get("status", "")).lower() == "missing":
         return _claimable_now_floor(group, "GitHub owner missing", where)
+    repo = evidence.get("github_repo") or {}
+    if str(repo.get("status", "")).lower() == "missing":
+        return (
+            "high",
+            "GitHub repo missing in executing position "
+            f"({where}) is at least high",
+        )
     platform = evidence.get("platform_takeover") or {}
     if str(platform.get("status", "")).lower() == "unclaimed":
         plat_name = platform.get("platform") or "platform"
@@ -1051,6 +1088,21 @@ def hydrate_evidence(
             return None
         return {
             "github_owner": hit,
+            "tranco_rank": tranco_rank(ref.domain or ""),
+        }
+    if is_github_action_ref(ref):
+        login = github_login(ref)
+        if not login:
+            return None
+        owner = cache.get_json(f"github_owner:{login.lower()}")
+        repo = cache.get_json(
+            f"github_repo:{ref.action_owner.lower()}/{ref.action_repo.lower()}"
+        )
+        if owner is None or repo is None:
+            return None
+        return {
+            "github_owner": owner,
+            "github_repo": repo,
             "tranco_rank": tranco_rank(ref.domain or ""),
         }
     dns = cache.get_json(f"dns:{ref.host_or_bucket.lower()}")

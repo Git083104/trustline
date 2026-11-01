@@ -29,6 +29,7 @@ from scanner.models import (
     CertHistoryResult,
     DnsResult,
     GithubOwnerResult,
+    GithubRepoResult,
     PlatformTakeoverResult,
     RdapResult,
     WaybackResult,
@@ -710,6 +711,81 @@ async def github_owner(
             )
     except httpx.HTTPError:
         result = GithubOwnerResult(owner=owner, status="error")
+    finally:
+        if own_client:
+            await client.aclose()
+    cache.set_json(key, result.model_dump(mode="json"))
+    return result
+
+
+async def github_repo(
+    owner: str,
+    repo: str,
+    *,
+    client: httpx.AsyncClient | None = None,
+    cache: LookupCache | None = None,
+) -> GithubRepoResult:
+    cache = cache or default_cache()
+    key = f"github_repo:{owner.lower()}/{repo.lower()}"
+    hit = cache.get_json(key)
+    if hit is not None:
+        return GithubRepoResult.model_validate(hit)
+
+    token = os.environ.get("GITHUB_TOKEN") or None
+    own_client = client is None
+    client = client or httpx.AsyncClient(timeout=HTTP_TIMEOUT_S, follow_redirects=False)
+    try:
+        if token:
+            response = await client.get(
+                f"https://api.github.com/repos/{owner}/{repo}",
+                headers=_github_headers(token),
+            )
+            if response.status_code == 404:
+                result = GithubRepoResult(
+                    owner=owner,
+                    repo=repo,
+                    status="missing",
+                    exists=False,
+                    http_status=404,
+                )
+                cache.set_json(key, result.model_dump(mode="json"))
+                return result
+            if response.status_code == 200:
+                result = GithubRepoResult(
+                    owner=owner,
+                    repo=repo,
+                    status="exists",
+                    exists=True,
+                    http_status=200,
+                )
+                cache.set_json(key, result.model_dump(mode="json"))
+                return result
+        response = await client.get(f"https://github.com/{owner}/{repo}")
+        if response.status_code == 404:
+            result = GithubRepoResult(
+                owner=owner,
+                repo=repo,
+                status="missing",
+                exists=False,
+                http_status=404,
+            )
+        elif response.status_code in {200, 301, 302}:
+            result = GithubRepoResult(
+                owner=owner,
+                repo=repo,
+                status="exists",
+                exists=True,
+                http_status=response.status_code,
+            )
+        else:
+            result = GithubRepoResult(
+                owner=owner,
+                repo=repo,
+                status="error",
+                http_status=response.status_code,
+            )
+    except httpx.HTTPError:
+        result = GithubRepoResult(owner=owner, repo=repo, status="error")
     finally:
         if own_client:
             await client.aclose()

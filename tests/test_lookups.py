@@ -13,6 +13,7 @@ from scanner.lookups import (
     consistent_evidence,
     dns,
     github_owner,
+    github_repo,
     platform_takeover,
     rdap,
     wayback,
@@ -314,6 +315,26 @@ async def test_github_owner_missing_with_token(tmp_path, monkeypatch):
     assert result.status == "missing"
     assert result.exists is False
     assert seen_auth == [True]
+
+
+@pytest.mark.asyncio
+async def test_github_repo_missing_with_token(tmp_path, monkeypatch):
+    monkeypatch.setenv("GITHUB_TOKEN", "ghs_testtoken_not_a_secret_value")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert "Authorization" in request.headers
+        assert request.method == "GET"
+        assert "/repos/actions/gone" in str(request.url)
+        return httpx.Response(404, json={"message": "Not Found"})
+
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(handler), follow_redirects=False
+    ) as client:
+        result = await github_repo(
+            "actions", "gone", client=client, cache=LookupCache(tmp_path / "r.db")
+        )
+    assert result.status == "missing"
+    assert result.exists is False
 
 
 @pytest.mark.asyncio

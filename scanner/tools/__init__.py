@@ -8,6 +8,7 @@ from scanner.lookups import (
     cert_history as lookup_certs,
     dns as lookup_dns,
     github_owner as lookup_github_owner,
+    github_repo as lookup_github_repo,
     nameservers as lookup_nameservers,
     platform_takeover as lookup_platform,
     rdap as lookup_rdap,
@@ -48,6 +49,7 @@ class ToolContext:
     wayback: Callable = lookup_wayback
     platform_takeover: Callable = lookup_platform
     github_owner: Callable = lookup_github_owner
+    github_repo: Callable = lookup_github_repo
     nameservers: Callable = lookup_nameservers
     fetch: Callable | None = None
 

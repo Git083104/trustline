@@ -218,7 +218,7 @@ def test_three_line_context_is_adjacent_lines():
 async def test_label_resume_and_display(tmp_path):
     labels = tmp_path / "labels.jsonl"
     answers = iter(
-        ["c", "first", "s", "", "l", "ok", "i", "", "s", "", "s", "", "s", "", "s", ""]
+        ["c", "first", "s", "", "l", "ok", "i", ""] + ["s", ""] * 40
     )
 
     def input_fn(prompt):
@@ -559,7 +559,7 @@ async def test_label_auto_keeps_human_and_summarizes(tmp_path):
         )
 
     answers = iter(
-        ["c", "note", "c", "", "c", "", "c", "", "c", "", "s", "", "s", "", "s", ""]
+        ["c", "note", "c", "", "c", "", "c", "", "c", ""] + ["s", ""] * 40
     )
     buf = StringIO()
     await label_source(

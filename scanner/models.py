@@ -17,6 +17,10 @@ class Reference(BaseModel):
     attribute: str = ""
     sri: bool | None = None
     loaded_by: str = ""
+    action_owner: str = ""
+    action_repo: str = ""
+    action_ref: str = ""
+    action_sha_pinned: bool | None = None
 
 
 class RdapResult(BaseModel):
@@ -69,6 +73,14 @@ class GithubOwnerResult(BaseModel):
     status: str
     exists: bool | None = None
     kind: str | None = None
+    http_status: int | None = None
+
+
+class GithubRepoResult(BaseModel):
+    owner: str
+    repo: str
+    status: str
+    exists: bool | None = None
     http_status: int | None = None
 
 
