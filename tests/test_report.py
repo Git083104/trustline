@@ -9,6 +9,7 @@ from scanner.lookups import LookupCache
 from scanner.models import (
     BucketProbeResult,
     Classification,
+    Finding,
     Investigation,
     Reference,
 )
@@ -24,6 +25,7 @@ from scanner.report import (
     finding_payload,
     floor_severity,
     format_table,
+    human_fix,
     group_by_target,
     missing_claims,
     rank,
@@ -364,6 +366,98 @@ def test_website_compromised_and_sri_floors():
         ])
         == SRI_FIX
     )
+
+
+def test_claimable_static_asset_floor_is_high():
+    images = Reference(
+        file="src/config.js",
+        line=3,
+        raw="https://trustlinedemoassets.blob.core.windows.net/catalog",
+        host_or_bucket="trustlinedemoassets",
+        context='export const PRODUCT_IMAGES = "https://trustlinedemoassets.blob.core.windows.net/catalog"',
+    )
+    group = {
+        "target": "trustlinedemoassets",
+        "rows": [
+            (
+                images,
+                _cl(images, type="asset", runs_in="browser"),
+                _inv(images, {}),
+            )
+        ],
+        "evidence": {"bucket_probe": {"status": "NoSuchBucket", "provider": "azure"}},
+    }
+    level, reason = floor_decision(group)
+    assert level == "high"
+    assert "static asset" in reason
+    assert "at least high" in reason
+    img = Reference(
+        file="index.html",
+        line=14,
+        raw="https://cdn.example.net/logo.png",
+        host_or_bucket="cdn.example.net",
+        domain="example.net",
+        tag="img",
+        attribute="src",
+    )
+    unreg_img = {
+        "target": "example.net",
+        "rows": [(img, _cl(img, type="asset", runs_in="browser"), _inv(img, {}))],
+        "evidence": {
+            "dns": {"status": "nxdomain"},
+            "rdap": {"status": "unregistered"},
+        },
+    }
+    assert floor_severity(unreg_img) == "high"
+
+
+def test_human_fix_maps_enums_to_sentences():
+    assert human_fix("remove dead reference").endswith(".")
+    assert " " in human_fix("remove dead reference")
+    assert human_fix("remove dead reference") != "remove dead reference"
+    assert choose_fix(
+        {"dns": {"status": "nxdomain"}}, "remove dead reference", "high"
+    ) == human_fix("remove dead reference")
+    assert "no longer resolves" in human_fix("remove dead reference")
+
+
+def test_evidence_line_keeps_spaces_in_runs_in_phrases():
+    ref = Reference(
+        file=".github/workflows/deploy.yml",
+        line=11,
+        raw="https://raw.githubusercontent.com/gone/tools/main/install.sh",
+        host_or_bucket="github.com/gone",
+    )
+    group = {
+        "target": "github.com/gone",
+        "rows": [(ref, _cl(ref, type="script", runs_in="ci"), _inv(ref, {}))],
+        "evidence": {"github_owner": {"status": "missing"}},
+    }
+    line = evidence_line(group)
+    assert " in CI" in line
+    assert "inCI" not in line
+    table = format_table(
+        [
+            Finding(
+                target="github.com/gone",
+                kind="domain",
+                references=[".github/workflows/deploy.yml:11"],
+                severity="critical",
+                model_severity="high",
+                final_severity="critical",
+                classified_blast_radius=2,
+                ranked_blast_radius=3,
+                risk="A stranger could take this over.",
+                fix=CLAIMABLE_FIX,
+                evidence_line=line,
+            )
+        ]
+    )
+    assert "inCI" not in table
+    assert " in CI" in table
+    assert "becausethe" not in table
+    assert "loadsit" not in table
+    assert "itis" not in table
 
 
 def test_s3_path_style_groups_as_bucket_even_if_classified_ci():

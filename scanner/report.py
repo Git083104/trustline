@@ -63,6 +63,43 @@ CLAIMABLE_FIX = (
     "account to reclaim the name."
 )
 NO_ACTION_FIX = "No action needed"
+FIX_SENTENCES = {
+    "remove dead reference": (
+        "Remove this reference; it points to a host that no longer resolves."
+    ),
+    "self-host the asset": (
+        "Self-host this asset so you are not depending on a third-party origin "
+        "you do not control."
+    ),
+    "pin with subresource integrity": (
+        "Add a subresource integrity hash, or self-host this script, so a "
+        "taken-over host cannot change what browsers run."
+    ),
+    "re-register what you abandoned": (
+        "Re-register this name in your own account, or remove the reference if "
+        "you no longer need it."
+    ),
+    "replace with maintained source": (
+        "Replace this with a source that is still maintained."
+    ),
+}
+STATIC_TAGS = frozenset({"img", "source", "link"})
+STATIC_SUFFIXES = (
+    ".css",
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".gif",
+    ".webp",
+    ".svg",
+    ".ico",
+    ".woff",
+    ".woff2",
+    ".ttf",
+    ".eot",
+    ".otf",
+)
+DOWNLOAD_TYPES = frozenset({"script", "api"})
 UNKNOWN_STATUSES = frozenset({"unavailable", "error", "timeout", "unknown"})
 BANNED_FIELD_NAMES = ("rdap", "runs_in", "blast_radius", "status")
 RUNS_IN_PHRASE = {
@@ -345,6 +382,64 @@ def _all_browser_scripts_sri(
     return bool(scripts) and all(ref.sri is True for ref, _cl, _inv in scripts)
 
 
+def human_fix(fix: str) -> str:
+    return FIX_SENTENCES.get(fix, fix)
+
+
+def _is_static_asset(ref: Reference, cl: Classification) -> bool:
+    if ref.tag == "iframe":
+        return False
+    blob = f"{ref.context} {ref.file} {ref.raw}".lower()
+    if "product_image" in blob:
+        return True
+    if cl.type in DOWNLOAD_TYPES:
+        return False
+    if cl.type == "asset" or ref.tag in STATIC_TAGS:
+        return True
+    path = (ref.raw or "").split("?", 1)[0].lower()
+    return path.endswith(STATIC_SUFFIXES)
+
+
+def _has_download_ref(group: dict[str, Any]) -> bool:
+    for ref, cl, _inv in group.get("rows") or []:
+        if cl.runs_in not in EXECUTING:
+            continue
+        if _is_static_asset(ref, cl):
+            continue
+        return True
+    return False
+
+
+def _has_static_asset(group: dict[str, Any]) -> bool:
+    return any(
+        cl.runs_in in EXECUTING and _is_static_asset(ref, cl)
+        for ref, cl, _inv in group.get("rows") or []
+    )
+
+
+def _claimable_now_floor(
+    group: dict[str, Any], signal: str, where: str
+) -> tuple[str | None, str]:
+    if _has_download_ref(group):
+        return _claimable_sri_floor(
+            "critical",
+            f"{signal} for a script/api/config download in executing position "
+            f"({where}) is at least critical",
+            group,
+        )
+    if _has_static_asset(group):
+        return (
+            "high",
+            f"{signal} for a static asset in executing position ({where}) "
+            "is at least high",
+        )
+    return _claimable_sri_floor(
+        "critical",
+        f"{signal} in executing position ({where}) is at least critical",
+        group,
+    )
+
+
 def _group_compromised(
     group: dict[str, Any],
 ) -> str | None:
@@ -381,7 +476,7 @@ def choose_fix(
         return CLAIMABLE_FIX
     if final_severity == "info" or not has_risk_signal(evidence):
         return NO_ACTION_FIX
-    return model_fix
+    return human_fix(model_fix)
 
 
 def evidence_line(group: dict[str, Any], *, include_runs_in: bool = True) -> str:
@@ -534,28 +629,17 @@ def floor_decision(group: dict[str, Any]) -> tuple[str | None, str]:
     rdap = evidence.get("rdap") or {}
     dns = evidence.get("dns") or {}
     if bucket.get("status") == "NoSuchBucket":
-        return _claimable_sri_floor(
-            "critical",
-            f"NoSuchBucket in executing position ({where}) is at least critical",
-            group,
-        )
+        return _claimable_now_floor(group, "NoSuchBucket", where)
     owner = evidence.get("github_owner") or {}
     if str(owner.get("status", "")).lower() == "missing":
-        return _claimable_sri_floor(
-            "critical",
-            f"GitHub owner missing in executing position ({where}) is at least critical",
-            group,
-        )
+        return _claimable_now_floor(group, "GitHub owner missing", where)
     platform = evidence.get("platform_takeover") or {}
     if str(platform.get("status", "")).lower() == "unclaimed":
         plat_name = platform.get("platform") or "platform"
         takeover = str(platform.get("takeover") or "edge case")
         if takeover == "vulnerable":
-            return _claimable_sri_floor(
-                "critical",
-                f"{plat_name} unclaimed ({takeover}) in executing position "
-                f"({where}) is at least critical",
-                group,
+            return _claimable_now_floor(
+                group, f"{plat_name} unclaimed ({takeover})", where
             )
         return (
             "high",
@@ -563,11 +647,7 @@ def floor_decision(group: dict[str, Any]) -> tuple[str | None, str]:
             "is at least high",
         )
     if str(rdap.get("status", "")).lower() == "unregistered":
-        return _claimable_sri_floor(
-            "critical",
-            f"RDAP unregistered in executing position ({where}) is at least critical",
-            group,
-        )
+        return _claimable_now_floor(group, "RDAP unregistered", where)
     if str(dns.get("status", "")).lower() == "nxdomain":
         return (
             "high",
