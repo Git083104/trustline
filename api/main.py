@@ -104,12 +104,11 @@ def create_app(
             kind, target = classify_target(body.target, body.kind)
         except TargetError as exc:
             return JSONResponse(status_code=exc.status_code, content=exc.body)
-        ip = client_ip(request)
-        blocked = limit_store.check(ip)
+        ip = client_ip(request, hops=limit_store.trusted_hops)
+        job = Job(kind=kind, target=target)
+        blocked = limit_store.admit(ip, job.scan_id, cost_cap)
         if blocked:
             return JSONResponse(status_code=429, content={"error": blocked})
-        limit_store.record_start(ip)
-        job = Job(kind=kind, target=target)
         store.add(job)
         job.emit(
             {
@@ -128,6 +127,7 @@ def create_app(
         def on_event(payload: dict[str, Any]) -> None:
             job.emit(payload)
 
+        actual = 0.0
         try:
             lookup = cache or lookup_default
             outcome = await scan_runner(
@@ -139,10 +139,12 @@ def create_app(
                 cost_cap=cost_cap,
                 on_event=on_event,
             )
-            limit_store.add_spend(outcome.cost_usd)
+            actual = outcome.cost_usd
             job.finish(outcome)
         except Exception as exc:
             job.fail(redact_secrets(str(exc)))
+        finally:
+            limit_store.reconcile(job.scan_id, actual)
 
     @app.get("/api/scan/{scan_id}/events")
     async def scan_events(scan_id: str) -> StreamingResponse:

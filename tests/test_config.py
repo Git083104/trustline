@@ -2,6 +2,8 @@ from scanner.config import (
     ALLOWLIST_DOMAINS,
     DAILY_CAP_USD,
     IP_SCANS_PER_HOUR,
+    MAX_CONCURRENT_SCANS,
+    TRUSTED_PROXY_HOPS,
     SKIP_FILE_NAMES,
     SKIP_NAME_SUFFIXES,
 )
@@ -19,6 +21,8 @@ def test_allowlist_is_generic_platform_roots():
 def test_public_safety_limit_defaults():
     assert DAILY_CAP_USD == 10.0
     assert IP_SCANS_PER_HOUR == 5
+    assert MAX_CONCURRENT_SCANS == 3
+    assert TRUSTED_PROXY_HOPS == 0
 
 
 def test_skip_rules_cover_lockfiles_minified_and_sourcemaps():
