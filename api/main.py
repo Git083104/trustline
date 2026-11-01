@@ -6,7 +6,7 @@ import os
 from collections.abc import AsyncIterator, Awaitable, Callable
 from typing import Any, Literal
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
@@ -14,9 +14,10 @@ from pydantic import BaseModel
 from api.classify_target import TargetError, classify_target
 from api.demo import demo_gap_ms, demo_report, load_demo
 from api.jobs import Job, JobStore
+from api.limits import LimitsStore, client_ip
 from scanner.config import SCAN_COST_CAP_USD
 from scanner.llm import LiveModelClient, ModelClient, redact_secrets
-from scanner.lookups import LookupCache
+from scanner.lookups import LookupCache, default_cache
 from scanner.report import ScanOutcome, run_scan
 from scanner.tools import ToolContext
 
@@ -46,6 +47,7 @@ def create_app(
     ctx: ToolContext | None = None,
     cost_cap: float = SCAN_COST_CAP_USD,
     runner: ScanRunner | None = None,
+    limits: LimitsStore | None = None,
 ) -> FastAPI:
     app = FastAPI(title="Trustmap")
     app.add_middleware(
@@ -59,6 +61,8 @@ def create_app(
     app.state.store = store
     scan_runner = runner or run_scan
     client_holder: dict[str, ModelClient | None] = {"client": model_client}
+    lookup_default = cache or default_cache()
+    limit_store = limits or LimitsStore(lookup_default.path)
 
     def client() -> ModelClient:
         held = client_holder["client"]
@@ -95,11 +99,16 @@ def create_app(
         return StreamingResponse(gen(), media_type="text/event-stream")
 
     @app.post("/api/scan", response_model=None)
-    async def start_scan(body: ScanIn):
+    async def start_scan(body: ScanIn, request: Request):
         try:
             kind, target = classify_target(body.target, body.kind)
         except TargetError as exc:
             return JSONResponse(status_code=exc.status_code, content=exc.body)
+        ip = client_ip(request)
+        blocked = limit_store.check(ip)
+        if blocked:
+            return JSONResponse(status_code=429, content={"error": blocked})
+        limit_store.record_start(ip)
         job = Job(kind=kind, target=target)
         store.add(job)
         job.emit(
@@ -120,7 +129,7 @@ def create_app(
             job.emit(payload)
 
         try:
-            lookup = cache or LookupCache()
+            lookup = cache or lookup_default
             outcome = await scan_runner(
                 job.target,
                 client=client(),
@@ -130,6 +139,7 @@ def create_app(
                 cost_cap=cost_cap,
                 on_event=on_event,
             )
+            limit_store.add_spend(outcome.cost_usd)
             job.finish(outcome)
         except Exception as exc:
             job.fail(redact_secrets(str(exc)))

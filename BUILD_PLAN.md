@@ -225,54 +225,75 @@ host is filtered (`reserved_tld`) and must not rank.
 
 **Accept when:** I can paste the fixture's GitHub URL and watch the scan stream to a finished map.
 
-## Phase 8 — Muse Code integration
+## Phase A — Public-safety limits
 
-- `scanner/mcp_server.py`: expose the Phase 2 lookups as an MCP server over stdio using the
-  official Python MCP SDK.
-- Tell me the exact `mcpServers` block to add to `~/.config/muse/settings.json`, and a test
-  prompt to run in Muse Code that lists the tools.
-- `.github/workflows/trustmap.yml`: on pull_request, run a read-only scan of the diff's new
-  references with `muse exec` (read-only: no approvals needed) and post findings as a PR comment.
-  Use repository secrets for keys; tell me which to add.
+- Global daily model-spend cap (`TRUSTMAP_DAILY_CAP_USD`, default 10), persisted in SQLite.
+  When hit, `POST /api/scan` returns 429 `"Daily limit reached, try the demo"`. Demo routes keep
+  working.
+- Per-IP limit (default 5 scans/hour).
 
-**Accept when:** I can run the MCP server in Muse Code and the workflow runs on a test PR.
+**Accept when:** offline tests show 429 on cap/rate-limit while demo still serves.
 
-## Phase 9 — Fix PRs and open-weight mode
+## Phase B — Muse Code integration
 
-- `scanner/fixer.py`: for findings whose fix is "remove dead reference" or "pin with SRI",
-  generate a patch and open a PR on the demo repo with `gh`. SRI hashes must be computed from a
-  known-good copy (Wayback snapshot), NEVER from what a possibly taken-over host serves now.
-  After the PR, rescan and show the finding resolved.
-- Open-weight mode: `--provider fireworks` (or `baseten`) switches `llm.py` to Muse Spark Open.
-- **Fine-tuned Muse Glimmer classifier** (follow the Fireworks workshop's router notebook:
-  github.com/sinanuozdemir/ai-experiments/tree/main/experiments/meta-hackathon-muse, which took
-  Glimmer from 22.5% to 90% route accuracy with LoRA SFT on 600 examples):
-  - Build training data from Phase 3 classifications I've reviewed plus my Phase 6 labels.
-  - LoRA SFT Muse Glimmer 30B with the Fireworks Serverless Training API (`fw-ai/cookbook` Muse
-    Glimmer starter). Fireworks says LoRA SFT is free for jobs started before Dec 1, 2026;
-    evaluation is billed per token and deployments per GPU-hour, so delete the deployment after.
-  - Compare base Glimmer, tuned Glimmer and Muse Spark on held-out references: accuracy, cost,
-    latency. Training is slow, so start it as soon as the labels exist and tell me when.
-- Run the Phase 6 eval on every provider and print one comparison table.
+1. `scanner/mcp_server.py`: expose the lookup tools (dns, rdap, bucket_probe, cert_history,
+   wayback, platform_takeover, github_owner) and a `scan(target)` tool over stdio with the
+   official Python MCP SDK. Read-only; never claims anything.
+2. `docs/muse-code.md`: the exact `mcpServers` block for `~/.config/muse/settings.json`, how to
+   verify with `/mcp`, and a demo prompt for an interactive Muse Code session ("scan this repo
+   with the trustmap tools and explain the top risk").
+3. `.github/workflows/trustmap.yml`: on `pull_request`, install Muse Code
+   (`curl -fsSL https://dev.meta.ai/install.sh | sh`), run `muse exec` with a read-only prompt
+   that uses our MCP tools to scan references added in the PR diff, and post the findings as a
+   PR comment with `gh`. `MODEL_API_KEY` from repo secrets. Headless runs can't answer approval
+   prompts, so configure only read-only tools as allowed (check the Muse Code docs for the
+   headless allowlist setting and record what was found). Fail the check only on critical
+   findings.
+4. Document exactly how to test it: which secret to add and a test PR that adds a reference to
+   the unregistered demo domain.
 
-**Accept when:** a fix PR exists on the demo repo, and the eval table shows Spark, Spark Open,
-base Glimmer and tuned Glimmer side by side.
+**Accept when:** MCP server docs exist, the workflow file is in place, and the test recipe is
+written.
 
-## Phase 10 — Then-vs-now screenshots (stretch)
+## Phase C — Accuracy facts (code produces each fact; the ranker sees it)
 
-Playwright screenshots of today's page at a flagged host and its last Wayback snapshot; Muse Spark
-vision answers "same service, parked/for-sale page, or different content?" with a reason. Show
-both images in the finding.
+1. `popularity_rank` from the Tranco list (download once, keep top 100k in SQLite with the list
+   date). Prompt guidance: a top-ranked, resolving, registered domain is almost never abandoned.
+2. `live_fetch` tool (GET only, never execute, 5s, 1 MB): status, final URL, content type,
+   title, size, sha256, and parked/for-sale detection (Sedo, Dan.com, Afternic, "this domain is
+   for sale"/"buy this domain"). For-sale on a script/config host = at least high, critical if
+   it executes.
+3. URLhaus host lookup (abuse.ch). If an auth key is required, read it from env and skip cleanly
+   when unset. A listed host = critical regardless of position (except docs/tests = high).
 
-## Phase 11 — Public repo scan (stretch, headline impact number)
+**Accept when:** offline tests cover each fact and floors; rerun eval from cache and report
+false-alarm/recall change.
 
-Scan 500–1,000 popular public repos with extraction + cheap checks only (dns, bucket_probe,
-rdap), and run the agent only on hits. Output aggregate counts only — never publish repo names or
-bucket names. Write findings to a private file so I can notify maintainers.
+## Phase D — Open-weight private mode
 
-## Finally — README
+`--provider baseten` runs every model step on Muse Spark Open
+(`meta-models/muse-spark-open-1026`; confirm the base URL from Baseten's docs, key
+`BASETEN_API_KEY`). Run the eval on both providers and add a side-by-side table (recall, false
+alarms, cost, time) to `eval/results.md`. Also check the Meta model list for a Muse Wonder ID;
+if available, add it as an optional ranker and include it in the table.
 
-Write README.md: what Trustmap does (one paragraph), the Polyfill.io and watchTowr context, how
-each Muse model is used and why, architecture diagram (Mermaid), eval results table, how to run it
-locally, the safety rules above, and a clear statement that everything was built during the
-hackathon (Oct 27–Nov 4, 2026).
+**Accept when:** `eval/results.md` has the comparison table.
+
+## Phase E — Monitoring
+
+`.github/workflows/trustmap-weekly.yml` runs the scan weekly and opens or updates one GitHub
+issue when a finding is new or changed severity (e.g. "a domain your site loads stopped
+resolving"). Never duplicates issues.
+
+**Accept when:** the workflow file exists and issue-dedup is tested.
+
+## Phase F — Deploy
+
+`render.yaml` (web service running the FastAPI app with the UI at `/`), env vars documented,
+`TRUSTMAP_ALLOW_LOCAL_SCAN` forced off, health check `/api/health`. Then `README.md`: what it
+does (repo + website), Polyfill.io and watchTowr context, how each Meta tool is used (Muse
+Spark, Muse Code, Spark Open, Wonder if used), architecture diagram (Mermaid), eval results
+with the rubric note, safety rules, credits to jwang2007/trustline, and "built during the
+hackathon".
+
+**Accept when:** README and render.yaml are in the repo.

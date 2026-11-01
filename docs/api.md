@@ -32,6 +32,15 @@ POST /api/scan
 {"scan_id": "7c2e1a9b", "kind": "website", "target": "https://example.com"}
 ```
 
+Public-safety limits (demo routes are exempt): a daily model-spend cap
+(`TRUSTMAP_DAILY_CAP_USD`, default 10) and a per-IP cap (`TRUSTMAP_IP_SCANS_PER_HOUR`,
+default 5). When the daily cap is hit:
+
+```json
+429
+{"error": "Daily limit reached, try the demo"}
+```
+
 Unknown `scan_id` on later GETs → 404.
 
 ## `GET /api/scan/{id}/events`
