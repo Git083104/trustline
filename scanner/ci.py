@@ -152,15 +152,16 @@ def muse_settings(python_exe: str) -> dict[str, Any]:
     }
 
 
-def muse_argv(*, prompt_file: str, schema_file: str) -> list[str]:
+def muse_argv(*, prompt_file: str, schema_file: str, muse_bin: str = "muse") -> list[str]:
     return [
-        "muse",
+        muse_bin,
         "exec",
         "--disable-shell",
         "--disable-write",
         "--disable-approval",
         "--disable-web-tools",
         "--disable-request-user-input",
+        "--disable-reminders",
         "--approval-mode",
         "never",
         "--sandbox-network",
@@ -175,6 +176,15 @@ def muse_argv(*, prompt_file: str, schema_file: str) -> list[str]:
         "-c",
         'run.toolset=["mcp__trustmap__*"]',
     ]
+
+
+def redact_ci_text(text: str) -> str:
+    out = redact_secrets(text)
+    for name in ("MODEL_API_KEY", "META_API_KEY"):
+        value = (os.environ.get(name) or "").strip()
+        if value:
+            out = out.replace(value, "[REDACTED]")
+    return out
 
 
 def _json_objects(text: str) -> list[Any]:
@@ -201,10 +211,26 @@ def _json_objects(text: str) -> list[Any]:
 
 
 def _as_report(value: Any) -> CiReport | None:
+    if isinstance(value, str):
+        text = value.strip()
+        if text.startswith("{") or text.startswith("["):
+            try:
+                return _as_report(json.loads(text))
+            except json.JSONDecodeError:
+                return None
+        return None
     if isinstance(value, dict):
-        if "findings" in value:
-            return CiReport.model_validate(value)
-        for key in ("output", "result", "data", "structured_output"):
+        if "findings" in value and isinstance(value["findings"], list):
+            try:
+                return CiReport.model_validate(value)
+            except Exception:
+                pass
+        payload = value.get("payload")
+        if isinstance(payload, dict) and isinstance(payload.get("text"), str):
+            found = _as_report(payload["text"])
+            if found is not None:
+                return found
+        for key in ("output", "result", "data", "structured_output", "payload"):
             if key in value:
                 found = _as_report(value[key])
                 if found is not None:
@@ -276,7 +302,11 @@ def main(argv: list[str] | None = None) -> int:
     argv_p = sub.add_parser("write-muse-argv")
     argv_p.add_argument("--prompt-file", required=True)
     argv_p.add_argument("--schema-file", required=True)
+    argv_p.add_argument("--muse-bin", default="muse")
     argv_p.add_argument("--out", required=True)
+
+    dump = sub.add_parser("dump-failure")
+    dump.add_argument("--in-file", required=True)
 
     parse = sub.add_parser("parse")
     parse.add_argument("--in-file", required=True)
@@ -323,9 +353,19 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "write-muse-argv":
         _write(
             args.out,
-            json.dumps(muse_argv(prompt_file=args.prompt_file, schema_file=args.schema_file))
+            json.dumps(
+                muse_argv(
+                    prompt_file=args.prompt_file,
+                    schema_file=args.schema_file,
+                    muse_bin=args.muse_bin,
+                )
+            )
             + "\n",
         )
+        return 0
+
+    if args.cmd == "dump-failure":
+        print(redact_ci_text(_read(args.in_file)))
         return 0
 
     if args.cmd == "parse":
