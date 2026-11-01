@@ -453,7 +453,6 @@ def _fixture_handler():
                     risk="A stranger could register this GitHub account and ship install.sh into CI.",
                     blast_radius=3,
                     override="claimable now",
-                    uncertain_about=GITHUB_OWNER_NOTE,
                 )
             if "unclaimed" in blob and "GitHub Pages" in blob:
                 return _rank_ok(

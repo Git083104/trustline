@@ -113,8 +113,6 @@ RANK_SYSTEM_PROMPT = (
     "A registered, resolving, actively used domain that renews soon is routine. "
     "Expiry matters when combined with signs of abandonment (DNS does not resolve, "
     "or the owner has shut down). Do not raise severity for expiry alone. "
-    "If github_owner status is missing, set uncertain_about to exactly: "
-    f"{GITHUB_OWNER_NOTE!r}. "
     "You may raise or lower blast_radius versus classify when evidence shows the "
     "reference matters more or less; if you change it, set blast_override_reason. "
     "fix must be one of the allowed values."
@@ -453,6 +451,17 @@ def floor_decision(group: dict[str, Any]) -> tuple[str | None, str]:
     return None, ""
 
 
+def _github_owner_note(uncertain: str, evidence: dict[str, Any]) -> str:
+    owner = evidence.get("github_owner") or {}
+    if str(owner.get("status", "")).lower() != "missing":
+        return uncertain
+    if GITHUB_OWNER_NOTE in uncertain:
+        return uncertain
+    if uncertain.strip():
+        return uncertain.rstrip() + " " + GITHUB_OWNER_NOTE
+    return GITHUB_OWNER_NOTE
+
+
 def apply_floor(severity: Severity, floor: str | None) -> tuple[Severity, str]:
     if floor is None:
         return severity, ""
@@ -515,10 +524,6 @@ def _rank_group(
             problems.append(f"banned field names: {banned}")
         if unknown:
             problems.append(f"unknown lookups cited: {unknown}")
-        owner = group["evidence"].get("github_owner") or {}
-        if str(owner.get("status", "")).lower() == "missing":
-            if GITHUB_OWNER_NOTE not in (parsed.uncertain_about or ""):
-                problems.append("missing GitHub owner retirement note")
         if problems:
             raise ValueError("; ".join(problems))
 
@@ -602,6 +607,7 @@ def _finding_from_rank(
         risk = parsed.risk
         model_fix = parsed.fix
         uncertain = parsed.uncertain_about
+    uncertain = _github_owner_note(uncertain, evidence)
     final, raised = apply_floor(model_severity, floor)
     floor_reason = floor_why if raised else ""
     return Finding(
