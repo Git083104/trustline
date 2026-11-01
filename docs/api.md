@@ -1,4 +1,4 @@
-# Trustmap scan API
+# Trustline scan API
 
 Base URL is the FastAPI app (`uvicorn api.main:app --factory`). All JSON events are
 SSE frames `data: {json}\n\n`. Every event object has `type`, `scan_id`, and `ts`.
@@ -50,6 +50,15 @@ When the daily cap is hit:
 ```
 
 Unknown `scan_id` on later GETs → 404.
+
+If `MODEL_API_KEY` is not set (and no test client is injected):
+
+```json
+503
+{"error": "Live scans aren't configured; try the demo"}
+```
+
+No job is created. Demo routes do not need the key.
 
 ## `GET /api/scan/{id}/events`
 

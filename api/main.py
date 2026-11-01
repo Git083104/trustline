@@ -7,6 +7,7 @@ from pathlib import Path
 from collections.abc import AsyncIterator, Awaitable, Callable
 from typing import Any, Literal
 
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
@@ -25,6 +26,14 @@ from scanner.tools import ToolContext
 
 ScanRunner = Callable[..., Awaitable[ScanOutcome]]
 STATIC = Path(__file__).resolve().parent / "static"
+LIVE_UNCONFIGURED = "Live scans aren't configured; try the demo"
+
+
+def _load_local_env() -> None:
+    for candidate in (Path(".env"), Path(__file__).resolve().parents[1] / ".env"):
+        if candidate.is_file():
+            load_dotenv(candidate, override=False)
+            return
 
 
 class ScanIn(BaseModel):
@@ -52,7 +61,11 @@ def create_app(
     runner: ScanRunner | None = None,
     limits: LimitsStore | None = None,
 ) -> FastAPI:
-    app = FastAPI(title="Trustmap")
+    _load_local_env()
+    app = FastAPI(
+        title="Trustline",
+        description="Find abandoned outside infrastructure a repository or website still trusts.",
+    )
     app.add_middleware(
         CORSMiddleware,
         allow_origins=_cors_origins(),
@@ -107,12 +120,19 @@ def create_app(
 
         return StreamingResponse(gen(), media_type="text/event-stream")
 
+    def live_ready() -> bool:
+        if model_client is not None:
+            return True
+        return bool(os.environ.get("MODEL_API_KEY", "").strip())
+
     @app.post("/api/scan", response_model=None)
     async def start_scan(body: ScanIn, request: Request):
         try:
             kind, target = classify_target(body.target, body.kind)
         except TargetError as exc:
             return JSONResponse(status_code=exc.status_code, content=exc.body)
+        if not live_ready():
+            return JSONResponse(status_code=503, content={"error": LIVE_UNCONFIGURED})
         ip = client_ip(request, hops=limit_store.trusted_hops)
         job = Job(kind=kind, target=target)
         blocked = limit_store.admit(ip, job.scan_id, cost_cap)

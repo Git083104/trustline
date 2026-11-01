@@ -32,7 +32,7 @@ from scanner.tools import ToolContext
 MUSE_CODE_VERSION = "1.4.14"
 SKIP_NO_SECRET = (
     "MODEL_API_KEY is not available (fork pull requests do not receive repo secrets). "
-    "Skipping Trustmap. This is not a failure."
+    "Skipping Trustline. This is not a failure."
 )
 MAX_DIFF_CHARS = 200_000
 Severity = Literal["critical", "high", "medium", "low", "info"]
@@ -481,8 +481,8 @@ def comment_body(report: CiReport, *, skipped: str | None = None) -> str:
     if not report.findings:
         notes = report.notes.strip()
         extra = f"\n\n{notes}" if notes else ""
-        return "Trustmap found no takeover risks in added PR lines." + extra
-    lines = ["## Trustmap", "", "Findings from added lines in this PR:", ""]
+        return "Trustline found no takeover risks in added PR lines." + extra
+    lines = ["## Trustline", "", "Findings from added lines in this PR:", ""]
     for item in report.findings:
         lines.append(f"### {item.target} (`{item.severity}`)")
         lines.append("")

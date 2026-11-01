@@ -1,4 +1,4 @@
-name: Trustmap
+name: Trustline
 
 on:
   pull_request:
@@ -19,7 +19,7 @@ jobs:
         run: |
           if [ -z "$MODEL_API_KEY" ]; then
             echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "MODEL_API_KEY is not available (fork pull requests do not receive repo secrets). Skipping Trustmap. This is not a failure."
+            echo "MODEL_API_KEY is not available (fork pull requests do not receive repo secrets). Skipping Trustline. This is not a failure."
           else
             echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
@@ -34,7 +34,7 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install Trustmap
+      - name: Install Trustline
         if: steps.access.outputs.skip == 'false'
         run: uv sync --group dev
 

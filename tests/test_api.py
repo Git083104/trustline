@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 from api.classify_target import classify_target, infer_kind
 from api.demo import demo_gap_ms, demo_report, load_demo
 from api.jobs import Job
-from api.main import create_app
+from api.main import LIVE_UNCONFIGURED, create_app
 from scanner.config import DEMO_EVENT_GAP_MS, SCAN_COST_CAP_USD
 from scanner.llm import FakeModelClient
 from scanner.lookups import LookupCache
@@ -58,7 +58,7 @@ def test_placeholder_home_and_demo_button():
         home = client.get("/")
         assert home.status_code == 200
         body = home.text
-        assert "<title>Trustmap</title>" in body
+        assert "<title>Trustline</title>" in body
         assert 'id="target"' in body
         assert "Watch the demo scan" in body
         css = client.get("/static/app.css")
@@ -70,6 +70,17 @@ def test_placeholder_home_and_demo_button():
         assert demo.status_code == 200
         types = [item.get("type") for item in _parse_sse(demo.text)]
         assert "done" in types
+
+
+def test_live_scan_without_key_returns_503(monkeypatch):
+    monkeypatch.setattr("api.main._load_local_env", lambda: None)
+    monkeypatch.delenv("MODEL_API_KEY", raising=False)
+    app = create_app()
+    with TestClient(app) as client:
+        response = client.post("/api/scan", json={"target": "https://example.com"})
+        assert response.status_code == 503
+        assert response.json() == {"error": LIVE_UNCONFIGURED}
+        assert app.state.store._jobs == {}
 
 
 def test_health_and_cors():
