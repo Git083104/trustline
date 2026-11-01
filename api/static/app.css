@@ -107,6 +107,12 @@ a { color: var(--color-accent-700); }
   background: linear-gradient(180deg, #13151f 0%, #161826 85%, #f8f9fe 100%);
   color: #e9e9ed;
 }
+.scan-hero .muted, .results-hero .muted { color: #b2b6ca; }
+.results-hero h1 { color: #e9e9ed; }
+.scan-body, .results-body {
+  background: #f8f9fe;
+  color: #161826;
+}
 .scan-hero-inner, .results-hero-inner { max-width: 1240px; margin: 0 auto; padding: 28px clamp(16px, 3vw, 32px) 48px; display: flex; flex-direction: column; gap: 16px; }
 .scan-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
 .progress { height: 6px; border-radius: 3px; background: var(--color-neutral-900); overflow: hidden; }
