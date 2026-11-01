@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
 import os
 import subprocess
@@ -8,9 +9,25 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-from scanner.extract import S3_SCHEME_RE, URL_RE
+from scanner.agent import precheck
+from scanner.extract import (
+    DOC_SUFFIXES,
+    S3_SCHEME_RE,
+    SOURCE_SUFFIXES,
+    URL_RE,
+    _scan_text,
+    is_bucket_ref,
+)
 from scanner.llm import redact_secrets
-from scanner.report import choose_fix
+from scanner.lookups import LookupCache, default_cache
+from scanner.models import Classification, Investigation, Reference
+from scanner.report import (
+    STATIC_SUFFIXES,
+    choose_fix,
+    floor_decision,
+    group_by_target,
+)
+from scanner.tools import ToolContext
 
 MUSE_CODE_VERSION = "1.4.14"
 SKIP_NO_SECRET = (
@@ -138,8 +155,11 @@ def build_prompt(added: str) -> str:
     return CI_PROMPT + body + "\n"
 
 
-def muse_settings(python_exe: str) -> dict[str, Any]:
+def muse_settings(python_exe: str, cache_db: str | None = None) -> dict[str, Any]:
     """settings.json for Muse Code 1.4.14. Key is mcpServers (not cookbook-only)."""
+    env = {"MODEL_API_KEY": "${MODEL_API_KEY}"}
+    if cache_db:
+        env["TRUSTMAP_CACHE_DB"] = cache_db
     return {
         "schema_version": 1,
         "mcpServers": {
@@ -147,7 +167,7 @@ def muse_settings(python_exe: str) -> dict[str, Any]:
                 "transport": "stdio",
                 "command": python_exe,
                 "args": ["-m", "scanner.mcp_server"],
-                "env": {"MODEL_API_KEY": "${MODEL_API_KEY}"},
+                "env": env,
                 "mode": "required",
             }
         },
@@ -336,8 +356,122 @@ def parse_muse_output(text: str) -> CiReport:
     return report
 
 
+def references_from_diff(diff_text: str) -> list[Reference]:
+    found: dict[tuple[str, str, int], Reference] = {}
+    current = "unknown"
+    added: dict[str, list[str]] = {}
+    for line in diff_text.splitlines():
+        if line.startswith("+++ b/"):
+            current = line[6:]
+            added.setdefault(current, [])
+            continue
+        if line.startswith("+") and not line.startswith("+++"):
+            added.setdefault(current, []).append(line[1:])
+    for rel, lines in added.items():
+        _scan_text(rel, "\n".join(lines) + ("\n" if lines else ""), found)
+    return sorted(found.values(), key=lambda ref: (ref.file, ref.line, ref.raw))
+
+
+def ci_classification(ref: Reference) -> Classification:
+    path = (ref.file or "").replace("\\", "/").lower()
+    blob = f"{ref.context} {ref.raw} {ref.file}".lower()
+    raw_path = (ref.raw or "").split("?", 1)[0].lower()
+    if is_bucket_ref(ref):
+        kind: Literal["script", "api", "asset", "bucket", "docs_link", "other"] = "bucket"
+    elif "<script" in blob or raw_path.endswith((".js", ".mjs", ".cjs")):
+        kind = "script"
+    elif raw_path.endswith(STATIC_SUFFIXES) or any(
+        tag in blob for tag in ("<img", "<link", "<source")
+    ):
+        kind = "asset"
+    else:
+        kind = "other"
+    if path.endswith(tuple(DOC_SUFFIXES)) or "/docs/" in f"/{path}/":
+        runs: Literal[
+            "browser", "server", "build", "deploy", "ci", "test", "docs_only"
+        ] = "docs_only"
+    elif path.startswith(".github/workflows/") or path.endswith((".yml", ".yaml")):
+        runs = "ci" if path.startswith(".github/") else "deploy"
+    elif path.endswith((".html", ".htm", ".css", ".js", ".jsx", ".ts", ".tsx")):
+        runs = "browser"
+    elif path.endswith(tuple(SOURCE_SUFFIXES)):
+        runs = "server"
+    elif kind == "script":
+        runs = "browser"
+    else:
+        runs = "browser"
+    return Classification(
+        id=f"{ref.file}:{ref.line}",
+        file=ref.file,
+        line=ref.line,
+        host_or_bucket=ref.host_or_bucket,
+        type=kind,
+        runs_in=runs,
+        blast_radius=0,
+        confidence=1,
+        reason="ci heuristic",
+    )
+
+
+async def floor_groups_for_refs(
+    refs: list[Reference],
+    *,
+    cache: LookupCache,
+    ctx: ToolContext | None = None,
+) -> list[dict[str, Any]]:
+    ctx = ctx or ToolContext(cache=cache)
+    rows: list[tuple[Reference, Classification, Investigation]] = []
+    for ref in refs:
+        if ref.filter_reason is not None:
+            continue
+        cl = ci_classification(ref)
+        evidence = await precheck(ref, cl, ctx)
+        rows.append(
+            (
+                ref,
+                cl,
+                Investigation(
+                    file=ref.file,
+                    line=ref.line,
+                    host_or_bucket=ref.host_or_bucket,
+                    status="done",
+                    evidence=evidence,
+                ),
+            )
+        )
+    return group_by_target(rows)
+
+
+def floors_from_groups(groups: list[dict[str, Any]]) -> dict[str, str | None]:
+    return {group["target"]: floor_decision(group)[0] for group in groups}
+
+
+def has_critical_floor(floors: dict[str, str | None]) -> bool:
+    return any(level == "critical" for level in floors.values())
+
+
 def has_critical(report: CiReport) -> bool:
     return any(item.severity == "critical" for item in report.findings)
+
+
+def overlay_floors(report: CiReport, groups: list[dict[str, Any]]) -> CiReport:
+    by_target = {group["target"]: group for group in groups}
+    for item in report.findings:
+        group = by_target.get(item.target)
+        if group is None:
+            for key, candidate in by_target.items():
+                if item.target == key or item.target.endswith(f".{key}") or key.endswith(
+                    f".{item.target}"
+                ):
+                    group = candidate
+                    break
+        if group is None:
+            item.severity = "info"
+            continue
+        item.evidence = group.get("evidence") or item.evidence
+        level, _reason = floor_decision(group)
+        item.severity = level or "info"
+    return report
 
 
 def comment_body(report: CiReport, *, skipped: str | None = None) -> str:
@@ -377,6 +511,7 @@ def main(argv: list[str] | None = None) -> int:
     added.add_argument("--base", required=True)
     added.add_argument("--head", required=True)
     added.add_argument("--out", required=True)
+    added.add_argument("--full-out", default="")
 
     prompt = sub.add_parser("write-prompt")
     prompt.add_argument("--diff-file", required=True)
@@ -388,6 +523,7 @@ def main(argv: list[str] | None = None) -> int:
     settings = sub.add_parser("write-settings")
     settings.add_argument("--python", required=True)
     settings.add_argument("--out", required=True)
+    settings.add_argument("--cache-db", default="")
 
     argv_p = sub.add_parser("write-muse-argv")
     argv_p.add_argument("--prompt-file", required=True)
@@ -405,9 +541,10 @@ def main(argv: list[str] | None = None) -> int:
     comment = sub.add_parser("comment")
     comment.add_argument("--in-file", required=True)
     comment.add_argument("--out", required=True)
+    comment.add_argument("--diff-file", default="")
 
     gate = sub.add_parser("gate")
-    gate.add_argument("--in-file", required=True)
+    gate.add_argument("--diff-file", required=True)
 
     candidates = sub.add_parser("has-candidates")
     candidates.add_argument("--diff-file", required=True)
@@ -423,7 +560,10 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.cmd == "write-added-diff":
-        text = added_lines_from_diff(git_diff(args.base, args.head))
+        full = git_diff(args.base, args.head)
+        if args.full_out:
+            _write(args.full_out, full if full.endswith("\n") or not full else full + "\n")
+        text = added_lines_from_diff(full)
         _write(args.out, text if text.endswith("\n") or not text else text + "\n")
         return 0
 
@@ -437,7 +577,14 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.cmd == "write-settings":
-        _write(args.out, json.dumps(muse_settings(args.python), indent=2) + "\n")
+        _write(
+            args.out,
+            json.dumps(
+                muse_settings(args.python, cache_db=args.cache_db or None),
+                indent=2,
+            )
+            + "\n",
+        )
         return 0
 
     if args.cmd == "write-muse-argv":
@@ -465,12 +612,25 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.cmd == "comment":
         report = CiReport.model_validate_json(_read(args.in_file))
+        if args.diff_file:
+            groups = asyncio.run(
+                floor_groups_for_refs(
+                    references_from_diff(_read(args.diff_file)),
+                    cache=default_cache(),
+                )
+            )
+            report = overlay_floors(report, groups)
         _write(args.out, comment_body(report))
         return 0
 
     if args.cmd == "gate":
-        report = CiReport.model_validate_json(_read(args.in_file))
-        return 1 if has_critical(report) else 0
+        groups = asyncio.run(
+            floor_groups_for_refs(
+                references_from_diff(_read(args.diff_file)),
+                cache=default_cache(),
+            )
+        )
+        return 1 if has_critical_floor(floors_from_groups(groups)) else 0
 
     if args.cmd == "has-candidates":
         return 0 if candidates_in_text(_read(args.diff_file)) else 2

@@ -45,7 +45,7 @@ jobs:
           BASE: ${{ github.event.pull_request.base.sha }}
           HEAD: ${{ github.event.pull_request.head.sha }}
         run: |
-          uv run python -m scanner.ci write-added-diff --base "$BASE" --head "$HEAD" --out "$RUNNER_TEMP/added.diff"
+          uv run python -m scanner.ci write-added-diff --base "$BASE" --head "$HEAD" --out "$RUNNER_TEMP/added.diff" --full-out "$RUNNER_TEMP/pr.diff"
           uv run python -m scanner.ci write-prompt --diff-file "$RUNNER_TEMP/added.diff" --out "$RUNNER_TEMP/prompt.txt"
           uv run python -m scanner.ci write-schema --out "$RUNNER_TEMP/findings.schema.json"
           if uv run python -m scanner.ci has-candidates --diff-file "$RUNNER_TEMP/added.diff"; then
@@ -83,7 +83,7 @@ jobs:
           mkdir -p "$RUNNER_TEMP/muse-home/.config/muse"
           PYTHON="$(uv run python -c 'import sys; print(sys.executable)')"
           echo "TRUSTMAP_PYTHON=$PYTHON" >> "$GITHUB_ENV"
-          uv run python -m scanner.ci write-settings --python "$PYTHON" --out "$RUNNER_TEMP/muse-home/.config/muse/settings.json"
+          uv run python -m scanner.ci write-settings --python "$PYTHON" --cache-db "$RUNNER_TEMP/trustmap.db" --out "$RUNNER_TEMP/muse-home/.config/muse/settings.json"
           uv run python -m scanner.ci write-muse-argv --muse-bin "${MUSE_BIN:-muse}" --prompt-file "$RUNNER_TEMP/prompt.txt" --schema-file "$RUNNER_TEMP/findings.schema.json" --out "$RUNNER_TEMP/muse-argv.json"
 
       - name: muse exec from empty directory
@@ -91,6 +91,7 @@ jobs:
         env:
           MODEL_API_KEY: ${{ secrets.MODEL_API_KEY }}
           META_API_KEY: ${{ secrets.MODEL_API_KEY }}
+          TRUSTMAP_CACHE_DB: ${{ runner.temp }}/trustmap.db
         run: |
           "$TRUSTMAP_PYTHON" - <<'PY'
           import json, os, subprocess, sys, tempfile
@@ -136,11 +137,14 @@ jobs:
         if: steps.access.outputs.skip == 'false' && steps.diff.outputs.candidates == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
+          TRUSTMAP_CACHE_DB: ${{ runner.temp }}/trustmap.db
         run: |
           uv run python -m scanner.ci parse --in-file "$RUNNER_TEMP/muse.out" --out "$RUNNER_TEMP/findings.json"
-          uv run python -m scanner.ci comment --in-file "$RUNNER_TEMP/findings.json" --out "$RUNNER_TEMP/comment.md"
+          uv run python -m scanner.ci comment --in-file "$RUNNER_TEMP/findings.json" --diff-file "$RUNNER_TEMP/pr.diff" --out "$RUNNER_TEMP/comment.md"
           gh pr comment "${{ github.event.pull_request.number }}" --body-file "$RUNNER_TEMP/comment.md"
 
       - name: Fail only on critical
         if: steps.access.outputs.skip == 'false' && steps.diff.outputs.candidates == 'true'
-        run: uv run python -m scanner.ci gate --in-file "$RUNNER_TEMP/findings.json"
+        env:
+          TRUSTMAP_CACHE_DB: ${{ runner.temp }}/trustmap.db
+        run: uv run python -m scanner.ci gate --diff-file "$RUNNER_TEMP/pr.diff"

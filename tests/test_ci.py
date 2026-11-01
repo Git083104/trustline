@@ -9,17 +9,24 @@ from scanner.ci import (
     build_prompt,
     candidates_in_text,
     comment_body,
+    floor_groups_for_refs,
+    floors_from_groups,
     has_critical,
+    has_critical_floor,
     main,
     muse_argv,
     muse_settings,
     parse_muse_output,
+    references_from_diff,
     secret_available,
     skip_message,
     CiFinding,
     CiReport,
 )
+from scanner.lookups import LookupCache
+from scanner.models import DnsResult, RdapResult
 from scanner.report import CLAIMABLE_FIX
+from scanner.tools import ToolContext
 
 SAMPLE_DIFF = """\
 diff --git a/app.html b/app.html
@@ -127,37 +134,102 @@ def test_parse_findings_json_and_wrapped():
         parse_muse_output("not json at all")
 
 
-def test_gate_only_critical(tmp_path: Path):
-    high = tmp_path / "high.json"
-    high.write_text(
-        CiReport(
-            findings=[
-                {
-                    "target": "x.com",
-                    "kind": "domain",
-                    "severity": "high",
-                    "risk": "r",
-                    "fix": "f",
-                }
-            ]
-        ).model_dump_json()
+SCRIPT_DIFF = """\
+diff --git a/index.html b/index.html
+--- a/index.html
++++ b/index.html
+@@ -1,2 +1,3 @@
+ <html>
++  <script src="https://cdn-assets-trustmap-7f3k2.com/lib.js"></script>
+ </html>
+"""
+
+DOCS_DIFF = """\
+diff --git a/README.md b/README.md
+--- a/README.md
++++ b/README.md
+@@ -1,2 +1,3 @@
+ # docs
++See https://cdn-assets-trustmap-7f3k2.com/lib.js
+"""
+
+
+def _unregistered_ctx(tmp_path: Path) -> ToolContext:
+    async def fake_dns(host, cache=None):
+        return DnsResult(host=host, status="nxdomain")
+
+    async def fake_rdap(domain, cache=None):
+        return RdapResult(domain=domain, status="unregistered")
+
+    return ToolContext(
+        cache=LookupCache(tmp_path / "c.db"),
+        dns=fake_dns,
+        rdap=fake_rdap,
     )
-    critical = tmp_path / "crit.json"
-    critical.write_text(
-        CiReport(
-            findings=[
-                {
-                    "target": "x.com",
-                    "kind": "domain",
-                    "severity": "critical",
-                    "risk": "r",
-                    "fix": "f",
-                }
-            ]
-        ).model_dump_json()
+
+
+@pytest.mark.asyncio
+async def test_gate_uses_floor_not_muse_severity(tmp_path: Path):
+    ctx = _unregistered_ctx(tmp_path)
+    script_refs = references_from_diff(SCRIPT_DIFF)
+    docs_refs = references_from_diff(DOCS_DIFF)
+    script_floors = floors_from_groups(
+        await floor_groups_for_refs(script_refs, cache=ctx.cache, ctx=ctx)
     )
-    assert main(["gate", "--in-file", str(high)]) == 0
-    assert main(["gate", "--in-file", str(critical)]) == 1
+    docs_floors = floors_from_groups(
+        await floor_groups_for_refs(docs_refs, cache=ctx.cache, ctx=ctx)
+    )
+    muse_low = CiReport(
+        findings=[
+            CiFinding(
+                target="cdn-assets-trustmap-7f3k2.com",
+                kind="domain",
+                severity="low",
+                risk="Muse says this is low.",
+                fix="ignore it",
+            )
+        ]
+    )
+    muse_critical = CiReport(
+        findings=[
+            CiFinding(
+                target="cdn-assets-trustmap-7f3k2.com",
+                kind="domain",
+                severity="critical",
+                risk="Muse says this is critical.",
+                fix="panic",
+            )
+        ]
+    )
+    assert muse_low.findings[0].severity == "low"
+    assert has_critical_floor(script_floors)
+    assert not has_critical(muse_low)
+    assert muse_critical.findings[0].severity == "critical"
+    assert not has_critical_floor(docs_floors)
+    assert has_critical(muse_critical)
+
+
+def test_gate_cli_uses_cached_floor(tmp_path: Path, monkeypatch):
+    script_diff = tmp_path / "script.diff"
+    docs_diff = tmp_path / "docs.diff"
+    script_diff.write_text(SCRIPT_DIFF)
+    docs_diff.write_text(DOCS_DIFF)
+    cache = tmp_path / "gate.db"
+    LookupCache(cache).set_json(
+        "dns:cdn-assets-trustmap-7f3k2.com",
+        DnsResult(host="cdn-assets-trustmap-7f3k2.com", status="nxdomain").model_dump(
+            mode="json"
+        ),
+    )
+    LookupCache(cache).set_json(
+        "rdap:cdn-assets-trustmap-7f3k2.com",
+        RdapResult(
+            domain="cdn-assets-trustmap-7f3k2.com", status="unregistered"
+        ).model_dump(mode="json"),
+    )
+    monkeypatch.setenv("TRUSTMAP_CACHE_DB", str(cache))
+    assert main(["gate", "--diff-file", str(script_diff)]) == 1
+    assert main(["gate", "--diff-file", str(docs_diff)]) == 0
 
 
 def test_comment_redacts_and_empty():
