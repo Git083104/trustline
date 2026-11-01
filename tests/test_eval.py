@@ -217,7 +217,9 @@ def test_three_line_context_is_adjacent_lines():
 @pytest.mark.asyncio
 async def test_label_resume_and_display(tmp_path):
     labels = tmp_path / "labels.jsonl"
-    answers = iter(["c", "first", "s", "", "l", "ok", "i", ""])
+    answers = iter(
+        ["c", "first", "s", "", "l", "ok", "i", "", "s", "", "s", "", "s", "", "s", ""]
+    )
 
     def input_fn(prompt):
         return next(answers)
@@ -556,7 +558,9 @@ async def test_label_auto_keeps_human_and_summarizes(tmp_path):
             http_status=404 if missing else 403,
         )
 
-    answers = iter(["c", "note", "c", "", "c", "", "c", "", "c", ""])
+    answers = iter(
+        ["c", "note", "c", "", "c", "", "c", "", "c", "", "s", "", "s", "", "s", ""]
+    )
     buf = StringIO()
     await label_source(
         source,

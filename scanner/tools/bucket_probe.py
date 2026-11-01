@@ -15,7 +15,7 @@ def definition() -> dict[str, Any]:
                 "type": "object",
                 "properties": {
                     "name": {"type": "string"},
-                    "provider": {"type": "string", "enum": ["s3", "gcs"]},
+                    "provider": {"type": "string", "enum": ["s3", "gcs", "azure"]},
                 },
                 "required": ["name", "provider"],
                 "additionalProperties": False,

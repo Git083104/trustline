@@ -15,6 +15,7 @@ from scanner.config import (
     EVAL_TARGET_CAP,
 )
 from scanner.extract import GITHUB_RE, extract, is_bucket_ref, _clone_github
+from scanner.tools.platform_takeover import matching_platform
 from scanner.lookups import LookupCache, consistent_evidence
 from scanner.models import Classification, Investigation, Reference
 from scanner.report import evidence_line, is_claimable
@@ -40,6 +41,8 @@ HEALTHY_RDAP = frozenset({"registered", "unknown"})
 def target_from_ref(ref: Reference) -> tuple[str, str]:
     if is_bucket_ref(ref):
         return ref.host_or_bucket, "bucket"
+    if matching_platform(ref.host_or_bucket):
+        return ref.host_or_bucket, "domain"
     return (ref.domain or ref.host_or_bucket), "domain"
 
 

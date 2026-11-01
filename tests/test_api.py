@@ -140,13 +140,19 @@ def test_fixture_path_scan_sse_and_report(tmp_path):
         body = report.json()
         assert body["status"] == "done"
         assert body["findings"]
-        top = {item["target"] for item in body["findings"][:3]}
-        assert top == {
+        critical = {
+            item["target"]
+            for item in body["findings"]
+            if item["severity"] == "critical"
+        }
+        assert {
             "acme-legacy-uploads-a3f91c2e",
             "cdn-assets-trustmap-7f3k2.com",
             "trustmap-demo-assets",
-        }
-        assert all(item["severity"] == "critical" for item in body["findings"][:3])
+            "github.com/trustmap-missing-owner-a3f91c2e",
+            "trustmap-demo-pages.github.io",
+            "trustmapdemoassets",
+        } <= critical
         assert "cost_usd" in body
         assert body["cost_usd"] == pytest.approx(
             body["classify_cost_usd"]

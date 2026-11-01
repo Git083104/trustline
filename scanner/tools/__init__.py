@@ -7,10 +7,21 @@ from scanner.lookups import (
     bucket_probe as lookup_bucket,
     cert_history as lookup_certs,
     dns as lookup_dns,
+    github_owner as lookup_github_owner,
+    platform_takeover as lookup_platform,
     rdap as lookup_rdap,
     wayback as lookup_wayback,
 )
-from scanner.tools import bucket_probe, cert_history, dns, done, rdap, wayback
+from scanner.tools import (
+    bucket_probe,
+    cert_history,
+    dns,
+    done,
+    github_owner,
+    platform_takeover,
+    rdap,
+    wayback,
+)
 
 _MODULES = {
     rdap.NAME: rdap,
@@ -18,6 +29,8 @@ _MODULES = {
     bucket_probe.NAME: bucket_probe,
     cert_history.NAME: cert_history,
     wayback.NAME: wayback,
+    platform_takeover.NAME: platform_takeover,
+    github_owner.NAME: github_owner,
     done.NAME: done,
 }
 
@@ -30,6 +43,8 @@ class ToolContext:
     bucket_probe: Callable = lookup_bucket
     cert_history: Callable = lookup_certs
     wayback: Callable = lookup_wayback
+    platform_takeover: Callable = lookup_platform
+    github_owner: Callable = lookup_github_owner
 
 
 def definitions() -> list[dict[str, Any]]:

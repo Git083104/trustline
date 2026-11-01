@@ -22,14 +22,21 @@ from scanner.models import (
     TraceEvent,
 )
 from scanner.events import OnEvent, emit, summarize
-from scanner.extract import is_bucket_ref as _is_bucket_ref
+from scanner.extract import (
+    github_login,
+    is_bucket_ref as _is_bucket_ref,
+    is_github_owner_ref,
+)
+from scanner.tools.platform_takeover import matching_platform
 from scanner.tools import ToolContext, definitions, run as run_tool
 
 AGENT_SYSTEM_PROMPT = (
     "You investigate one outside reference for takeover risk. "
-    "Code already ran dns and rdap for hosts, or bucket_probe for buckets; those results "
-    "are in the first message. Each turn pick exactly one tool. Call done(summary) when "
-    "finished. Do not invent dates, DNS results, or HTTP statuses."
+    "Code already ran dns and rdap for hosts, bucket_probe for buckets, "
+    "github_owner for GitHub accounts, and platform_takeover when a host or CNAME "
+    "matches a listed platform; those results are in the first message. "
+    "Each turn pick exactly one tool. Call done(summary) when finished. "
+    "Do not invent dates, DNS results, or HTTP statuses."
 )
 
 BUDGET_NOTE = "not investigated (budget)"
@@ -39,6 +46,8 @@ def _bucket_provider(raw: str) -> str:
     lowered = raw.lower()
     if "storage.googleapis.com" in lowered:
         return "gcs"
+    if "blob.core.windows.net" in lowered:
+        return "azure"
     return "s3"
 
 
@@ -46,6 +55,12 @@ def has_hard_signal(evidence: dict[str, Any]) -> bool:
     evidence = consistent_evidence(evidence)
     bucket = evidence.get("bucket_probe") or {}
     if bucket.get("status") == "NoSuchBucket":
+        return True
+    owner = evidence.get("github_owner") or {}
+    if str(owner.get("status", "")).lower() == "missing":
+        return True
+    platform = evidence.get("platform_takeover") or {}
+    if str(platform.get("status", "")).lower() == "unclaimed":
         return True
     dns = evidence.get("dns") or {}
     if str(dns.get("status", "")).lower() == "nxdomain":
@@ -73,10 +88,34 @@ async def precheck(
             ctx,
         )
         return evidence
+    if is_github_owner_ref(ref):
+        login = github_login(ref)
+        if login:
+            evidence["github_owner"] = await run_tool(
+                "github_owner", {"owner": login}, ctx
+            )
+        return evidence
     evidence["dns"] = await run_tool("dns", {"host": ref.host_or_bucket}, ctx)
     domain = ref.domain or ""
     if domain:
         evidence["rdap"] = await run_tool("rdap", {"domain": domain}, ctx)
+    dns = evidence.get("dns") or {}
+    cnames = list(dns.get("cnames") or [])
+    if matching_platform(ref.host_or_bucket, cnames):
+        evidence["platform_takeover"] = await run_tool(
+            "platform_takeover",
+            {
+                "host": ref.host_or_bucket,
+                "cnames": cnames,
+                "dns_status": dns.get("status"),
+            },
+            ctx,
+        )
+    login = github_login(ref)
+    if login:
+        evidence["github_owner"] = await run_tool(
+            "github_owner", {"owner": login}, ctx
+        )
     return consistent_evidence(evidence)
 
 
@@ -292,6 +331,8 @@ def _event_kind(ref: Reference, cl: Classification) -> str:
 
 def _event_target(ref: Reference, cl: Classification) -> str:
     if _event_kind(ref, cl) == "bucket":
+        return ref.host_or_bucket
+    if matching_platform(ref.host_or_bucket):
         return ref.host_or_bucket
     return ref.domain or ref.host_or_bucket
 

@@ -21,6 +21,15 @@
     {
       "file": "index.html",
       "line": 8,
+      "raw": "https://trustmap-demo-pages.github.io/widget.js",
+      "host_or_bucket": "trustmap-demo-pages.github.io",
+      "type": "script",
+      "runs_in": "browser",
+      "filter_reason": null
+    },
+    {
+      "file": "index.html",
+      "line": 9,
       "raw": "https://widgets.partner-analytics.example.com/v2/tracker.js",
       "host_or_bucket": "widgets.partner-analytics.example.com",
       "type": "script",
@@ -29,7 +38,7 @@
     },
     {
       "file": "index.html",
-      "line": 9,
+      "line": 10,
       "raw": "https://assets.brand-cdn.example.net/shop.css",
       "host_or_bucket": "assets.brand-cdn.example.net",
       "type": "asset",
@@ -38,7 +47,7 @@
     },
     {
       "file": "index.html",
-      "line": 13,
+      "line": 14,
       "raw": "https://images.media-host.example.org/logo.png",
       "host_or_bucket": "images.media-host.example.org",
       "type": "asset",
@@ -136,6 +145,15 @@
       "filter_reason": null
     },
     {
+      "file": "deploy/infra.yaml",
+      "line": 8,
+      "raw": "https://trustmapdemoassets.blob.core.windows.net/public",
+      "host_or_bucket": "trustmapdemoassets",
+      "type": "bucket",
+      "runs_in": "deploy",
+      "filter_reason": null
+    },
+    {
       "file": "Dockerfile",
       "line": 2,
       "raw": "https://bootstrap.install.example.com/get-pip.py",
@@ -152,6 +170,15 @@
       "type": "script",
       "runs_in": "ci",
       "filter_reason": "reserved_domain"
+    },
+    {
+      "file": ".github/workflows/ci.yml",
+      "line": 11,
+      "raw": "https://raw.githubusercontent.com/trustmap-missing-owner-a3f91c2e/tools/main/install.sh",
+      "host_or_bucket": "github.com/trustmap-missing-owner-a3f91c2e",
+      "type": "script",
+      "runs_in": "ci",
+      "filter_reason": null
     },
     {
       "file": "README.md",

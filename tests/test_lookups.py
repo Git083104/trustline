@@ -12,9 +12,12 @@ from scanner.lookups import (
     cert_history,
     consistent_evidence,
     dns,
+    github_owner,
+    platform_takeover,
     rdap,
     wayback,
 )
+from scanner.models import DnsResult
 from eval.run_eval import baseline_severity
 from scanner.report import evidence_line, is_claimable
 
@@ -235,6 +238,82 @@ async def test_bucket_probe_s3_and_gcs_get_only(tmp_path):
     assert redirected.status == "exists"
     assert gcs_gone.status == "NoSuchBucket"
     assert gcs_live.status == "exists"
+
+
+@pytest.mark.asyncio
+async def test_azure_bucket_probe_from_dns_cache(tmp_path):
+    cache = LookupCache(tmp_path / "c.db")
+    cache.set_json(
+        "dns:goneacct.blob.core.windows.net",
+        DnsResult(host="goneacct.blob.core.windows.net", status="nxdomain").model_dump(
+            mode="json"
+        ),
+    )
+    cache.set_json(
+        "dns:liveacct.blob.core.windows.net",
+        DnsResult(
+            host="liveacct.blob.core.windows.net",
+            status="resolves",
+            addresses=["203.0.113.9"],
+        ).model_dump(mode="json"),
+    )
+    gone = await bucket_probe("goneacct", "azure", cache=cache)
+    live = await bucket_probe("liveacct", "azure", cache=cache)
+    assert gone.status == "NoSuchBucket"
+    assert gone.provider == "azure"
+    assert live.status == "exists"
+
+
+@pytest.mark.asyncio
+async def test_platform_takeover_skips_and_matches_fingerprint(tmp_path):
+    cache = LookupCache(tmp_path / "c.db")
+    skipped = await platform_takeover("cdn.example.com", cache=cache)
+    assert skipped.status == "skipped"
+    methods: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        methods.append(request.method)
+        return httpx.Response(404, text="There isn't a GitHub Pages site here")
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        hit = await platform_takeover(
+            "gone.github.io", client=client, cache=LookupCache(tmp_path / "p.db")
+        )
+    assert set(methods) == {"GET"}
+    assert hit.status == "unclaimed"
+    assert hit.takeover == "vulnerable"
+    assert hit.platform == "GitHub Pages"
+    nx = await platform_takeover(
+        "missing.azurewebsites.net",
+        dns_status="nxdomain",
+        cache=LookupCache(tmp_path / "n.db"),
+    )
+    assert nx.status == "unclaimed"
+    assert nx.takeover == "vulnerable"
+    assert nx.signal == "NXDOMAIN"
+
+
+@pytest.mark.asyncio
+async def test_github_owner_missing_with_token(tmp_path, monkeypatch):
+    monkeypatch.setenv("GITHUB_TOKEN", "ghs_testtoken_not_a_secret_value")
+    seen_auth: list[bool] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen_auth.append("Authorization" in request.headers)
+        assert request.method == "GET"
+        if "api.github.com" in str(request.url):
+            return httpx.Response(404, json={"message": "Not Found"})
+        return httpx.Response(500)
+
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(handler), follow_redirects=False
+    ) as client:
+        result = await github_owner(
+            "missing-org", client=client, cache=LookupCache(tmp_path / "g.db")
+        )
+    assert result.status == "missing"
+    assert result.exists is False
+    assert seen_auth == [True]
 
 
 @pytest.mark.asyncio

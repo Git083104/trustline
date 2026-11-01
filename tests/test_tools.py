@@ -13,6 +13,8 @@ def test_definitions_include_lookup_tools_and_done():
         "bucket_probe",
         "cert_history",
         "wayback",
+        "platform_takeover",
+        "github_owner",
         "done",
     }
 

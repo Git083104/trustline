@@ -37,6 +37,23 @@ class BucketProbeResult(BaseModel):
     http_status: int | None = None
 
 
+class PlatformTakeoverResult(BaseModel):
+    host: str
+    status: str
+    platform: str = ""
+    takeover: str = ""
+    signal: str | None = None
+    http_status: int | None = None
+
+
+class GithubOwnerResult(BaseModel):
+    owner: str
+    status: str
+    exists: bool | None = None
+    kind: str | None = None
+    http_status: int | None = None
+
+
 class CertHistoryResult(BaseModel):
     domain: str
     status: str

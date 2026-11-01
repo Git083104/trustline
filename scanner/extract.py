@@ -22,12 +22,21 @@ from scanner.config import (
     SKIP_NAME_SUFFIXES,
 )
 from scanner.models import Reference
+from scanner.tools.github_owner import GITHUB_RESERVED
 
 _EXTRACT = tldextract.TLDExtract(suffix_list_urls=(), cache_dir=False)
 
 URL_RE = re.compile(r"https?://[^\s'\"<>\\)]+", re.IGNORECASE)
 S3_SCHEME_RE = re.compile(
     r"s3://([A-Za-z0-9][A-Za-z0-9._-]{1,61}[A-Za-z0-9])", re.IGNORECASE
+)
+AZURE_BLOB_RE = re.compile(
+    r"^([a-z0-9]{3,24})\.blob\.core\.windows\.net$", re.IGNORECASE
+)
+GH_OWNER_RE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$")
+PIPE_TO_SHELL_RE = re.compile(
+    r"(?i)\b(?:curl|wget|iwr|invoke-webrequest|irm)\b.*\|\s*"
+    r"(?:sudo\s+)?(?:ba|z|da|k)?sh\b|\|\s*iex\b"
 )
 GITHUB_RE = re.compile(
     r"^https?://github\.com/([^/]+)/([^/#?]+?)(?:\.git)?(?:/.*)?$", re.IGNORECASE
@@ -136,7 +145,7 @@ def _scan_text(rel: str, text: str, found: dict[tuple[str, str, int], Reference]
     for index, line in enumerate(lines):
         line_no = index + 1
         context = _context(lines, index)
-        for host_or_bucket, raw, domain, reason in _find_on_line(line):
+        for host_or_bucket, raw, domain, reason in _find_on_line(line, rel):
             key = (host_or_bucket, rel, line_no)
             if key in found:
                 continue
@@ -158,21 +167,25 @@ def _context(lines: list[str], index: int) -> str:
     return "\n".join(lines[start:end])
 
 
-def _find_on_line(line: str) -> list[tuple[str, str, str, str | None]]:
+def _find_on_line(
+    line: str, rel: str = ""
+) -> list[tuple[str, str, str, str | None]]:
     hits: list[tuple[str, str, str, str | None]] = []
     for match in S3_SCHEME_RE.finditer(line):
         name = match.group(1)
         hits.append((name, match.group(0), "", _filter_reason("", "", name, True)))
     for match in URL_RE.finditer(line):
         raw = match.group(0).rstrip(TRAILING_JUNK)
-        parsed = _classify_http_url(raw)
+        parsed = _classify_http_url(raw, line, rel)
         if parsed is None:
             continue
         hits.append(parsed)
     return hits
 
 
-def _classify_http_url(raw: str) -> tuple[str, str, str, str | None] | None:
+def _classify_http_url(
+    raw: str, line: str = "", rel: str = ""
+) -> tuple[str, str, str, str | None] | None:
     parsed = urlparse(raw)
     host = _host_from_netloc(parsed.netloc)
     if not host:
@@ -185,6 +198,10 @@ def _classify_http_url(raw: str) -> tuple[str, str, str, str | None] | None:
     if bucket:
         domain = _registrable(host)
         return bucket, raw, domain, _filter_reason(host, domain, bucket, True)
+
+    owner_hit = _github_owner_target(host_l, path, raw, line, rel)
+    if owner_hit is not None:
+        return owner_hit
 
     domain = _registrable(host)
     return host, raw, domain, _filter_reason(host, domain, host, False)
@@ -217,7 +234,54 @@ def _bucket_from_http(host: str, host_l: str, first: str) -> str | None:
     )
     if virtual:
         return virtual.group(1)
+    azure = AZURE_BLOB_RE.fullmatch(host_l)
+    if azure:
+        return azure.group(1)
     return None
+
+
+def is_github_owner_ref(ref: Reference) -> bool:
+    return github_login(ref) is not None and ref.host_or_bucket.lower().startswith(
+        "github.com/"
+    )
+
+
+def github_login(ref: Reference) -> str | None:
+    host = ref.host_or_bucket.lower()
+    if host.startswith("github.com/"):
+        owner = host.split("/", 1)[1]
+        return owner if _valid_github_owner(owner) else None
+    if host.endswith(".github.io") and host != "github.io":
+        owner = host.split(".", 1)[0]
+        return owner if _valid_github_owner(owner) else None
+    return None
+
+
+def _valid_github_owner(owner: str) -> bool:
+    return bool(GH_OWNER_RE.match(owner)) and owner.lower() not in GITHUB_RESERVED
+
+
+def _github_owner_target(
+    host_l: str, path: str, raw: str, line: str, rel: str
+) -> tuple[str, str, str, str | None] | None:
+    segs = [part for part in path.split("/") if part]
+    owner = None
+    if host_l in {"github.com", "www.github.com"} and len(segs) >= 2:
+        if not _is_ci_pipe_to_shell(rel, line):
+            return None
+        owner = segs[0]
+    elif host_l == "raw.githubusercontent.com" and segs:
+        owner = segs[0]
+    if owner and _valid_github_owner(owner):
+        return f"github.com/{owner.lower()}", raw, "", None
+    return None
+
+
+def _is_ci_pipe_to_shell(rel: str, line: str) -> bool:
+    path = rel.replace("\\", "/").lower()
+    if not path.startswith(".github/workflows/"):
+        return False
+    return PIPE_TO_SHELL_RE.search(line) is not None
 
 
 def _host_from_netloc(netloc: str) -> str:

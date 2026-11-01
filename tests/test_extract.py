@@ -53,6 +53,25 @@ def test_keep_allowlisted_with_filter_reason_but_keep_buckets(tmp_path: Path):
         "my-orphan-bucket",
         "my-gcs-bucket",
     }
+
+
+def test_extract_azure_and_github_owner_shapes(tmp_path: Path):
+    workflows = tmp_path / ".github" / "workflows"
+    workflows.mkdir(parents=True)
+    (workflows / "ci.yml").write_text(
+        "run: curl https://raw.githubusercontent.com/missing-org/tools/main/install.sh | sh\n"
+        "docs: https://github.com/acme/widgets\n"
+    )
+    (tmp_path / "infra.yaml").write_text(
+        "azure: https://trustmapdemoassets.blob.core.windows.net/public\n"
+        "pages: https://trustmap-demo-pages.github.io/widget.js\n"
+    )
+    found = extract(str(tmp_path))
+    by_name = {ref.host_or_bucket: ref for ref in found}
+    assert by_name["trustmapdemoassets"].filter_reason is None
+    assert by_name["github.com/missing-org"].filter_reason is None
+    assert by_name["github.com"].filter_reason == "allowlisted"
+    assert by_name["trustmap-demo-pages.github.io"].filter_reason is None
     assert "example.com" not in ALLOWLIST_DOMAINS
 
 

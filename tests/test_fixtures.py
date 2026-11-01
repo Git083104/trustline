@@ -34,7 +34,7 @@ RUNS_IN = {"browser", "server", "build", "deploy", "ci", "test", "docs_only"}
 def test_expected_json_is_valid_and_complete():
     data = json.loads(EXPECTED_PATH.read_text())
     refs = data["references"]
-    assert 15 <= len(refs) <= 20
+    assert 15 <= len(refs) <= 25
 
     seen = set()
     host_or_buckets = []

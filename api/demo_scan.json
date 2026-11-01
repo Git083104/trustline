@@ -3,10 +3,10 @@
   "kind": "path",
   "target": "tests/fixtures/demo_repo",
   "status": "done",
-  "cost_usd": 0.000405,
-  "classify_cost_usd": 3.375e-05,
-  "agent_cost_usd": 0.00023625,
-  "rank_cost_usd": 0.000135,
+  "cost_usd": 0.00064125,
+  "classify_cost_usd": 6.75e-05,
+  "agent_cost_usd": 0.0003375,
+  "rank_cost_usd": 0.00023625,
   "budget_targets": [],
   "findings": [
     {
@@ -39,6 +39,20 @@
       "cost_usd": 3.375e-05
     },
     {
+      "target": "github.com/trustmap-missing-owner-a3f91c2e",
+      "kind": "domain",
+      "severity": "critical",
+      "model_severity": "critical",
+      "floor_reason": "",
+      "risk": "A stranger could register this GitHub account and ship install.sh into CI.",
+      "fix": "Remove or replace this reference. If this was yours, re-create it in your own account to reclaim the name.",
+      "evidence_line": "Evidence: GitHub owner does not exist \u00b7 referenced at .github/workflows/ci.yml:11 in CI",
+      "references": [
+        ".github/workflows/ci.yml:11"
+      ],
+      "cost_usd": 3.375e-05
+    },
+    {
       "target": "trustmap-demo-assets",
       "kind": "bucket",
       "severity": "critical",
@@ -49,6 +63,34 @@
       "evidence_line": "Evidence: GCS bucket does not exist \u00b7 named in deploy/infra.yaml:7 in deploy",
       "references": [
         "deploy/infra.yaml:7"
+      ],
+      "cost_usd": 3.375e-05
+    },
+    {
+      "target": "trustmap-demo-pages.github.io",
+      "kind": "domain",
+      "severity": "critical",
+      "model_severity": "medium",
+      "floor_reason": "GitHub Pages unclaimed (vulnerable) in executing position (browser) is at least critical",
+      "risk": "A stranger could publish GitHub Pages and run script from index.html:8 in the browser.",
+      "fix": "Remove or replace this reference. If this was yours, re-create it in your own account to reclaim the name.",
+      "evidence_line": "Evidence: DNS resolves \u00b7 domain is registered \u00b7 GitHub owner exists \u00b7 GitHub Pages unclaimed (vulnerable) \u00b7 loaded by index.html:8 in the browser",
+      "references": [
+        "index.html:8"
+      ],
+      "cost_usd": 3.375e-05
+    },
+    {
+      "target": "trustmapdemoassets",
+      "kind": "bucket",
+      "severity": "critical",
+      "model_severity": "critical",
+      "floor_reason": "",
+      "risk": "A stranger could create this missing bucket and serve files to deploy/infra.yaml.",
+      "fix": "Remove or replace this reference. If this was yours, re-create it in your own account to reclaim the name.",
+      "evidence_line": "Evidence: Azure blob does not exist \u00b7 named in deploy/infra.yaml:8 in deploy",
+      "references": [
+        "deploy/infra.yaml:8"
       ],
       "cost_usd": 3.375e-05
     },
@@ -75,15 +117,23 @@
       "target": "tests/fixtures/demo_repo",
       "cost_cap_usd": 1.0,
       "scan_id": "demo",
-      "ts": 1793553014.070511
+      "ts": 1793554116.7510452
     },
     {
       "type": "extracted",
-      "references": 19,
-      "actionable": 6,
+      "references": 22,
+      "actionable": 9,
       "filtered": 13,
       "scan_id": "demo",
-      "ts": 1793553014.0913448
+      "ts": 1793554116.7688901
+    },
+    {
+      "type": "precheck",
+      "target": "github.com/trustmap-missing-owner-a3f91c2e",
+      "kind": "domain",
+      "hard_signal": true,
+      "scan_id": "demo",
+      "ts": 1793554116.770862
     },
     {
       "type": "precheck",
@@ -91,7 +141,7 @@
       "kind": "bucket",
       "hard_signal": true,
       "scan_id": "demo",
-      "ts": 1793553014.092984
+      "ts": 1793554116.77088
     },
     {
       "type": "precheck",
@@ -99,7 +149,7 @@
       "kind": "bucket",
       "hard_signal": false,
       "scan_id": "demo",
-      "ts": 1793553014.092993
+      "ts": 1793554116.77089
     },
     {
       "type": "precheck",
@@ -107,7 +157,7 @@
       "kind": "bucket",
       "hard_signal": true,
       "scan_id": "demo",
-      "ts": 1793553014.092997
+      "ts": 1793554116.770894
     },
     {
       "type": "precheck",
@@ -115,7 +165,7 @@
       "kind": "bucket",
       "hard_signal": false,
       "scan_id": "demo",
-      "ts": 1793553014.093002
+      "ts": 1793554116.770899
     },
     {
       "type": "precheck",
@@ -123,7 +173,15 @@
       "kind": "bucket",
       "hard_signal": true,
       "scan_id": "demo",
-      "ts": 1793553014.093005
+      "ts": 1793554116.770902
+    },
+    {
+      "type": "precheck",
+      "target": "trustmapdemoassets",
+      "kind": "bucket",
+      "hard_signal": true,
+      "scan_id": "demo",
+      "ts": 1793554116.770905
     },
     {
       "type": "precheck",
@@ -131,7 +189,50 @@
       "kind": "domain",
       "hard_signal": true,
       "scan_id": "demo",
-      "ts": 1793553014.093041
+      "ts": 1793554116.7709508
+    },
+    {
+      "type": "precheck",
+      "target": "trustmap-demo-pages.github.io",
+      "kind": "domain",
+      "hard_signal": true,
+      "scan_id": "demo",
+      "ts": 1793554116.770986
+    },
+    {
+      "type": "plan",
+      "target": "github.com/trustmap-missing-owner-a3f91c2e",
+      "tool": "done",
+      "args": {
+        "summary": "precomputed only"
+      },
+      "tokens": 15,
+      "cost_usd": 3.375e-05,
+      "scan_id": "demo",
+      "ts": 1793554116.772128
+    },
+    {
+      "type": "act",
+      "target": "github.com/trustmap-missing-owner-a3f91c2e",
+      "tool": "done",
+      "args": {
+        "summary": "precomputed only"
+      },
+      "scan_id": "demo",
+      "ts": 1793554116.772137
+    },
+    {
+      "type": "observe",
+      "target": "github.com/trustmap-missing-owner-a3f91c2e",
+      "tool": "done",
+      "args": {
+        "summary": "precomputed only"
+      },
+      "result_summary": "{\"done\": true, \"summary\": \"precomputed only\"}",
+      "tokens": 0,
+      "cost_usd": 0.0,
+      "scan_id": "demo",
+      "ts": 1793554116.7721548
     },
     {
       "type": "plan",
@@ -143,7 +244,7 @@
       "tokens": 15,
       "cost_usd": 3.375e-05,
       "scan_id": "demo",
-      "ts": 1793553014.094076
+      "ts": 1793554116.772177
     },
     {
       "type": "act",
@@ -153,7 +254,7 @@
         "summary": "bucket checked"
       },
       "scan_id": "demo",
-      "ts": 1793553014.094079
+      "ts": 1793554116.772178
     },
     {
       "type": "observe",
@@ -166,42 +267,7 @@
       "tokens": 0,
       "cost_usd": 0.0,
       "scan_id": "demo",
-      "ts": 1793553014.094091
-    },
-    {
-      "type": "plan",
-      "target": "acme-legacy-uploads-a3f91c2e",
-      "tool": "done",
-      "args": {
-        "summary": "bucket checked"
-      },
-      "tokens": 15,
-      "cost_usd": 3.375e-05,
-      "scan_id": "demo",
-      "ts": 1793553014.094113
-    },
-    {
-      "type": "act",
-      "target": "acme-legacy-uploads-a3f91c2e",
-      "tool": "done",
-      "args": {
-        "summary": "bucket checked"
-      },
-      "scan_id": "demo",
-      "ts": 1793553014.094115
-    },
-    {
-      "type": "observe",
-      "target": "acme-legacy-uploads-a3f91c2e",
-      "tool": "done",
-      "args": {
-        "summary": "bucket checked"
-      },
-      "result_summary": "{\"done\": true, \"summary\": \"bucket checked\"}",
-      "tokens": 0,
-      "cost_usd": 0.0,
-      "scan_id": "demo",
-      "ts": 1793553014.094122
+      "ts": 1793554116.772186
     },
     {
       "type": "plan",
@@ -213,7 +279,7 @@
       "tokens": 15,
       "cost_usd": 3.375e-05,
       "scan_id": "demo",
-      "ts": 1793553014.094204
+      "ts": 1793554116.772199
     },
     {
       "type": "act",
@@ -223,7 +289,7 @@
         "summary": "bucket checked"
       },
       "scan_id": "demo",
-      "ts": 1793553014.0942059
+      "ts": 1793554116.772201
     },
     {
       "type": "observe",
@@ -236,7 +302,42 @@
       "tokens": 0,
       "cost_usd": 0.0,
       "scan_id": "demo",
-      "ts": 1793553014.094214
+      "ts": 1793554116.772206
+    },
+    {
+      "type": "plan",
+      "target": "acme-legacy-uploads-a3f91c2e",
+      "tool": "done",
+      "args": {
+        "summary": "bucket checked"
+      },
+      "tokens": 15,
+      "cost_usd": 3.375e-05,
+      "scan_id": "demo",
+      "ts": 1793554116.7724001
+    },
+    {
+      "type": "act",
+      "target": "acme-legacy-uploads-a3f91c2e",
+      "tool": "done",
+      "args": {
+        "summary": "bucket checked"
+      },
+      "scan_id": "demo",
+      "ts": 1793554116.772406
+    },
+    {
+      "type": "observe",
+      "target": "acme-legacy-uploads-a3f91c2e",
+      "tool": "done",
+      "args": {
+        "summary": "bucket checked"
+      },
+      "result_summary": "{\"done\": true, \"summary\": \"bucket checked\"}",
+      "tokens": 0,
+      "cost_usd": 0.0,
+      "scan_id": "demo",
+      "ts": 1793554116.772419
     },
     {
       "type": "plan",
@@ -248,7 +349,7 @@
       "tokens": 15,
       "cost_usd": 3.375e-05,
       "scan_id": "demo",
-      "ts": 1793553014.094225
+      "ts": 1793554116.772542
     },
     {
       "type": "act",
@@ -258,7 +359,7 @@
         "summary": "bucket checked"
       },
       "scan_id": "demo",
-      "ts": 1793553014.094226
+      "ts": 1793554116.772544
     },
     {
       "type": "observe",
@@ -271,7 +372,7 @@
       "tokens": 0,
       "cost_usd": 0.0,
       "scan_id": "demo",
-      "ts": 1793553014.094232
+      "ts": 1793554116.772552
     },
     {
       "type": "plan",
@@ -283,7 +384,7 @@
       "tokens": 15,
       "cost_usd": 3.375e-05,
       "scan_id": "demo",
-      "ts": 1793553014.0942981
+      "ts": 1793554116.772564
     },
     {
       "type": "act",
@@ -293,7 +394,7 @@
         "summary": "bucket checked"
       },
       "scan_id": "demo",
-      "ts": 1793553014.0942998
+      "ts": 1793554116.772566
     },
     {
       "type": "observe",
@@ -306,7 +407,42 @@
       "tokens": 0,
       "cost_usd": 0.0,
       "scan_id": "demo",
-      "ts": 1793553014.0943098
+      "ts": 1793554116.7725708
+    },
+    {
+      "type": "plan",
+      "target": "trustmapdemoassets",
+      "tool": "done",
+      "args": {
+        "summary": "bucket checked"
+      },
+      "tokens": 15,
+      "cost_usd": 3.375e-05,
+      "scan_id": "demo",
+      "ts": 1793554116.772581
+    },
+    {
+      "type": "act",
+      "target": "trustmapdemoassets",
+      "tool": "done",
+      "args": {
+        "summary": "bucket checked"
+      },
+      "scan_id": "demo",
+      "ts": 1793554116.772583
+    },
+    {
+      "type": "observe",
+      "target": "trustmapdemoassets",
+      "tool": "done",
+      "args": {
+        "summary": "bucket checked"
+      },
+      "result_summary": "{\"done\": true, \"summary\": \"bucket checked\"}",
+      "tokens": 0,
+      "cost_usd": 0.0,
+      "scan_id": "demo",
+      "ts": 1793554116.772588
     },
     {
       "type": "plan",
@@ -318,7 +454,7 @@
       "tokens": 15,
       "cost_usd": 3.375e-05,
       "scan_id": "demo",
-      "ts": 1793553014.094334
+      "ts": 1793554116.772651
     },
     {
       "type": "act",
@@ -328,7 +464,7 @@
         "domain": "cdn-assets-trustmap-7f3k2.com"
       },
       "scan_id": "demo",
-      "ts": 1793553014.09434
+      "ts": 1793554116.7726588
     },
     {
       "type": "observe",
@@ -341,7 +477,42 @@
       "tokens": 0,
       "cost_usd": 0.0,
       "scan_id": "demo",
-      "ts": 1793553014.09436
+      "ts": 1793554116.77268
+    },
+    {
+      "type": "plan",
+      "target": "trustmap-demo-pages.github.io",
+      "tool": "done",
+      "args": {
+        "summary": "precomputed only"
+      },
+      "tokens": 15,
+      "cost_usd": 3.375e-05,
+      "scan_id": "demo",
+      "ts": 1793554116.7727911
+    },
+    {
+      "type": "act",
+      "target": "trustmap-demo-pages.github.io",
+      "tool": "done",
+      "args": {
+        "summary": "precomputed only"
+      },
+      "scan_id": "demo",
+      "ts": 1793554116.7727969
+    },
+    {
+      "type": "observe",
+      "target": "trustmap-demo-pages.github.io",
+      "tool": "done",
+      "args": {
+        "summary": "precomputed only"
+      },
+      "result_summary": "{\"done\": true, \"summary\": \"precomputed only\"}",
+      "tokens": 0,
+      "cost_usd": 0.0,
+      "scan_id": "demo",
+      "ts": 1793554116.77281
     },
     {
       "type": "plan",
@@ -353,7 +524,7 @@
       "tokens": 15,
       "cost_usd": 3.375e-05,
       "scan_id": "demo",
-      "ts": 1793553014.0944908
+      "ts": 1793554116.772832
     },
     {
       "type": "act",
@@ -363,7 +534,7 @@
         "summary": "domain checked"
       },
       "scan_id": "demo",
-      "ts": 1793553014.094495
+      "ts": 1793554116.7728388
     },
     {
       "type": "observe",
@@ -376,7 +547,7 @@
       "tokens": 0,
       "cost_usd": 0.0,
       "scan_id": "demo",
-      "ts": 1793553014.0945039
+      "ts": 1793554116.772851
     },
     {
       "type": "ranked",
@@ -394,7 +565,7 @@
       ],
       "cost_usd": 3.375e-05,
       "scan_id": "demo",
-      "ts": 1793553014.0969331
+      "ts": 1793554116.777319
     },
     {
       "type": "ranked",
@@ -411,7 +582,24 @@
       ],
       "cost_usd": 3.375e-05,
       "scan_id": "demo",
-      "ts": 1793553014.0969338
+      "ts": 1793554116.777323
+    },
+    {
+      "type": "ranked",
+      "target": "github.com/trustmap-missing-owner-a3f91c2e",
+      "kind": "domain",
+      "severity": "critical",
+      "model_severity": "critical",
+      "floor_reason": "",
+      "risk": "A stranger could register this GitHub account and ship install.sh into CI.",
+      "fix": "Remove or replace this reference. If this was yours, re-create it in your own account to reclaim the name.",
+      "evidence_line": "Evidence: GitHub owner does not exist \u00b7 referenced at .github/workflows/ci.yml:11 in CI",
+      "references": [
+        ".github/workflows/ci.yml:11"
+      ],
+      "cost_usd": 3.375e-05,
+      "scan_id": "demo",
+      "ts": 1793554116.7773252
     },
     {
       "type": "ranked",
@@ -428,7 +616,41 @@
       ],
       "cost_usd": 3.375e-05,
       "scan_id": "demo",
-      "ts": 1793553014.0969348
+      "ts": 1793554116.7773252
+    },
+    {
+      "type": "ranked",
+      "target": "trustmap-demo-pages.github.io",
+      "kind": "domain",
+      "severity": "critical",
+      "model_severity": "medium",
+      "floor_reason": "GitHub Pages unclaimed (vulnerable) in executing position (browser) is at least critical",
+      "risk": "A stranger could publish GitHub Pages and run script from index.html:8 in the browser.",
+      "fix": "Remove or replace this reference. If this was yours, re-create it in your own account to reclaim the name.",
+      "evidence_line": "Evidence: DNS resolves \u00b7 domain is registered \u00b7 GitHub owner exists \u00b7 GitHub Pages unclaimed (vulnerable) \u00b7 loaded by index.html:8 in the browser",
+      "references": [
+        "index.html:8"
+      ],
+      "cost_usd": 3.375e-05,
+      "scan_id": "demo",
+      "ts": 1793554116.777326
+    },
+    {
+      "type": "ranked",
+      "target": "trustmapdemoassets",
+      "kind": "bucket",
+      "severity": "critical",
+      "model_severity": "critical",
+      "floor_reason": "",
+      "risk": "A stranger could create this missing bucket and serve files to deploy/infra.yaml.",
+      "fix": "Remove or replace this reference. If this was yours, re-create it in your own account to reclaim the name.",
+      "evidence_line": "Evidence: Azure blob does not exist \u00b7 named in deploy/infra.yaml:8 in deploy",
+      "references": [
+        "deploy/infra.yaml:8"
+      ],
+      "cost_usd": 3.375e-05,
+      "scan_id": "demo",
+      "ts": 1793554116.777327
     },
     {
       "type": "ranked",
@@ -446,18 +668,18 @@
       ],
       "cost_usd": 3.375e-05,
       "scan_id": "demo",
-      "ts": 1793553014.096936
+      "ts": 1793554116.777328
     },
     {
       "type": "done",
-      "finding_count": 4,
-      "cost_usd": 0.000405,
-      "classify_cost_usd": 3.375e-05,
-      "agent_cost_usd": 0.00023625,
-      "rank_cost_usd": 0.000135,
+      "finding_count": 7,
+      "cost_usd": 0.00064125,
+      "classify_cost_usd": 6.75e-05,
+      "agent_cost_usd": 0.0003375,
+      "rank_cost_usd": 0.00023625,
       "budget_targets": [],
       "scan_id": "demo",
-      "ts": 1793553014.096969
+      "ts": 1793554116.777389
     }
   ]
 }

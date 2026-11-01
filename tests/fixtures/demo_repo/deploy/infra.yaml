@@ -5,3 +5,4 @@ assets:
   path_style: https://s3.amazonaws.com/acme-legacy-uploads-a3f91c2e
   regional: https://s3.us-east-2.amazonaws.com/acme-static-assets-a3f91c2e
   gcs: https://storage.googleapis.com/trustmap-demo-assets
+  azure: https://trustmapdemoassets.blob.core.windows.net/public

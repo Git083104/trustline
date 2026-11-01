@@ -28,6 +28,8 @@ from scanner.models import (
     BucketProbeResult,
     CertHistoryResult,
     DnsResult,
+    GithubOwnerResult,
+    PlatformTakeoverResult,
     RdapResult,
     WaybackResult,
 )
@@ -367,6 +369,21 @@ async def bucket_probe(
     if hit is not None:
         return BucketProbeResult.model_validate(hit)
 
+    if provider == "azure":
+        host = f"{name}.blob.core.windows.net"
+        dns_hit = await dns(host, cache=cache)
+        if dns_hit.status == "nxdomain":
+            status = S3_NOSUCH
+        elif dns_hit.status == "resolves":
+            status = "exists"
+        else:
+            status = "error"
+        result = BucketProbeResult(
+            name=name, provider=provider, status=status, http_status=None
+        )
+        cache.set_json(key, result.model_dump(mode="json"))
+        return result
+
     url = _bucket_url(name, provider)
     own_client = client is None
     client = client or _client()
@@ -524,3 +541,177 @@ async def _cdx(
         return None
     timestamp, digest = rows[1][0], rows[1][1]
     return str(timestamp), str(digest)
+
+
+async def platform_takeover(
+    host: str,
+    *,
+    cnames: list[str] | None = None,
+    dns_status: str | None = None,
+    client: httpx.AsyncClient | None = None,
+    cache: LookupCache | None = None,
+) -> PlatformTakeoverResult:
+    from scanner.tools.platform_takeover import matching_platform
+
+    cache = cache or default_cache()
+    key = f"platform:{host.lower()}"
+    hit = cache.get_json(key)
+    if hit is not None:
+        return PlatformTakeoverResult.model_validate(hit)
+
+    platform = matching_platform(host, cnames)
+    if platform is None:
+        return PlatformTakeoverResult(host=host, status="skipped")
+
+    takeover = str(platform.get("takeover") or "edge case")
+    name = str(platform["name"])
+    nx = str(dns_status or "").lower() == "nxdomain"
+    if platform.get("nxdomain"):
+        if not dns_status or str(dns_status).lower() in {
+            "timeout",
+            "error",
+            "unknown",
+            "unavailable",
+        }:
+            result = PlatformTakeoverResult(
+                host=host,
+                status="error",
+                platform=name,
+                takeover=takeover,
+            )
+        else:
+            result = PlatformTakeoverResult(
+                host=host,
+                status="unclaimed" if nx else "claimed",
+                platform=name,
+                takeover=takeover,
+                signal="NXDOMAIN" if nx else None,
+            )
+        cache.set_json(key, result.model_dump(mode="json"))
+        return result
+
+    own_client = client is None
+    client = client or _client()
+    result = PlatformTakeoverResult(
+        host=host, status="error", platform=name, takeover=takeover
+    )
+    try:
+        for scheme in ("https", "http"):
+            try:
+                response = await client.get(f"{scheme}://{host}/")
+            except httpx.HTTPError:
+                continue
+            body = response.text[:30000].lower()
+            match = next(
+                (
+                    fp
+                    for fp in platform.get("fingerprints") or []
+                    if fp.lower() in body
+                ),
+                None,
+            )
+            if match:
+                status = "unclaimed"
+            elif response.status_code < 400:
+                status = "claimed"
+            else:
+                status = "error_page"
+            result = PlatformTakeoverResult(
+                host=host,
+                status=status,
+                platform=name,
+                takeover=takeover,
+                signal=match,
+                http_status=response.status_code,
+            )
+            cache.set_json(key, result.model_dump(mode="json"))
+            return result
+        if nx:
+            result = PlatformTakeoverResult(
+                host=host,
+                status="unclaimed",
+                platform=name,
+                takeover=takeover,
+                signal="NXDOMAIN",
+            )
+    finally:
+        if own_client:
+            await client.aclose()
+    cache.set_json(key, result.model_dump(mode="json"))
+    return result
+
+
+def _github_headers(token: str | None) -> dict[str, str]:
+    headers = {
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    return headers
+
+
+async def github_owner(
+    owner: str,
+    *,
+    client: httpx.AsyncClient | None = None,
+    cache: LookupCache | None = None,
+) -> GithubOwnerResult:
+    cache = cache or default_cache()
+    key = f"github_owner:{owner.lower()}"
+    hit = cache.get_json(key)
+    if hit is not None:
+        return GithubOwnerResult.model_validate(hit)
+
+    token = os.environ.get("GITHUB_TOKEN") or None
+    own_client = client is None
+    client = client or httpx.AsyncClient(timeout=HTTP_TIMEOUT_S, follow_redirects=False)
+    try:
+        if token:
+            response = await client.get(
+                f"https://api.github.com/users/{owner}",
+                headers=_github_headers(token),
+            )
+            if response.status_code == 404:
+                result = GithubOwnerResult(
+                    owner=owner,
+                    status="missing",
+                    exists=False,
+                    http_status=404,
+                )
+                cache.set_json(key, result.model_dump(mode="json"))
+                return result
+            if response.status_code == 200:
+                payload = response.json()
+                result = GithubOwnerResult(
+                    owner=owner,
+                    status="exists",
+                    exists=True,
+                    kind=payload.get("type"),
+                    http_status=200,
+                )
+                cache.set_json(key, result.model_dump(mode="json"))
+                return result
+        response = await client.get(f"https://github.com/{owner}")
+        if response.status_code == 404:
+            result = GithubOwnerResult(
+                owner=owner, status="missing", exists=False, http_status=404
+            )
+        elif response.status_code in {200, 301, 302}:
+            result = GithubOwnerResult(
+                owner=owner,
+                status="exists",
+                exists=True,
+                http_status=response.status_code,
+            )
+        else:
+            result = GithubOwnerResult(
+                owner=owner, status="error", http_status=response.status_code
+            )
+    except httpx.HTTPError:
+        result = GithubOwnerResult(owner=owner, status="error")
+    finally:
+        if own_client:
+            await client.aclose()
+    cache.set_json(key, result.model_dump(mode="json"))
+    return result

@@ -14,6 +14,8 @@ from scanner.models import (
     BucketProbeResult,
     Classification,
     DnsResult,
+    GithubOwnerResult,
+    PlatformTakeoverResult,
     RdapResult,
     Reference,
 )
@@ -57,11 +59,34 @@ def _ctx(tmp_path, **impls) -> ToolContext:
             return RdapResult(domain=domain, status="unregistered")
         return RdapResult(domain=domain, status="registered", days_to_expiry=400)
 
+    async def fake_platform(host, cnames=None, dns_status=None, cache=None, **kwargs):
+        if "github.io" in host:
+            return PlatformTakeoverResult(
+                host=host,
+                status="unclaimed",
+                platform="GitHub Pages",
+                takeover="vulnerable",
+                signal="There isn't a GitHub Pages site here",
+                http_status=404,
+            )
+        return PlatformTakeoverResult(host=host, status="skipped")
+
+    async def fake_github_owner(owner, cache=None, **kwargs):
+        missing = "missing" in owner.lower()
+        return GithubOwnerResult(
+            owner=owner,
+            status="missing" if missing else "exists",
+            exists=not missing,
+            http_status=404 if missing else 200,
+        )
+
     return ToolContext(
         cache=LookupCache(tmp_path / "c.db"),
         dns=impls.get("dns", fake_dns),
         bucket_probe=impls.get("bucket_probe", fake_bucket),
         rdap=impls.get("rdap", fake_rdap),
+        platform_takeover=impls.get("platform_takeover", fake_platform),
+        github_owner=impls.get("github_owner", fake_github_owner),
     )
 
 
@@ -71,6 +96,10 @@ def _scripted_client():
         n_tools = sum(1 for msg in request["messages"] if msg["role"] == "assistant")
         if first["reference"]["type"] == "bucket":
             return {"name": "done", "arguments": {"summary": "bucket checked"}}
+        if first.get("precomputed", {}).get("github_owner") or first.get(
+            "precomputed", {}
+        ).get("platform_takeover"):
+            return {"name": "done", "arguments": {"summary": "precomputed only"}}
         if n_tools == 0:
             domain = first["reference"]["domain"] or first["reference"]["host_or_bucket"]
             return {"name": "rdap", "arguments": {"domain": domain}}

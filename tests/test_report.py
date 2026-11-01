@@ -14,9 +14,11 @@ from scanner.models import (
 )
 from scanner.report import (
     CLAIMABLE_FIX,
+    GITHUB_OWNER_NOTE,
     NO_ACTION_FIX,
     apply_floor,
     evidence_line,
+    floor_decision,
     finding_payload,
     floor_severity,
     format_table,
@@ -66,7 +68,7 @@ def _rank_ok(**kwargs) -> dict:
             "A stranger could create this missing bucket and serve files to deploy/infra.yaml:3.",
         ),
         "fix": kwargs.get("fix", "re-register what you abandoned"),
-        "uncertain_about": "",
+        "uncertain_about": kwargs.get("uncertain_about", ""),
         "blast_radius": kwargs.get("blast_radius", 3),
         "blast_override_reason": kwargs.get("override", "NoSuchBucket in deploy"),
     }
@@ -224,6 +226,64 @@ def test_floor_claimable_is_critical_other_hard_is_high():
         },
     }
     assert floor_severity(unreg) == "critical"
+    owner_ref = Reference(
+        file=".github/workflows/ci.yml",
+        line=11,
+        raw="https://raw.githubusercontent.com/gone-user/tools/main/install.sh",
+        host_or_bucket="github.com/gone-user",
+    )
+    owner_missing = {
+        "target": "github.com/gone-user",
+        "rows": [
+            (
+                owner_ref,
+                _cl(owner_ref, type="script", runs_in="ci"),
+                _inv(owner_ref, {}),
+            )
+        ],
+        "evidence": {"github_owner": {"status": "missing", "exists": False}},
+    }
+    assert floor_severity(owner_missing) == "critical"
+    pages = Reference(
+        file="index.html",
+        line=8,
+        raw="https://gone.github.io/widget.js",
+        host_or_bucket="gone.github.io",
+        domain="gone.github.io",
+    )
+    vulnerable = {
+        "target": "gone.github.io",
+        "rows": [
+            (pages, _cl(pages, type="script", runs_in="browser"), _inv(pages, {}))
+        ],
+        "evidence": {
+            "platform_takeover": {
+                "status": "unclaimed",
+                "platform": "GitHub Pages",
+                "takeover": "vulnerable",
+                "signal": "There isn't a GitHub Pages site here",
+            }
+        },
+    }
+    assert floor_severity(vulnerable) == "critical"
+    edge = {
+        "target": "gone.herokuapp.com",
+        "rows": [
+            (pages, _cl(pages, type="script", runs_in="browser"), _inv(pages, {}))
+        ],
+        "evidence": {
+            "platform_takeover": {
+                "status": "unclaimed",
+                "platform": "Heroku",
+                "takeover": "edge case",
+                "signal": "No such app",
+            }
+        },
+    }
+    level, reason = floor_decision(edge)
+    assert level == "high"
+    assert "edge case" in reason
+    assert "Heroku" in reason
     docs = {
         "target": "missing",
         "rows": [(gone, _cl(gone, runs_in="docs_only"), _inv(gone, {}))],
@@ -387,6 +447,21 @@ def _fixture_handler():
                     blast_radius=3,
                     override="claimable now",
                 )
+            if '"status": "missing"' in blob or '"exists": false' in blob:
+                return _rank_ok(
+                    severity="critical",
+                    risk="A stranger could register this GitHub account and ship install.sh into CI.",
+                    blast_radius=3,
+                    override="claimable now",
+                    uncertain_about=GITHUB_OWNER_NOTE,
+                )
+            if "unclaimed" in blob and "GitHub Pages" in blob:
+                return _rank_ok(
+                    severity="medium",
+                    risk="A stranger could publish GitHub Pages and run script from index.html:8 in the browser.",
+                    blast_radius=3,
+                    override="claimable now",
+                )
             if "unregistered" in blob:
                 return _rank_ok(
                     severity="critical",
@@ -448,15 +523,29 @@ async def test_fixture_scan_groups_and_ranks_claimable_first(tmp_path):
     assert not any("test_client.py" in loc for item in findings for loc in item.references)
     gone = "acme-legacy-uploads-a3f91c2e"
     live = "acme-static-assets-a3f91c2e"
-    top = findings[:3]
-    top_targets = {item.target for item in top}
-    assert top_targets == {
+    owner = "github.com/trustmap-missing-owner-a3f91c2e"
+    pages = "trustmap-demo-pages.github.io"
+    azure = "trustmapdemoassets"
+    critical = {item.target for item in findings if item.severity == "critical"}
+    assert {
         gone,
         "cdn-assets-trustmap-7f3k2.com",
         "trustmap-demo-assets",
-    }
-    assert all(item.severity == "critical" for item in top)
-    assert all(item.fix == CLAIMABLE_FIX for item in top)
+        owner,
+        pages,
+        azure,
+    } <= critical
+    claimable = [
+        item
+        for item in findings
+        if item.target in {gone, "cdn-assets-trustmap-7f3k2.com", "trustmap-demo-assets", owner, pages, azure}
+    ]
+    assert all(item.fix == CLAIMABLE_FIX for item in claimable)
+    owner_hit = next(item for item in findings if item.target == owner)
+    assert owner_hit.uncertain_about == GITHUB_OWNER_NOTE
+    pages_hit = next(item for item in findings if item.target == pages)
+    assert "GitHub Pages" in pages_hit.floor_reason
+    assert "vulnerable" in pages_hit.floor_reason
     gone_hit = next(item for item in findings if item.target == gone)
     assert gone_hit.references == ["deploy/infra.yaml:3", "deploy/infra.yaml:5"]
     live_hit = next(item for item in findings if item.target == live)

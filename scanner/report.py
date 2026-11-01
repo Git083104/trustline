@@ -16,7 +16,8 @@ from scanner.config import (
     SCAN_COST_CAP_USD,
 )
 from scanner.events import OnEvent, emit, finding_public
-from scanner.extract import extract, is_bucket_ref
+from scanner.extract import extract, github_login, is_bucket_ref, is_github_owner_ref
+from scanner.tools.platform_takeover import matching_platform
 from scanner.llm import CallLog, ModelClient, call_json
 from scanner.lookups import LookupCache, consistent_evidence
 from scanner.models import (
@@ -95,6 +96,11 @@ STATUS_MEANING = (
     frozenset({"resolves"}),
 )
 
+GITHUB_OWNER_NOTE = (
+    "GitHub may retire popular repository names after an owner is deleted or "
+    "renamed, which can block this exact path."
+)
+
 RANK_SYSTEM_PROMPT = (
     "You rank takeover risk for one outside target (a bucket or a registrable domain). "
     "Use only the supplied classification and evidence. Do not invent dates, DNS results, "
@@ -107,6 +113,8 @@ RANK_SYSTEM_PROMPT = (
     "A registered, resolving, actively used domain that renews soon is routine. "
     "Expiry matters when combined with signs of abandonment (DNS does not resolve, "
     "or the owner has shut down). Do not raise severity for expiry alone. "
+    "If github_owner status is missing, set uncertain_about to exactly: "
+    f"{GITHUB_OWNER_NOTE!r}. "
     "You may raise or lower blast_radius versus classify when evidence shows the "
     "reference matters more or less; if you change it, set blast_override_reason. "
     "fix must be one of the allowed values."
@@ -149,6 +157,8 @@ RANK_JSON_SCHEMA = {
 def target_key(ref: Reference, cl: Classification) -> tuple[str, str]:
     if cl.type == "bucket" or is_bucket_ref(ref):
         return ref.host_or_bucket, "bucket"
+    if matching_platform(ref.host_or_bucket):
+        return ref.host_or_bucket, "domain"
     return (ref.domain or ref.host_or_bucket), "domain"
 
 
@@ -277,7 +287,18 @@ def is_claimable(evidence: dict[str, Any]) -> bool:
     evidence = consistent_evidence(evidence)
     bucket = evidence.get("bucket_probe") or {}
     rdap = evidence.get("rdap") or {}
-    return bucket.get("status") == "NoSuchBucket" or str(rdap.get("status", "")).lower() == "unregistered"
+    owner = evidence.get("github_owner") or {}
+    platform = evidence.get("platform_takeover") or {}
+    if bucket.get("status") == "NoSuchBucket":
+        return True
+    if str(rdap.get("status", "")).lower() == "unregistered":
+        return True
+    if str(owner.get("status", "")).lower() == "missing":
+        return True
+    return (
+        str(platform.get("status", "")).lower() == "unclaimed"
+        and str(platform.get("takeover") or "") == "vulnerable"
+    )
 
 
 def has_risk_signal(evidence: dict[str, Any]) -> bool:
@@ -286,7 +307,10 @@ def has_risk_signal(evidence: dict[str, Any]) -> bool:
         return True
     dns = usable.get("dns") or {}
     rdap = usable.get("rdap") or {}
+    platform = usable.get("platform_takeover") or {}
     if str(dns.get("status", "")).lower() == "nxdomain":
+        return True
+    if str(platform.get("status", "")).lower() == "unclaimed":
         return True
     days = rdap.get("days_to_expiry")
     return isinstance(days, int) and days <= EXPIRY_INVESTIGATE_DAYS
@@ -325,11 +349,28 @@ def evidence_line(group: dict[str, Any], *, include_runs_in: bool = True) -> str
     bucket = usable.get("bucket_probe") or {}
     bucket_status = str(bucket.get("status", ""))
     provider = str(bucket.get("provider") or "")
-    label = "GCS bucket" if provider == "gcs" else "S3 bucket" if provider == "s3" else "bucket"
+    if provider == "gcs":
+        label = "GCS bucket"
+    elif provider == "azure":
+        label = "Azure blob"
+    elif provider == "s3":
+        label = "S3 bucket"
+    else:
+        label = "bucket"
     if bucket_status == "NoSuchBucket":
         parts.append(f"{label} does not exist")
     elif bucket_status.lower() == "exists":
         parts.append(f"{label} exists")
+    owner = usable.get("github_owner") or {}
+    if str(owner.get("status", "")).lower() == "missing":
+        parts.append("GitHub owner does not exist")
+    elif str(owner.get("status", "")).lower() == "exists":
+        parts.append("GitHub owner exists")
+    platform = usable.get("platform_takeover") or {}
+    if str(platform.get("status", "")).lower() == "unclaimed":
+        plat_name = platform.get("platform") or "platform"
+        takeover = platform.get("takeover") or "edge case"
+        parts.append(f"{plat_name} unclaimed ({takeover})")
     certs = usable.get("cert_history") or {}
     if str(certs.get("status", "")).lower() == "ok":
         issuers = certs.get("issuers") or []
@@ -377,6 +418,27 @@ def floor_decision(group: dict[str, Any]) -> tuple[str | None, str]:
         return (
             "critical",
             f"NoSuchBucket in executing position ({where}) is at least critical",
+        )
+    owner = evidence.get("github_owner") or {}
+    if str(owner.get("status", "")).lower() == "missing":
+        return (
+            "critical",
+            f"GitHub owner missing in executing position ({where}) is at least critical",
+        )
+    platform = evidence.get("platform_takeover") or {}
+    if str(platform.get("status", "")).lower() == "unclaimed":
+        plat_name = platform.get("platform") or "platform"
+        takeover = str(platform.get("takeover") or "edge case")
+        if takeover == "vulnerable":
+            return (
+                "critical",
+                f"{plat_name} unclaimed ({takeover}) in executing position ({where}) "
+                "is at least critical",
+            )
+        return (
+            "high",
+            f"{plat_name} unclaimed ({takeover}) in executing position ({where}) "
+            "is at least high",
         )
     if str(rdap.get("status", "")).lower() == "unregistered":
         return (
@@ -453,6 +515,10 @@ def _rank_group(
             problems.append(f"banned field names: {banned}")
         if unknown:
             problems.append(f"unknown lookups cited: {unknown}")
+        owner = group["evidence"].get("github_owner") or {}
+        if str(owner.get("status", "")).lower() == "missing":
+            if GITHUB_OWNER_NOTE not in (parsed.uncertain_about or ""):
+                problems.append("missing GitHub owner retirement note")
         if problems:
             raise ValueError("; ".join(problems))
 
@@ -662,7 +728,13 @@ def hydrate_evidence(
     ref: Reference, cl: Classification, cache: LookupCache
 ) -> dict[str, Any] | None:
     if cl.type == "bucket" or is_bucket_ref(ref):
-        provider = "gcs" if "storage.googleapis.com" in ref.raw.lower() else "s3"
+        raw = ref.raw.lower()
+        if "storage.googleapis.com" in raw:
+            provider = "gcs"
+        elif "blob.core.windows.net" in raw:
+            provider = "azure"
+        else:
+            provider = "s3"
         hit = cache.get_json(f"bucket:{provider}:{ref.host_or_bucket}")
         if hit is None:
             return None
@@ -678,6 +750,14 @@ def hydrate_evidence(
                 evidence["wayback"] = wayback
                 break
         return evidence
+    if is_github_owner_ref(ref):
+        login = github_login(ref)
+        if not login:
+            return None
+        hit = cache.get_json(f"github_owner:{login.lower()}")
+        if hit is None:
+            return None
+        return {"github_owner": hit}
     dns = cache.get_json(f"dns:{ref.host_or_bucket.lower()}")
     if dns is None:
         return None
@@ -692,6 +772,14 @@ def hydrate_evidence(
     wayback = cache.get_json(f"wayback:{ref.raw}")
     if wayback:
         evidence["wayback"] = wayback
+    platform = cache.get_json(f"platform:{ref.host_or_bucket.lower()}")
+    if platform:
+        evidence["platform_takeover"] = platform
+    login = github_login(ref)
+    if login:
+        owner = cache.get_json(f"github_owner:{login.lower()}")
+        if owner:
+            evidence["github_owner"] = owner
     return consistent_evidence(evidence)
 
 
