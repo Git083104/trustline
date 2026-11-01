@@ -75,6 +75,17 @@ def actionable(refs: list[Reference]) -> list[Reference]:
     return [ref for ref in refs if ref.filter_reason is None]
 
 
+def is_website_source(source: str) -> bool:
+    text = source.strip()
+    if not text.startswith(("http://", "https://")):
+        return False
+    if GITHUB_RE.match(text):
+        return False
+    if Path(text).exists():
+        return False
+    return True
+
+
 def extract(source: str, *, clone_github=None) -> list[Reference]:
     path = Path(source)
     if path.exists():

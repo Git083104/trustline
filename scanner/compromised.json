@@ -1,0 +1,30 @@
+{
+  "cdn.polyfill.io": {
+    "status": "compromised",
+    "source": "https://www.censys.com/blog/july-2-polyfill-io-supply-chain-attack-digging-into-the-web-of-compromised-domains"
+  },
+  "polyfill.io": {
+    "status": "compromised",
+    "source": "https://www.censys.com/blog/july-2-polyfill-io-supply-chain-attack-digging-into-the-web-of-compromised-domains"
+  },
+  "polyfill.com": {
+    "status": "compromised",
+    "source": "https://www.censys.com/blog/july-2-polyfill-io-supply-chain-attack-digging-into-the-web-of-compromised-domains"
+  },
+  "bootcss.com": {
+    "status": "compromised",
+    "source": "https://www.censys.com/blog/july-2-polyfill-io-supply-chain-attack-digging-into-the-web-of-compromised-domains"
+  },
+  "bootcdn.net": {
+    "status": "associated",
+    "source": "https://www.censys.com/blog/july-2-polyfill-io-supply-chain-attack-digging-into-the-web-of-compromised-domains"
+  },
+  "staticfile.net": {
+    "status": "associated",
+    "source": "https://www.censys.com/blog/july-2-polyfill-io-supply-chain-attack-digging-into-the-web-of-compromised-domains"
+  },
+  "staticfile.org": {
+    "status": "associated",
+    "source": "https://www.censys.com/blog/july-2-polyfill-io-supply-chain-attack-digging-into-the-web-of-compromised-domains"
+  }
+}

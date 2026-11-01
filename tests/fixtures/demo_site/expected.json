@@ -1,0 +1,60 @@
+{
+  "references": [
+    {
+      "tag": "link",
+      "attribute": "href",
+      "raw_host": "assets.brand-cdn.example.net",
+      "sri": false,
+      "loaded_by": "html",
+      "filter_reason": "reserved_domain"
+    },
+    {
+      "tag": "script",
+      "attribute": "src",
+      "raw_host": "cdn.polyfill.io",
+      "sri": false,
+      "loaded_by": "html",
+      "filter_reason": null
+    },
+    {
+      "tag": "script",
+      "attribute": "src",
+      "raw_host": "cdn.jsdelivr.net",
+      "sri": true,
+      "loaded_by": "html",
+      "filter_reason": null
+    },
+    {
+      "tag": "script",
+      "attribute": "src",
+      "raw_host": "cdn-assets-trustmap-7f3k2.com",
+      "sri": false,
+      "loaded_by": "html",
+      "filter_reason": null
+    },
+    {
+      "tag": "iframe",
+      "attribute": "src",
+      "raw_host": "trustmap-missing-owner-a3f91c2e.github.io",
+      "sri": null,
+      "loaded_by": "html",
+      "filter_reason": null
+    },
+    {
+      "tag": "script",
+      "attribute": "data",
+      "raw_host": "gone-loader-trustmap-7f3k2.com",
+      "sri": null,
+      "loaded_by": "html",
+      "filter_reason": null
+    },
+    {
+      "tag": "script",
+      "attribute": "src",
+      "raw_host": "first-party-js-trustmap-7f3k2.com",
+      "sri": null,
+      "loaded_by": "first_party_js",
+      "filter_reason": null
+    }
+  ]
+}

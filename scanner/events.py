@@ -32,6 +32,6 @@ def finding_public(item: Finding) -> dict[str, Any]:
         "risk": item.risk,
         "fix": item.fix,
         "evidence_line": item.evidence_line,
-        "references": item.references,
+        "references": item.locations or item.references,
         "cost_usd": item.cost_usd,
     }

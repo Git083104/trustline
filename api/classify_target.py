@@ -28,7 +28,9 @@ def classify_target(target: str, kind: str | None = None) -> tuple[str, str]:
         raise TargetError(400, {"error": "target required"})
     inferred = kind or infer_kind(raw)
     if inferred == "website":
-        raise TargetError(400, {"error": "not supported yet", "kind": "website"})
+        if not raw.startswith(("http://", "https://")):
+            raise TargetError(400, {"error": "not a website URL", "kind": "website"})
+        return "website", raw
     if inferred == "repo":
         if not GITHUB_RE.match(raw):
             raise TargetError(400, {"error": "not a GitHub URL", "kind": "repo"})

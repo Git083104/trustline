@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from api.classify_target import TargetError, classify_target, infer_kind
+from api.classify_target import classify_target, infer_kind
 from api.demo import demo_gap_ms, demo_report, load_demo
 from api.jobs import Job
 from api.main import create_app
@@ -66,22 +66,28 @@ def test_health_and_cors():
         }
 
 
-def test_infer_kind_and_website_rejected():
+def test_infer_kind_and_website_accepted():
     assert infer_kind("https://github.com/acme/widgets") == "repo"
     assert infer_kind(str(FIXTURE_ROOT)) == "path"
     assert infer_kind("https://example.com") == "website"
-    with pytest.raises(TargetError) as caught:
-        classify_target("https://example.com")
-    assert caught.value.status_code == 400
-    assert caught.value.body == {"error": "not supported yet", "kind": "website"}
+    assert classify_target("https://example.com") == ("website", "https://example.com")
 
 
-def test_post_website_400():
-    app = create_app(model_client=FakeModelClient(handler=lambda r: {}))
+def test_post_website_starts_job():
+    async def runner(*args, **kwargs):
+        return ScanOutcome(findings=[])
+
+    app = create_app(
+        model_client=FakeModelClient(handler=lambda r: {}),
+        runner=runner,
+    )
     with TestClient(app) as client:
         response = client.post("/api/scan", json={"target": "https://example.com"})
-        assert response.status_code == 400
-        assert response.json() == {"error": "not supported yet", "kind": "website"}
+        assert response.status_code == 200
+        body = response.json()
+        assert body["kind"] == "website"
+        assert body["target"] == "https://example.com"
+        assert body["scan_id"]
 
 
 def test_post_github_returns_kind_without_clone():

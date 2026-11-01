@@ -26,6 +26,7 @@ packages = ["scanner", "api"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "api/demo_scan.json" = "api/demo_scan.json"
+"scanner/compromised.json" = "scanner/compromised.json"
 
 [tool.uv]
 package = true

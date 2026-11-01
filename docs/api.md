@@ -18,14 +18,18 @@ local path, `website` = other `http(s)` URL) and may be set explicitly.
 {"scan_id": "7c2e1a9b", "kind": "repo", "target": "https://github.com/acme/widgets"}
 ```
 
-Website targets are not supported yet. The job is not created:
+Website targets are fetched once (no JS execution). Private, loopback, link-local,
+multicast, reserved, and unspecified addresses are refused with:
+
+```json
+{"type": "error", "message": "This address can't be scanned"}
+```
 
 ```json
 POST /api/scan
 {"target": "https://example.com"}
 
-400
-{"error": "not supported yet", "kind": "website"}
+{"scan_id": "7c2e1a9b", "kind": "website", "target": "https://example.com"}
 ```
 
 Unknown `scan_id` on later GETs → 404.
@@ -77,6 +81,9 @@ Final report. **409** if still running, **404** if unknown, **500** if the job f
   ]
 }
 ```
+
+Website findings put page locations in `references` (`page_url`, `tag`, `attribute`,
+`line`, `sri`, `raw`) instead of `file:line`.
 
 ## `GET /api/health`
 

@@ -12,6 +12,11 @@ class Reference(BaseModel):
     domain: str = ""
     context: str = ""
     filter_reason: str | None = None
+    page_url: str = ""
+    tag: str = ""
+    attribute: str = ""
+    sri: bool | None = None
+    loaded_by: str = ""
 
 
 class RdapResult(BaseModel):
@@ -169,3 +174,4 @@ class Finding(BaseModel):
     evidence: dict[str, Any] = Field(default_factory=dict)
     evidence_line: str = ""
     cost_usd: float = 0
+    locations: list[dict[str, Any]] = Field(default_factory=list)

@@ -28,6 +28,24 @@ def test_finding_public_fields():
         cost_usd=0.01,
     )
     public = finding_public(item)
+    assert public["references"] == ["deploy/infra.yaml:3"]
+    with_loc = item.model_copy(
+        update={
+            "locations": [
+                {
+                    "page_url": "https://shop.example/",
+                    "file": "https://shop.example/",
+                    "line": 7,
+                    "tag": "script",
+                    "attribute": "src",
+                    "raw": "https://cdn.polyfill.io/v3/polyfill.min.js",
+                    "sri": False,
+                    "loaded_by": "html",
+                }
+            ]
+        }
+    )
+    assert finding_public(with_loc)["references"][0]["page_url"] == "https://shop.example/"
     assert set(public) == {
         "target",
         "kind",

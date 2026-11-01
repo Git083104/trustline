@@ -16,8 +16,21 @@ from scanner.config import (
     SCAN_COST_CAP_USD,
 )
 from scanner.events import OnEvent, emit, finding_public
-from scanner.extract import extract, github_login, is_bucket_ref, is_github_owner_ref
+from scanner.compromised import (
+    POLYFILL_FIX,
+    SRI_FIX,
+    compromised_status,
+    is_polyfill_host,
+)
+from scanner.extract import (
+    extract,
+    github_login,
+    is_bucket_ref,
+    is_github_owner_ref,
+    is_website_source,
+)
 from scanner.tools.platform_takeover import matching_platform
+from scanner.website import extract_website
 from scanner.llm import CallLog, ModelClient, call_json
 from scanner.lookups import LookupCache, consistent_evidence
 from scanner.models import (
@@ -314,7 +327,56 @@ def has_risk_signal(evidence: dict[str, Any]) -> bool:
     return isinstance(days, int) and days <= EXPIRY_INVESTIGATE_DAYS
 
 
-def choose_fix(evidence: dict[str, Any], model_fix: str, final_severity: Severity) -> str:
+def _browser_script_rows(
+    rows: list[tuple[Reference, Classification, Investigation]],
+) -> list[tuple[Reference, Classification, Investigation]]:
+    return [
+        (ref, cl, inv)
+        for ref, cl, inv in rows
+        if cl.runs_in == "browser"
+        and (ref.tag == "script" or cl.type == "script")
+    ]
+
+
+def _all_browser_scripts_sri(
+    rows: list[tuple[Reference, Classification, Investigation]],
+) -> bool:
+    scripts = _browser_script_rows(rows)
+    return bool(scripts) and all(ref.sri is True for ref, _cl, _inv in scripts)
+
+
+def _group_compromised(
+    group: dict[str, Any],
+) -> str | None:
+    names: list[str] = [group.get("target") or ""]
+    for ref, _cl, _inv in group.get("rows") or []:
+        names.append(ref.host_or_bucket)
+        names.append(ref.domain)
+    return compromised_status(*names)
+
+
+def choose_fix(
+    evidence: dict[str, Any],
+    model_fix: str,
+    final_severity: Severity,
+    rows: list[tuple[Reference, Classification, Investigation]] | None = None,
+) -> str:
+    rows = rows or []
+    names = [ref.host_or_bucket for ref, _cl, _inv in rows] + [
+        ref.domain for ref, _cl, _inv in rows
+    ]
+    if is_polyfill_host(*names):
+        return POLYFILL_FIX
+    third_party_no_sri = False
+    for ref, cl, _inv in _browser_script_rows(rows):
+        if ref.sri is True:
+            continue
+        if ref.page_url and ref.host_or_bucket:
+            page_host = (ref.page_url.split("://", 1)[-1].split("/", 1)[0].split(":")[0])
+            if ref.host_or_bucket.lower() != page_host.lower():
+                third_party_no_sri = True
+    if third_party_no_sri:
+        return SRI_FIX
     if is_claimable(evidence):
         return CLAIMABLE_FIX
     if final_severity == "info" or not has_risk_signal(evidence):
@@ -369,6 +431,16 @@ def evidence_line(group: dict[str, Any], *, include_runs_in: bool = True) -> str
         plat_name = platform.get("platform") or "platform"
         takeover = platform.get("takeover") or "edge case"
         parts.append(f"{plat_name} unclaimed ({takeover})")
+    status = _group_compromised(group)
+    if status == "compromised":
+        parts.append("compromised domain")
+    elif status == "associated":
+        parts.append("associated domain")
+    sri_values = [ref.sri for ref, _cl, _inv in group.get("rows") or []]
+    if False in sri_values:
+        parts.append("SRI missing")
+    elif True in sri_values:
+        parts.append("SRI present")
     certs = usable.get("cert_history") or {}
     if str(certs.get("status", "")).lower() == "ok":
         issuers = certs.get("issuers") or []
@@ -396,6 +468,41 @@ def evidence_line(group: dict[str, Any], *, include_runs_in: bool = True) -> str
     return "Evidence: " + " · ".join(parts)
 
 
+def apply_website_roles(
+    pairs: list[tuple[Reference, Classification]],
+) -> list[tuple[Reference, Classification]]:
+    updated: list[tuple[Reference, Classification]] = []
+    for ref, cl in pairs:
+        if ref.tag != "script":
+            updated.append((ref, cl))
+            continue
+        changes: dict[str, Any] = {"runs_in": "browser"}
+        if cl.type != "bucket" and not is_github_owner_ref(ref):
+            changes["type"] = "script"
+        updated.append((ref, cl.model_copy(update=changes)))
+    return updated
+
+
+def _reference_locations(group: dict[str, Any]) -> list[dict[str, Any]]:
+    locations = []
+    for ref, _cl, _inv in group.get("rows") or []:
+        if not ref.page_url:
+            continue
+        locations.append(
+            {
+                "page_url": ref.page_url,
+                "file": ref.file,
+                "line": ref.line,
+                "tag": ref.tag,
+                "attribute": ref.attribute,
+                "raw": ref.raw,
+                "sri": ref.sri,
+                "loaded_by": ref.loaded_by,
+            }
+        )
+    return locations
+
+
 def floor_severity(group: dict[str, Any]) -> str | None:
     level, _reason = floor_decision(group)
     return level
@@ -409,29 +516,46 @@ def floor_decision(group: dict[str, Any]) -> tuple[str | None, str]:
         {cl.runs_in for _, cl, _ in group["rows"] if cl.runs_in in EXECUTING}
     )
     where = ", ".join(runs)
+    sri_ok = _all_browser_scripts_sri(group["rows"])
+    has_script = bool(_browser_script_rows(group["rows"]))
+    status = _group_compromised(group)
+    if status == "compromised" and has_script and not sri_ok:
+        return (
+            "critical",
+            f"compromised domain in a browser script without SRI ({where}) "
+            "is at least critical",
+        )
+    if status == "associated" and has_script:
+        return (
+            "high",
+            f"associated domain in a browser script ({where}) is at least high",
+        )
     bucket = evidence.get("bucket_probe") or {}
     rdap = evidence.get("rdap") or {}
     dns = evidence.get("dns") or {}
     if bucket.get("status") == "NoSuchBucket":
-        return (
+        return _claimable_sri_floor(
             "critical",
             f"NoSuchBucket in executing position ({where}) is at least critical",
+            group,
         )
     owner = evidence.get("github_owner") or {}
     if str(owner.get("status", "")).lower() == "missing":
-        return (
+        return _claimable_sri_floor(
             "critical",
             f"GitHub owner missing in executing position ({where}) is at least critical",
+            group,
         )
     platform = evidence.get("platform_takeover") or {}
     if str(platform.get("status", "")).lower() == "unclaimed":
         plat_name = platform.get("platform") or "platform"
         takeover = str(platform.get("takeover") or "edge case")
         if takeover == "vulnerable":
-            return (
+            return _claimable_sri_floor(
                 "critical",
-                f"{plat_name} unclaimed ({takeover}) in executing position ({where}) "
-                "is at least critical",
+                f"{plat_name} unclaimed ({takeover}) in executing position "
+                f"({where}) is at least critical",
+                group,
             )
         return (
             "high",
@@ -439,9 +563,10 @@ def floor_decision(group: dict[str, Any]) -> tuple[str | None, str]:
             "is at least high",
         )
     if str(rdap.get("status", "")).lower() == "unregistered":
-        return (
+        return _claimable_sri_floor(
             "critical",
             f"RDAP unregistered in executing position ({where}) is at least critical",
+            group,
         )
     if str(dns.get("status", "")).lower() == "nxdomain":
         return (
@@ -449,6 +574,20 @@ def floor_decision(group: dict[str, Any]) -> tuple[str | None, str]:
             f"NXDOMAIN in executing position ({where}) is at least high",
         )
     return None, ""
+
+
+def _claimable_sri_floor(
+    level: str | None, reason: str, group: dict[str, Any]
+) -> tuple[str | None, str]:
+    if level != "critical":
+        return level, reason
+    rows = group["rows"]
+    if _all_browser_scripts_sri(rows) and _browser_script_rows(rows):
+        return (
+            "medium",
+            "claimable-now with SRI in executing position is at least medium",
+        )
+    return level, reason
 
 
 def _github_owner_note(uncertain: str, evidence: dict[str, Any]) -> str:
@@ -621,7 +760,7 @@ def _finding_from_rank(
         ranked_blast_radius=ranked_blast,
         blast_override_reason=override,
         risk=risk,
-        fix=choose_fix(evidence, model_fix, final),
+        fix=choose_fix(evidence, model_fix, final, group["rows"]),
         uncertain_about=uncertain,
         needs_review=needs_review,
         floor_applied=raised,
@@ -629,6 +768,7 @@ def _finding_from_rank(
         evidence=evidence,
         evidence_line=evidence_line(group),
         cost_usd=cost_total,
+        locations=_reference_locations(group),
     )
 
 
@@ -665,7 +805,10 @@ async def run_scan(
     cost_cap: float = SCAN_COST_CAP_USD,
     on_event: OnEvent | None = None,
 ) -> ScanOutcome:
-    refs = extract(source)
+    if is_website_source(source):
+        refs = await extract_website(source)
+    else:
+        refs = extract(source)
     actionable = sum(1 for item in refs if item.filter_reason is None)
     emit(
         on_event,
@@ -680,12 +823,9 @@ async def run_scan(
     classified = classify(
         refs, client=client, include_filtered=True, cache=cache, logs=class_logs
     )
-    by_loc = {(item.file, item.line): item for item in classified}
-    pairs = [
-        (ref, by_loc[(ref.file, ref.line)])
-        for ref in refs
-        if (ref.file, ref.line) in by_loc
-    ]
+    pairs = list(zip(refs, classified, strict=True))
+    if is_website_source(source):
+        pairs = apply_website_roles(pairs)
     ctx = ctx or ToolContext(cache=cache)
     investigations: list[Investigation] = []
     cached_rows = (

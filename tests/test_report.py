@@ -12,11 +12,13 @@ from scanner.models import (
     Investigation,
     Reference,
 )
+from scanner.compromised import POLYFILL_FIX, SRI_FIX
 from scanner.report import (
     CLAIMABLE_FIX,
     GITHUB_OWNER_NOTE,
     NO_ACTION_FIX,
     apply_floor,
+    choose_fix,
     evidence_line,
     floor_decision,
     finding_payload,
@@ -293,6 +295,75 @@ def test_floor_claimable_is_critical_other_hard_is_high():
     severity, note = apply_floor("medium", "critical")
     assert severity == "critical"
     assert note == "critical"
+
+
+def test_website_compromised_and_sri_floors():
+    poly = Reference(
+        file="https://shop.example/index.html",
+        line=7,
+        raw="https://cdn.polyfill.io/v3/polyfill.min.js",
+        host_or_bucket="cdn.polyfill.io",
+        domain="polyfill.io",
+        page_url="https://shop.example/index.html",
+        tag="script",
+        attribute="src",
+        sri=False,
+    )
+    compromised = {
+        "target": "cdn.polyfill.io",
+        "rows": [
+            (poly, _cl(poly, type="script", runs_in="browser"), _inv(poly, {}))
+        ],
+        "evidence": {"dns": {"status": "resolves"}, "rdap": {"status": "registered"}},
+    }
+    level, reason = floor_decision(compromised)
+    assert level == "critical"
+    assert "compromised" in reason
+    associated_ref = poly.model_copy(
+        update={"host_or_bucket": "bootcdn.net", "domain": "bootcdn.net", "sri": True}
+    )
+    associated = {
+        "target": "bootcdn.net",
+        "rows": [
+            (
+                associated_ref,
+                _cl(associated_ref, type="script", runs_in="browser"),
+                _inv(associated_ref, {}),
+            )
+        ],
+        "evidence": {"dns": {"status": "resolves"}},
+    }
+    level, reason = floor_decision(associated)
+    assert level == "high"
+    assert "associated" in reason
+    unreg = poly.model_copy(
+        update={
+            "host_or_bucket": "cdn-assets-trustmap-7f3k2.com",
+            "domain": "cdn-assets-trustmap-7f3k2.com",
+            "sri": True,
+        }
+    )
+    claimable_sri = {
+        "target": "cdn-assets-trustmap-7f3k2.com",
+        "rows": [
+            (unreg, _cl(unreg, type="script", runs_in="browser"), _inv(unreg, {}))
+        ],
+        "evidence": {
+            "dns": {"status": "nxdomain"},
+            "rdap": {"status": "unregistered"},
+        },
+    }
+    assert floor_severity(claimable_sri) == "medium"
+    assert choose_fix({}, "remove dead reference", "critical", compromised["rows"]) == POLYFILL_FIX
+    third = poly.model_copy(
+        update={"host_or_bucket": "cdn.example.com", "domain": "example.com", "sri": False}
+    )
+    assert (
+        choose_fix({}, "remove dead reference", "critical", [
+            (third, _cl(third, type="script", runs_in="browser"), _inv(third, {}))
+        ])
+        == SRI_FIX
+    )
 
 
 def test_s3_path_style_groups_as_bucket_even_if_classified_ci():
