@@ -16,8 +16,10 @@ from scanner.ci import (
     parse_muse_output,
     secret_available,
     skip_message,
+    CiFinding,
     CiReport,
 )
+from scanner.report import CLAIMABLE_FIX
 
 SAMPLE_DIFF = """\
 diff --git a/app.html b/app.html
@@ -183,6 +185,72 @@ def test_comment_redacts_and_empty():
     )
     assert "supersecret" not in body
     assert "[REDACTED]" in body
+
+
+def test_comment_fix_comes_from_choose_fix_not_muse():
+    muse_fix = "Delete the script tag or vendor lib.js locally."
+    body = comment_body(
+        CiReport(
+            findings=[
+                CiFinding(
+                    target="cdn-assets-trustmap-7f3k2.com",
+                    kind="abandoned-domain",
+                    severity="critical",
+                    risk="Anyone can register the domain.",
+                    fix=muse_fix,
+                    references=["dns:status=nxdomain", "rdap:status=unregistered"],
+                )
+            ]
+        )
+    )
+    assert CLAIMABLE_FIX in body
+    assert muse_fix not in body
+    assert "Anyone can register the domain." in body
+    jsonl = "\n".join(
+        [
+            json.dumps(
+                {
+                    "payload_type": "tool.result",
+                    "payload": {
+                        "kind": "tool_result",
+                        "text": json.dumps(
+                            {
+                                "domain": "cdn-assets-trustmap-7f3k2.com",
+                                "status": "unregistered",
+                            }
+                        ),
+                        "correlation_facts": {"tool_name": "mcp__trustmap__rdap"},
+                    },
+                }
+            ),
+            json.dumps(
+                {
+                    "payload_type": "run.terminal.completed",
+                    "payload": {
+                        "text": json.dumps(
+                            {
+                                "findings": [
+                                    {
+                                        "target": "cdn-assets-trustmap-7f3k2.com",
+                                        "kind": "domain",
+                                        "severity": "critical",
+                                        "risk": "Unregistered host.",
+                                        "fix": muse_fix,
+                                        "evidence_line": "",
+                                        "references": [],
+                                    }
+                                ],
+                                "notes": "",
+                            }
+                        )
+                    },
+                }
+            ),
+        ]
+    )
+    from_tools = comment_body(parse_muse_output(jsonl))
+    assert CLAIMABLE_FIX in from_tools
+    assert muse_fix not in from_tools
 
 
 def test_prompt_contains_added_lines():

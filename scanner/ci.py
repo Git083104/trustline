@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 
 from scanner.extract import S3_SCHEME_RE, URL_RE
 from scanner.llm import redact_secrets
+from scanner.report import choose_fix
 
 MUSE_CODE_VERSION = "1.4.14"
 SKIP_NO_SECRET = (
@@ -41,6 +42,7 @@ class CiFinding(BaseModel):
     fix: str
     evidence_line: str = ""
     references: list[str] = Field(default_factory=list)
+    evidence: dict[str, Any] = Field(default_factory=dict)
 
 
 class CiReport(BaseModel):
@@ -243,12 +245,95 @@ def _as_report(value: Any) -> CiReport | None:
     return None
 
 
+LOOKUP_TOOLS = frozenset(
+    {
+        "dns",
+        "rdap",
+        "bucket_probe",
+        "cert_history",
+        "wayback",
+        "platform_takeover",
+        "github_owner",
+    }
+)
+
+
+def _lookup_name(name: str) -> str | None:
+    short = name.split("__")[-1] if name else ""
+    return short if short in LOOKUP_TOOLS else None
+
+
+def _hosts_in_payload(payload: dict[str, Any]) -> set[str]:
+    hosts: set[str] = set()
+    for key in ("host", "domain", "name", "owner"):
+        value = str(payload.get(key) or "").strip().lower()
+        if value:
+            hosts.add(value)
+    url = str(payload.get("url") or "")
+    if "://" in url:
+        host = url.split("://", 1)[1].split("/", 1)[0].split(":")[0]
+        if host:
+            hosts.add(host.lower())
+    return hosts
+
+
+def _tool_evidence_index(objects: list[Any]) -> list[tuple[set[str], str, dict[str, Any]]]:
+    rows: list[tuple[set[str], str, dict[str, Any]]] = []
+    for value in objects:
+        if not isinstance(value, dict):
+            continue
+        payload = value.get("payload")
+        if not isinstance(payload, dict):
+            continue
+        facts = payload.get("correlation_facts") or {}
+        name = _lookup_name(str(facts.get("tool_name") or payload.get("tool") or ""))
+        raw = payload.get("text")
+        if name is None or not isinstance(raw, str):
+            continue
+        try:
+            body = json.loads(raw)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(body, dict):
+            continue
+        rows.append((_hosts_in_payload(body), name, body))
+    return rows
+
+
+def evidence_for_finding(item: CiFinding) -> dict[str, Any]:
+    evidence = dict(item.evidence)
+    for ref in item.references:
+        if ":" not in ref:
+            continue
+        tool, rest = ref.split(":", 1)
+        name = _lookup_name(tool.strip())
+        if name is None or "=" not in rest:
+            continue
+        field, value = rest.split("=", 1)
+        slot = evidence.setdefault(name, {})
+        if isinstance(slot, dict):
+            slot[field.strip()] = value.strip()
+    return evidence
+
+
 def parse_muse_output(text: str) -> CiReport:
-    for value in reversed(_json_objects(text)):
+    objects = _json_objects(text)
+    report: CiReport | None = None
+    for value in reversed(objects):
         report = _as_report(value)
         if report is not None:
-            return report
-    raise ValueError("muse output is not valid Trustmap findings JSON")
+            break
+    if report is None:
+        raise ValueError("muse output is not valid Trustmap findings JSON")
+    tools = _tool_evidence_index(objects)
+    for item in report.findings:
+        merged = dict(item.evidence)
+        target = item.target.lower()
+        for hosts, name, body in tools:
+            if target in hosts:
+                merged[name] = body
+        item.evidence = merged
+    return report
 
 
 def has_critical(report: CiReport) -> bool:
@@ -268,7 +353,12 @@ def comment_body(report: CiReport, *, skipped: str | None = None) -> str:
         lines.append("")
         lines.append(redact_secrets(item.risk))
         lines.append("")
-        lines.append(f"**Fix:** {redact_secrets(item.fix)}")
+        fix = choose_fix(
+            evidence_for_finding(item),
+            item.fix,
+            item.severity,
+        )
+        lines.append(f"**Fix:** {redact_secrets(fix)}")
         if item.evidence_line:
             lines.append("")
             lines.append(redact_secrets(item.evidence_line))
