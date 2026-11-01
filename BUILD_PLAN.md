@@ -238,22 +238,20 @@ host is filtered (`reserved_tld`) and must not rank.
 
 1. `scanner/mcp_server.py`: expose the lookup tools (dns, rdap, bucket_probe, cert_history,
    wayback, platform_takeover, github_owner) and a `scan(target)` tool over stdio with the
-   official Python MCP SDK. Read-only; never claims anything.
-2. `docs/muse-code.md`: the exact `mcpServers` block for `~/.config/muse/settings.json`, how to
-   verify with `/mcp`, and a demo prompt for an interactive Muse Code session ("scan this repo
-   with the trustmap tools and explain the top risk").
-3. `.github/workflows/trustmap.yml`: on `pull_request`, install Muse Code
-   (`curl -fsSL https://dev.meta.ai/install.sh | sh`), run `muse exec` with a read-only prompt
-   that uses our MCP tools to scan references added in the PR diff, and post the findings as a
-   PR comment with `gh`. `MODEL_API_KEY` from repo secrets. Headless runs can't answer approval
-   prompts, so configure only read-only tools as allowed (check the Muse Code docs for the
-   headless allowlist setting and record what was found). Fail the check only on critical
-   findings.
-4. Document exactly how to test it: which secret to add and a test PR that adds a reference to
-   the unregistered demo domain.
+   official Python MCP SDK (`mcp` 1.x FastMCP). `readOnlyHint`; never claims anything.
+2. `docs/muse-code.md`: Muse Code **1.4.14** `mcpServers` block for `~/.config/muse/settings.json`
+   (cookbook/CLI key; not `mcp_servers`), `/mcp` check, demo prompt, sandbox note.
+3. `.github/workflows/trustmap.yml`: on `pull_request`, compute `git diff base...head` **added
+   lines only** in a workflow step. Start `muse exec` from an **empty temp directory** with the
+   diff as `--prompt-file`. Toolset `mcp__trustmap__*` only. `--disable-shell --disable-write
+   --disable-approval`, `--sandbox-network restricted`, **no `--yolo`**. Muse returns findings
+   JSON (schema-validated in Python). `gh` posts the comment. Fail only if a finding severity is
+   `critical`. Fork PRs without `MODEL_API_KEY`: skip with a clear message, do not fail. MCP
+   does the lookups (not sandboxed), so Muse sandbox network stays restricted.
+4. Document local then CI test steps in `docs/muse-code.md`.
 
-**Accept when:** MCP server docs exist, the workflow file is in place, and the test recipe is
-written.
+**Accept when:** MCP server docs exist, the workflow file is in place, offline tests pass, and
+the test recipe is written.
 
 ## Phase C — Accuracy facts (code produces each fact; the ranker sees it)
 
