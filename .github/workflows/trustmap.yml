@@ -75,6 +75,7 @@ jobs:
           curl -fsSL https://dev.meta.ai/install.sh -o "$RUNNER_TEMP/muse-install.sh"
           bash "$RUNNER_TEMP/muse-install.sh"
           muse --version
+          echo "MUSE_BIN=$(command -v muse)" >> "$GITHUB_ENV"
 
       - name: Muse settings and argv
         if: steps.access.outputs.skip == 'false' && steps.diff.outputs.candidates == 'true'
@@ -83,29 +84,52 @@ jobs:
           PYTHON="$(uv run python -c 'import sys; print(sys.executable)')"
           echo "TRUSTMAP_PYTHON=$PYTHON" >> "$GITHUB_ENV"
           uv run python -m scanner.ci write-settings --python "$PYTHON" --out "$RUNNER_TEMP/muse-home/.config/muse/settings.json"
-          uv run python -m scanner.ci write-muse-argv --prompt-file "$RUNNER_TEMP/prompt.txt" --schema-file "$RUNNER_TEMP/findings.schema.json" --out "$RUNNER_TEMP/muse-argv.json"
+          uv run python -m scanner.ci write-muse-argv --muse-bin "${MUSE_BIN:-muse}" --prompt-file "$RUNNER_TEMP/prompt.txt" --schema-file "$RUNNER_TEMP/findings.schema.json" --out "$RUNNER_TEMP/muse-argv.json"
 
       - name: muse exec from empty directory
         if: steps.access.outputs.skip == 'false' && steps.diff.outputs.candidates == 'true'
         env:
-          HOME: ${{ runner.temp }}/muse-home
           MODEL_API_KEY: ${{ secrets.MODEL_API_KEY }}
           META_API_KEY: ${{ secrets.MODEL_API_KEY }}
         run: |
           "$TRUSTMAP_PYTHON" - <<'PY'
           import json, os, subprocess, sys, tempfile
+          from scanner.ci import redact_ci_text
+
           argv = json.loads(
               open(os.environ["RUNNER_TEMP"] + "/muse-argv.json", encoding="utf-8").read()
           )
           if "--yolo" in argv:
               sys.exit("refusing to run muse with --yolo")
+          muse_bin = os.environ.get("MUSE_BIN") or argv[0]
+          argv[0] = muse_bin
+          muse_home = os.path.join(os.environ["RUNNER_TEMP"], "muse-home")
+          env = os.environ.copy()
+          env["HOME"] = muse_home
+          env["XDG_CONFIG_HOME"] = os.path.join(muse_home, ".config")
+          env["MUSE_NO_AUTO_UPDATE"] = "1"
           empty = tempfile.mkdtemp()
-          proc = subprocess.run(argv, cwd=empty, capture_output=True, text=True)
-          out = proc.stdout or ""
-          if proc.stderr:
-              out += ("\n" if out else "") + proc.stderr
-          open(os.environ["RUNNER_TEMP"] + "/muse.out", "w", encoding="utf-8").write(out)
-          raise SystemExit(proc.returncode)
+          try:
+              proc = subprocess.run(
+                  argv, cwd=empty, env=env, capture_output=True, text=True
+              )
+              code = proc.returncode
+              out = proc.stdout or ""
+              if proc.stderr:
+                  out += ("\n" if out else "") + proc.stderr
+          except FileNotFoundError as exc:
+              code = 1
+              out = f"muse executable not found: {exc}\nPATH={env.get('PATH', '')}\n"
+          dest = os.path.join(os.environ["RUNNER_TEMP"], "muse.out")
+          open(dest, "w", encoding="utf-8").write(out)
+          if code != 0:
+              print("muse exec failed; redacted muse.out follows")
+              print(redact_ci_text(out))
+              print("--- muse --version ---")
+              subprocess.run([muse_bin, "--version"], check=False)
+              print("--- muse exec --help ---")
+              subprocess.run([muse_bin, "exec", "--help"], check=False)
+          raise SystemExit(code)
           PY
 
       - name: Validate JSON and comment

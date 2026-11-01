@@ -110,6 +110,17 @@ def test_parse_findings_json_and_wrapped():
     assert has_critical(report)
     wrapped = parse_muse_output("noise\n" + json.dumps({"result": raw}) + "\n")
     assert wrapped.findings[0].target == "cdn-assets-trustmap-7f3k2.com"
+    jsonl = json.dumps(
+        {
+            "payload_type": "run.terminal.completed",
+            "payload": {
+                "kind": "run_terminal",
+                "text": json.dumps(raw),
+            },
+        }
+    )
+    from_jsonl = parse_muse_output(jsonl + "\n")
+    assert from_jsonl.findings[0].severity == "critical"
     with pytest.raises(ValueError):
         parse_muse_output("not json at all")
 
@@ -189,6 +200,9 @@ def test_workflow_file_matches_policy():
     assert "| sh" not in text
     assert 'bash "$RUNNER_TEMP/muse-install.sh"' in text
     assert "META_API_KEY: ${{ secrets.MODEL_API_KEY }}" in text
+    assert "XDG_CONFIG_HOME" in text
+    assert "redacted muse.out" in text
+    assert "HOME: ${{ runner.temp }}/muse-home" not in text
     assert "--disable-sandbox" not in Path("scanner/ci.py").read_text().split("muse_argv")[1][:800]
 
 
