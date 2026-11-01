@@ -5,6 +5,7 @@ import os
 import re
 import subprocess
 import tempfile
+from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -15,6 +16,8 @@ from scanner.config import (
     CONTEXT_LINES,
     GITHUB_CLONE_TIMEOUT_S,
     MAX_FILE_BYTES,
+    MAX_SCAN_BYTES,
+    MAX_SCAN_FILES,
     RFC2606_DOMAINS,
     RESERVED_TLDS,
     SKIP_DIR_NAMES,
@@ -42,6 +45,70 @@ GITHUB_RE = re.compile(
     r"^https?://github\.com/([^/]+)/([^/#?]+?)(?:\.git)?(?:/.*)?$", re.IGNORECASE
 )
 TRAILING_JUNK = ".,;:)]}>'\""
+HIGH_SUFFIXES = frozenset(
+    {
+        ".html",
+        ".htm",
+        ".js",
+        ".jsx",
+        ".mjs",
+        ".cjs",
+        ".ts",
+        ".tsx",
+        ".json",
+        ".yml",
+        ".yaml",
+        ".toml",
+        ".ini",
+        ".cfg",
+        ".conf",
+        ".env",
+        ".tf",
+        ".tfvars",
+    }
+)
+SOURCE_SUFFIXES = frozenset(
+    {
+        ".py",
+        ".go",
+        ".rs",
+        ".java",
+        ".rb",
+        ".php",
+        ".cs",
+        ".c",
+        ".cc",
+        ".cpp",
+        ".h",
+        ".hpp",
+        ".swift",
+        ".kt",
+        ".kts",
+        ".scala",
+        ".sh",
+        ".bash",
+        ".zsh",
+        ".ps1",
+        ".sql",
+        ".vue",
+        ".svelte",
+        ".xml",
+        ".gradle",
+    }
+)
+DOC_SUFFIXES = frozenset({".md", ".rst", ".txt", ".adoc"})
+DOC_NAMES = frozenset({"readme", "changelog", "license", "copying", "authors"})
+HIGH_NAMES = frozenset(
+    {
+        "dockerfile",
+        "docker-compose.yml",
+        "docker-compose.yaml",
+        ".env",
+        ".env.local",
+        ".env.example",
+        ".env.production",
+    }
+)
 BINARY_SUFFIXES = frozenset(
     {
         ".png",
@@ -70,6 +137,50 @@ BINARY_SUFFIXES = frozenset(
 )
 
 
+@dataclass
+class Coverage:
+    files_scanned: int
+    files_total: int
+    truncated: bool
+    reason: str = ""
+
+    def as_dict(self) -> dict[str, int | bool | str]:
+        return {
+            "files_scanned": self.files_scanned,
+            "files_total": self.files_total,
+            "truncated": self.truncated,
+            "reason": self.reason,
+        }
+
+
+@dataclass
+class ExtractResult:
+    references: list[Reference]
+    coverage: Coverage
+
+
+def _scan_file_cap() -> int:
+    raw = os.environ.get("TRUSTMAP_MAX_SCAN_FILES", "")
+    if raw.strip():
+        return max(0, int(raw))
+    return MAX_SCAN_FILES
+
+
+def _scan_byte_cap() -> int:
+    raw = os.environ.get("TRUSTMAP_MAX_SCAN_BYTES", "")
+    if raw.strip():
+        return max(0, int(raw))
+    return MAX_SCAN_BYTES
+
+
+def empty_coverage() -> Coverage:
+    return Coverage(files_scanned=0, files_total=0, truncated=False, reason="")
+
+
+def website_coverage() -> Coverage:
+    return Coverage(files_scanned=1, files_total=1, truncated=False, reason="")
+
+
 def actionable(refs: list[Reference]) -> list[Reference]:
     """Later phases skip anything with a filter_reason."""
     return [ref for ref in refs if ref.filter_reason is None]
@@ -87,6 +198,10 @@ def is_website_source(source: str) -> bool:
 
 
 def extract(source: str, *, clone_github=None) -> list[Reference]:
+    return extract_scan(source, clone_github=clone_github).references
+
+
+def extract_scan(source: str, *, clone_github=None) -> ExtractResult:
     path = Path(source)
     if path.exists():
         return _extract_dir(path.resolve())
@@ -105,28 +220,114 @@ def _clone_github(url: str, dest_parent: Path) -> Path:
     dest = dest_parent / repo
     remote = f"https://github.com/{owner}/{repo}.git"
     subprocess.run(
-        ["git", "clone", "--depth", "1", "--quiet", remote, str(dest)],
+        [
+            "git",
+            "clone",
+            "--depth",
+            "1",
+            "--filter=blob:limit=1m",
+            "--quiet",
+            remote,
+            str(dest),
+        ],
         check=True,
         timeout=GITHUB_CLONE_TIMEOUT_S,
     )
     return dest
 
 
-def _extract_dir(root: Path) -> list[Reference]:
+def _extract_dir(root: Path) -> ExtractResult:
     found: dict[tuple[str, str, int], Reference] = {}
+    candidates = _candidate_files(root)
+    files_total = len(candidates)
+    file_cap = _scan_file_cap()
+    byte_cap = _scan_byte_cap()
+    scanned = 0
+    used_bytes = 0
+    truncated = False
+    reason = ""
+    for path in candidates:
+        size = _file_size(path)
+        if size is None:
+            continue
+        if size > MAX_FILE_BYTES:
+            continue
+        if not _should_read(path):
+            continue
+        if scanned >= file_cap:
+            truncated = True
+            reason = "file_cap"
+            break
+        if used_bytes + size > byte_cap:
+            truncated = True
+            reason = "byte_cap"
+            break
+        rel = path.relative_to(root).as_posix()
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        used_bytes += size
+        scanned += 1
+        _scan_text(rel, text, found)
+    refs = sorted(found.values(), key=lambda ref: (ref.file, ref.line, ref.raw))
+    return ExtractResult(
+        references=refs,
+        coverage=Coverage(
+            files_scanned=scanned,
+            files_total=files_total,
+            truncated=truncated,
+            reason=reason,
+        ),
+    )
+
+
+def _candidate_files(root: Path) -> list[Path]:
+    files: list[Path] = []
     for dirpath, dirnames, filenames in os.walk(root):
         dirnames[:] = [name for name in dirnames if name not in SKIP_DIR_NAMES]
         for name in filenames:
             path = Path(dirpath) / name
-            if not _should_read(path):
+            lowered = name.lower()
+            if lowered in SKIP_FILE_NAMES:
                 continue
-            rel = path.relative_to(root).as_posix()
-            try:
-                text = path.read_text(encoding="utf-8")
-            except UnicodeDecodeError:
+            if any(lowered.endswith(suffix) for suffix in SKIP_NAME_SUFFIXES):
                 continue
-            _scan_text(rel, text, found)
-    return sorted(found.values(), key=lambda ref: (ref.file, ref.line, ref.raw))
+            if path.suffix.lower() in BINARY_SUFFIXES:
+                continue
+            files.append(path)
+    files.sort(key=lambda path: (_file_priority(path, root), path.as_posix()))
+    return files
+
+
+def _file_priority(path: Path, root: Path) -> int:
+    rel = path.relative_to(root).as_posix().lower()
+    name = path.name.lower()
+    suffix = path.suffix.lower()
+    if rel.startswith(".github/workflows/"):
+        return 0
+    if name in HIGH_NAMES or name.startswith("dockerfile"):
+        return 0
+    if suffix in HIGH_SUFFIXES or name.endswith(".env"):
+        return 0
+    if "/terraform/" in f"/{rel}/" or suffix in {".tf", ".tfvars"}:
+        return 0
+    if suffix in SOURCE_SUFFIXES:
+        return 1
+    if (
+        suffix in DOC_SUFFIXES
+        or name.split(".", 1)[0] in DOC_NAMES
+        or rel.startswith("docs/")
+    ):
+        return 2
+    return 3
+
+
+def _file_size(path: Path) -> int | None:
+    try:
+        return path.stat().st_size
+    except OSError:
+        return None
 
 
 def _should_read(path: Path) -> bool:

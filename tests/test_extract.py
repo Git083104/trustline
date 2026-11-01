@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 
 from scanner.config import ALLOWLIST_DOMAINS
-from scanner.extract import actionable, extract
+from scanner.extract import actionable, extract, extract_scan, _clone_github
 
 FIXTURE_ROOT = Path(__file__).parent / "fixtures" / "demo_repo"
 EXPECTED_PATH = Path(__file__).parent / "fixtures" / "expected.json"
@@ -129,6 +129,59 @@ def test_license_schema_and_noise_hosts_get_filter_reasons(tmp_path: Path):
     assert found["{host}"] == "placeholder"
     assert found["cdn.dead-host.invalid"] == "reserved_tld"
     assert found["no-suffix-at-all"] == "no_public_suffix"
+
+
+def test_skips_files_over_one_megabyte(tmp_path: Path):
+    (tmp_path / "ok.js").write_text('fetch("https://kept.example.net/v1")\n')
+    huge = tmp_path / "huge.js"
+    huge.write_bytes(b"x" * (1_000_000 + 1) + b'https://too-big.example.net/x\n')
+    found = extract(str(tmp_path))
+    assert {(ref.host_or_bucket, ref.file) for ref in found} == {
+        ("kept.example.net", "ok.js")
+    }
+
+
+def test_prioritizes_html_over_docs_when_capped(tmp_path: Path, monkeypatch):
+    monkeypatch.setenv("TRUSTMAP_MAX_SCAN_FILES", "1")
+    (tmp_path / "README.md").write_text('See https://docs-only.example.net/x\n')
+    (tmp_path / "index.html").write_text(
+        '<script src="https://app.example.net/app.js"></script>\n'
+    )
+    result = extract_scan(str(tmp_path))
+    assert result.coverage.truncated is True
+    assert result.coverage.reason == "file_cap"
+    assert result.coverage.files_scanned == 1
+    assert result.coverage.files_total == 2
+    assert {ref.host_or_bucket for ref in result.references} == {"app.example.net"}
+
+
+def test_byte_cap_truncates_without_error(tmp_path: Path, monkeypatch):
+    monkeypatch.setenv("TRUSTMAP_MAX_SCAN_BYTES", "40")
+    (tmp_path / "a.js").write_text('fetch("https://first.example.net/a")\n')
+    (tmp_path / "b.js").write_text('fetch("https://second.example.net/b")\n' * 4)
+    result = extract_scan(str(tmp_path))
+    assert result.coverage.truncated is True
+    assert result.coverage.reason == "byte_cap"
+    assert result.coverage.files_scanned >= 1
+    assert result.coverage.files_scanned < result.coverage.files_total
+
+
+def test_github_clone_uses_blob_size_filter(monkeypatch, tmp_path: Path):
+    seen: list[list[str]] = []
+
+    def fake_run(argv, check, timeout):
+        seen.append(argv)
+        dest = Path(argv[-1])
+        dest.mkdir()
+        (dest / "ok.js").write_text('fetch("https://cloned.example.net/x")\n')
+        return None
+
+    monkeypatch.setattr("scanner.extract.subprocess.run", fake_run)
+    dest = _clone_github("https://github.com/acme/widgets", tmp_path)
+    assert "--depth" in seen[0]
+    assert "1" in seen[0]
+    assert "--filter=blob:limit=1m" in seen[0]
+    assert dest.exists()
 
 
 def test_github_url_uses_shallow_clone(tmp_path: Path):

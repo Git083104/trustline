@@ -23,11 +23,13 @@ from scanner.compromised import (
     is_polyfill_host,
 )
 from scanner.extract import (
-    extract,
+    empty_coverage,
+    extract_scan,
     github_login,
     is_bucket_ref,
     is_github_owner_ref,
     is_website_source,
+    website_coverage,
 )
 from scanner.tools.platform_takeover import matching_platform
 from scanner.website import extract_website
@@ -52,6 +54,7 @@ class ScanOutcome:
     agent_cost_usd: float = 0.0
     rank_cost_usd: float = 0.0
     budget_targets: list[str] = field(default_factory=list)
+    coverage: dict[str, object] = field(default_factory=lambda: empty_coverage().as_dict())
 
     @property
     def cost_usd(self) -> float:
@@ -887,8 +890,11 @@ async def run_scan(
 ) -> ScanOutcome:
     if is_website_source(source):
         refs = await extract_website(source)
+        coverage = website_coverage().as_dict()
     else:
-        refs = extract(source)
+        extracted = extract_scan(source)
+        refs = extracted.references
+        coverage = extracted.coverage.as_dict()
     actionable = sum(1 for item in refs if item.filter_reason is None)
     emit(
         on_event,
@@ -897,6 +903,7 @@ async def run_scan(
             "references": len(refs),
             "actionable": actionable,
             "filtered": len(refs) - actionable,
+            "coverage": coverage,
         },
     )
     class_logs: list[CallLog] = []
@@ -947,6 +954,7 @@ async def run_scan(
         agent_cost_usd=sum(item.cost_usd for item in investigations),
         rank_cost_usd=sum(log.cost_usd for log in rank_logs),
         budget_targets=budget,
+        coverage=coverage,
     )
 
 

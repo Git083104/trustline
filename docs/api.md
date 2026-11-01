@@ -41,7 +41,7 @@ Replay buffered events, then live ones, then close on `done` or `error`.
 | `type` | When | Payload |
 |---|---|---|
 | `started` | job accepted | `kind`, `target`, `cost_cap_usd` |
-| `extracted` | after extract | `references`, `actionable`, `filtered` |
+| `extracted` | after extract | `references`, `actionable`, `filtered`, `coverage` (`files_scanned`, `files_total`, `truncated`, `reason`) |
 | `precheck` | after lookups for one target | `target`, `kind` (bucket/domain), `hard_signal` |
 | `plan` / `act` / `observe` | each agent turn | `target`, `tool`, `args`, `result_summary`, `tokens`, `cost_usd` |
 | `ranked` | each finding after rank | `target`, `kind`, `severity`, `model_severity`, `floor_reason`, `risk`, `fix`, `evidence_line`, `references`, `cost_usd` |
@@ -65,6 +65,12 @@ Final report. **409** if still running, **404** if unknown, **500** if the job f
   "agent_cost_usd": 0.06,
   "rank_cost_usd": 0.02,
   "budget_targets": [],
+  "coverage": {
+    "files_scanned": 12,
+    "files_total": 12,
+    "truncated": false,
+    "reason": ""
+  },
   "findings": [
     {
       "target": "cdn-assets-trustmap-7f3k2.com",

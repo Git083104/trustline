@@ -137,6 +137,10 @@ def test_fixture_path_scan_sse_and_report(tmp_path):
         types = [item["type"] for item in events]
         assert types[0] == "started"
         assert "extracted" in types
+        extracted = next(item for item in events if item["type"] == "extracted")
+        assert extracted["coverage"]["files_scanned"] >= 1
+        assert extracted["coverage"]["files_total"] >= extracted["coverage"]["files_scanned"]
+        assert "truncated" in extracted["coverage"]
         assert "precheck" in types
         assert "ranked" in types
         assert types[-1] == "done"
@@ -159,6 +163,7 @@ def test_fixture_path_scan_sse_and_report(tmp_path):
             "trustmap-demo-pages.github.io",
             "trustmapdemoassets",
         } <= critical
+        assert body["coverage"]["files_scanned"] == extracted["coverage"]["files_scanned"]
         assert "cost_usd" in body
         assert body["cost_usd"] == pytest.approx(
             body["classify_cost_usd"]
