@@ -22,6 +22,7 @@ from scanner.models import (
     TraceEvent,
 )
 from scanner.events import OnEvent, emit, summarize
+from scanner.compromised import compromised_status
 from scanner.extract import (
     github_login,
     is_bucket_ref as _is_bucket_ref,
@@ -29,14 +30,16 @@ from scanner.extract import (
 )
 from scanner.tools.platform_takeover import matching_platform
 from scanner.tools import ToolContext, definitions, run as run_tool
+from scanner.tranco import TOP_SAFE_RANK, tranco_rank
 
 AGENT_SYSTEM_PROMPT = (
     "You investigate one outside reference for takeover risk. "
     "Code already ran dns and rdap for hosts, bucket_probe for buckets, "
     "github_owner for GitHub accounts, and platform_takeover when a host or CNAME "
     "matches a listed platform; those results are in the first message. "
-    "Each turn pick exactly one tool. Call done(summary) when finished. "
-    "Do not invent dates, DNS results, or HTTP statuses."
+    "tranco_rank is popularity context only: never use it to lower a claimable-now "
+    "or compromised finding. Each turn pick exactly one tool. Call done(summary) "
+    "when finished. Do not invent dates, DNS results, or HTTP statuses."
 )
 
 BUDGET_NOTE = "not investigated (budget)"
@@ -74,6 +77,25 @@ def has_hard_signal(evidence: dict[str, Any]) -> bool:
     return False
 
 
+def _attach_tranco(ref: Reference, evidence: dict[str, Any]) -> dict[str, Any]:
+    evidence["tranco_rank"] = tranco_rank(ref.domain or "")
+    return evidence
+
+
+def tranco_checked_safe(ref: Reference, evidence: dict[str, Any]) -> bool:
+    rank = evidence.get("tranco_rank")
+    if not isinstance(rank, int) or rank > TOP_SAFE_RANK:
+        return False
+    dns = evidence.get("dns") or {}
+    if str(dns.get("status", "")).lower() != "resolves":
+        return False
+    if has_hard_signal(evidence):
+        return False
+    if compromised_status(ref.host_or_bucket, ref.domain):
+        return False
+    return True
+
+
 async def precheck(
     ref: Reference, cl: Classification, ctx: ToolContext
 ) -> dict[str, Any]:
@@ -87,14 +109,14 @@ async def precheck(
             },
             ctx,
         )
-        return evidence
+        return _attach_tranco(ref, evidence)
     if is_github_owner_ref(ref):
         login = github_login(ref)
         if login:
             evidence["github_owner"] = await run_tool(
                 "github_owner", {"owner": login}, ctx
             )
-        return evidence
+        return _attach_tranco(ref, evidence)
     evidence["dns"] = await run_tool("dns", {"host": ref.host_or_bucket}, ctx)
     domain = ref.domain or ""
     if domain:
@@ -116,7 +138,7 @@ async def precheck(
         evidence["github_owner"] = await run_tool(
             "github_owner", {"owner": login}, ctx
         )
-    return consistent_evidence(evidence)
+    return _attach_tranco(ref, consistent_evidence(evidence))
 
 
 def should_investigate(ref: Reference, cl: Classification, evidence: dict[str, Any]) -> bool:
@@ -148,11 +170,26 @@ async def investigate(
                 "hard_signal": has_hard_signal(evidence),
             },
         )
-    eligible = [
-        item for item in checked if should_investigate(item[0], item[1], item[2])
-    ]
+    eligible: list[tuple[Reference, Classification, dict[str, Any]]] = []
+    skipped: list[Investigation] = []
+    for ref, cl, evidence in checked:
+        if tranco_checked_safe(ref, evidence):
+            rank = evidence["tranco_rank"]
+            skipped.append(
+                Investigation(
+                    file=ref.file,
+                    line=ref.line,
+                    host_or_bucket=ref.host_or_bucket,
+                    status="done",
+                    summary=f"Tranco rank {rank}",
+                    evidence=evidence,
+                )
+            )
+            continue
+        if should_investigate(ref, cl, evidence):
+            eligible.append((ref, cl, evidence))
     if not eligible:
-        return []
+        return skipped
 
     results: list[Investigation | None] = [None] * len(eligible)
     spent = 0.0
@@ -182,7 +219,7 @@ async def investigate(
             results[index] = inv
 
     await asyncio.gather(*(worker(i, item) for i, item in enumerate(eligible)))
-    return [item for item in results if item is not None]
+    return skipped + [item for item in results if item is not None]
 
 
 async def investigate_one(

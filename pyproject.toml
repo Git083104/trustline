@@ -30,6 +30,8 @@ packages = ["scanner", "api"]
 "api/demo_scan.json" = "api/demo_scan.json"
 "api/static/index.html" = "api/static/index.html"
 "scanner/compromised.json" = "scanner/compromised.json"
+"scanner/data/tranco_top100k.txt.gz" = "scanner/data/tranco_top100k.txt.gz"
+"scanner/data/README.md" = "scanner/data/README.md"
 
 [tool.uv]
 package = true

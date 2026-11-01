@@ -4,7 +4,7 @@ import json
 import re
 from typing import Any
 
-from scanner.agent import investigate, should_investigate
+from scanner.agent import investigate, should_investigate, tranco_checked_safe
 from scanner.classify import classify
 from dataclasses import dataclass, field
 
@@ -32,6 +32,7 @@ from scanner.extract import (
     website_coverage,
 )
 from scanner.tools.platform_takeover import matching_platform
+from scanner.tranco import tranco_rank
 from scanner.website import extract_website
 from scanner.llm import CallLog, ModelClient, call_json
 from scanner.lookups import LookupCache, consistent_evidence
@@ -164,6 +165,9 @@ RANK_SYSTEM_PROMPT = (
     "A lookup whose status is unavailable or error is unknown: never treat it as "
     "evidence for or against risk. "
     "A registered, resolving, actively used domain that renews soon is routine. "
+    "tranco_rank is popularity context only: never lower severity below a code floor, "
+    "and never treat popularity as a reason to ignore a compromised or claimable-now "
+    "target. "
     "Expiry matters when combined with signs of abandonment (DNS does not resolve, "
     "or the owner has shut down). Do not raise severity for expiry alone. "
     "You may raise or lower blast_radius versus classify when evidence shows the "
@@ -535,6 +539,9 @@ def evidence_line(group: dict[str, Any], *, include_runs_in: bool = True) -> str
     elif status == "associated":
         parts.append("associated domain")
     sri_values = [ref.sri for ref, _cl, _inv in group.get("rows") or []]
+    rank = evidence.get("tranco_rank")
+    if isinstance(rank, int):
+        parts.append(f"Tranco rank {rank}")
     if False in sri_values:
         parts.append("SRI missing")
     elif True in sri_values:
@@ -731,6 +738,25 @@ def _rank_group(
 ) -> Finding:
     payload = finding_payload(group)
     floor, floor_why = floor_decision(group)
+    ref0 = group["rows"][0][0]
+    if tranco_checked_safe(ref0, group["evidence"]) and floor is None:
+        rank = group["evidence"].get("tranco_rank")
+        parsed = RankModelOut(
+            severity="info",
+            risk=f"Checked and safe. Tranco rank {rank}.",
+            fix="remove dead reference",
+            uncertain_about="",
+            blast_radius=payload["classified_blast_radius"],
+            blast_override_reason="",
+        )
+        return _finding_from_rank(
+            group=group,
+            payload=payload,
+            parsed=parsed,
+            floor=floor,
+            floor_why=floor_why,
+            cost_total=0.0,
+        )
     body = json.dumps(payload, sort_keys=True, default=str)
     user = "Rank this target. Cite only facts from the provided evidence and finding.\n" + body
     cost_total = 0.0
@@ -972,7 +998,10 @@ def hydrate_evidence(
         hit = cache.get_json(f"bucket:{provider}:{ref.host_or_bucket}")
         if hit is None:
             return None
-        evidence: dict[str, Any] = {"bucket_probe": hit}
+        evidence: dict[str, Any] = {
+            "bucket_probe": hit,
+            "tranco_rank": tranco_rank(ref.domain or ""),
+        }
         urls = (
             [ref.raw]
             if ref.raw.startswith("http")
@@ -991,11 +1020,14 @@ def hydrate_evidence(
         hit = cache.get_json(f"github_owner:{login.lower()}")
         if hit is None:
             return None
-        return {"github_owner": hit}
+        return {
+            "github_owner": hit,
+            "tranco_rank": tranco_rank(ref.domain or ""),
+        }
     dns = cache.get_json(f"dns:{ref.host_or_bucket.lower()}")
     if dns is None:
         return None
-    evidence = {"dns": dns}
+    evidence = {"dns": dns, "tranco_rank": tranco_rank(ref.domain or "")}
     if ref.domain:
         rdap = cache.get_json(f"rdap:{ref.domain.lower()}")
         if rdap:
@@ -1031,6 +1063,24 @@ def rows_from_lookup_cache(
         if evidence is None:
             if complete:
                 return None
+            continue
+        evidence["tranco_rank"] = tranco_rank(ref.domain or "")
+        if tranco_checked_safe(ref, evidence):
+            rank = evidence["tranco_rank"]
+            rows.append(
+                (
+                    ref,
+                    cl,
+                    Investigation(
+                        file=ref.file,
+                        line=ref.line,
+                        host_or_bucket=ref.host_or_bucket,
+                        status="done",
+                        summary=f"Tranco rank {rank}",
+                        evidence=evidence,
+                    ),
+                )
+            )
             continue
         if not should_investigate(ref, cl, evidence):
             continue
