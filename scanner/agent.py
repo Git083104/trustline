@@ -14,6 +14,7 @@ from scanner.config import (
 )
 from scanner.llm import CallLog, ModelClient, ToolTurn, cost_usd
 from scanner.llm import _tokens
+from scanner.extract import is_bucket_ref
 from scanner.lookups import consistent_evidence
 from scanner.models import (
     Classification,
@@ -61,7 +62,7 @@ async def precheck(
     ref: Reference, cl: Classification, ctx: ToolContext
 ) -> dict[str, Any]:
     evidence: dict[str, Any] = {}
-    if cl.type == "bucket":
+    if cl.type == "bucket" or is_bucket_ref(ref):
         evidence["bucket_probe"] = await run_tool(
             "bucket_probe",
             {

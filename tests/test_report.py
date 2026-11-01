@@ -205,7 +205,7 @@ def test_floor_claimable_is_critical_other_hard_is_high():
             "rdap": {"status": "registered", "days_to_expiry": 12},
         },
     }
-    assert floor_severity(expiring) == "high"
+    assert floor_severity(expiring) is None
     nx = {
         "target": "example.net",
         "rows": [(host, _cl(host, type="script", runs_in="browser"), _inv(host, {}))],
@@ -233,6 +233,29 @@ def test_floor_claimable_is_critical_other_hard_is_high():
     severity, note = apply_floor("medium", "critical")
     assert severity == "critical"
     assert note == "critical"
+
+
+def test_s3_path_style_groups_as_bucket_even_if_classified_ci():
+    ref = Reference(
+        file=".github/workflows/ci.yaml",
+        line=31,
+        raw="https://s3.amazonaws.com/quantopian-orchestration/packages/ta-lib-0.4.0-src.tar.gz",
+        host_or_bucket="quantopian-orchestration",
+        domain="amazonaws.com",
+    )
+    evidence = {
+        "bucket_probe": {
+            "status": "NoSuchBucket",
+            "provider": "s3",
+            "name": "quantopian-orchestration",
+        }
+    }
+    groups = group_by_target(
+        [(ref, _cl(ref, type="other", runs_in="ci"), _inv(ref, evidence))]
+    )
+    assert groups[0]["target"] == "quantopian-orchestration"
+    assert groups[0]["kind"] == "bucket"
+    assert floor_severity(groups[0]) == "critical"
 
 
 def test_rank_overrides_blast_and_applies_floor(tmp_path):

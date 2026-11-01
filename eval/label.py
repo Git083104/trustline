@@ -14,7 +14,7 @@ from scanner.config import (
     EVAL_SAMPLE_SEED,
     EVAL_TARGET_CAP,
 )
-from scanner.extract import GITHUB_RE, extract, _clone_github
+from scanner.extract import GITHUB_RE, extract, is_bucket_ref, _clone_github
 from scanner.lookups import LookupCache, consistent_evidence
 from scanner.models import Classification, Investigation, Reference
 from scanner.report import evidence_line, is_claimable
@@ -35,15 +35,6 @@ DOCS_SUFFIXES = {".md", ".rst", ".txt", ".ipynb"}
 DOCS_DIR_NAMES = {"docs", "doc", "tests"}
 DOCS_FILE_STEMS = {"changelog", "license"}
 HEALTHY_RDAP = frozenset({"registered", "unknown"})
-
-
-def is_bucket_ref(ref: Reference) -> bool:
-    raw = ref.raw.lower()
-    return (
-        raw.startswith("s3://")
-        or "amazonaws.com" in raw
-        or "storage.googleapis.com" in raw
-    )
 
 
 def target_from_ref(ref: Reference) -> tuple[str, str]:

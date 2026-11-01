@@ -190,6 +190,20 @@ def _classify_http_url(raw: str) -> tuple[str, str, str, str | None] | None:
     return host, raw, domain, _filter_reason(host, domain, host, False)
 
 
+def is_bucket_ref(ref: Reference) -> bool:
+    raw = (ref.raw or "").strip()
+    lowered = raw.lower()
+    if lowered.startswith("s3://"):
+        return True
+    if not lowered.startswith("http"):
+        return False
+    parsed = urlparse(raw)
+    host = _host_from_netloc(parsed.netloc)
+    path = parsed.path.lstrip("/")
+    first = path.split("/", 1)[0] if path else ""
+    return _bucket_from_http(host, host.lower(), first) is not None
+
+
 def _bucket_from_http(host: str, host_l: str, first: str) -> str | None:
     if host_l == "storage.googleapis.com" and first:
         return first

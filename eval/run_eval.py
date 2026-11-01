@@ -6,7 +6,7 @@ import json
 from collections import defaultdict
 from pathlib import Path
 
-from scanner.config import EVAL_SCAN_COST_CAP_USD, EXPIRY_INVESTIGATE_DAYS
+from scanner.config import EVAL_SCAN_COST_CAP_USD
 from scanner.llm import LiveModelClient
 from scanner.lookups import LookupCache, consistent_evidence
 from scanner.report import ScanOutcome, is_claimable, run_scan
@@ -47,9 +47,6 @@ def baseline_severity(evidence: dict) -> str:
     dns = evidence.get("dns") or {}
     rdap = evidence.get("rdap") or {}
     if str(dns.get("status", "")).lower() == "nxdomain":
-        return "high"
-    days = rdap.get("days_to_expiry")
-    if isinstance(days, int) and days <= EXPIRY_INVESTIGATE_DAYS:
         return "high"
     return "low"
 
@@ -105,6 +102,94 @@ def fmt(value: float | None) -> str:
     return f"{value:.3f}"
 
 
+def compact_evidence(evidence: dict | None) -> dict:
+    out = {}
+    for name, value in (evidence or {}).items():
+        if not isinstance(value, dict):
+            out[name] = value
+            continue
+        keep = {
+            key: value[key]
+            for key in (
+                "status",
+                "name",
+                "provider",
+                "host",
+                "domain",
+                "days_to_expiry",
+                "http_status",
+            )
+            if key in value
+        }
+        out[name] = keep
+    return out
+
+
+def closest_finding_keys(target: str, findings) -> list[str]:
+    keys = [item.target for item in findings]
+    hits = [key for key in keys if target in key or key in target]
+    if hits:
+        return hits
+    folded = target.casefold()
+    return [key for key in keys if folded[:8] and folded[:8] in key.casefold()][:8]
+
+
+def match_finding(row: dict, outcome: ScanOutcome | None):
+    findings = list(outcome.findings) if outcome else []
+    for item in findings:
+        if item.target == row["target"]:
+            return item
+    return None
+
+
+def debug_gold(labels: list[dict], outcomes: dict) -> str:
+    lines = ["## Gold critical/high debug", ""]
+    gold = [row for row in labels if row.get("severity") in GOLD_POS]
+    if not gold:
+        lines.append("(none)")
+        lines.append("")
+        return "\n".join(lines)
+    for row in gold:
+        outcome = outcomes.get(row["repo"])
+        findings = list(outcome.findings) if outcome else []
+        hit = match_finding(row, outcome)
+        lines.append(f"### {row['repo']} `{row['target']}` gold={row['severity']}")
+        lines.append(f"label_evidence: {json.dumps(compact_evidence(row.get('evidence')))}")
+        if hit is None:
+            closest = closest_finding_keys(row["target"], findings)
+            lines.append("trustmap: NO MATCH")
+            lines.append(f"closest_keys: {closest or [item.target for item in findings[:8]]}")
+        else:
+            lines.append(
+                f"trustmap: target={hit.target} model_severity={hit.model_severity} "
+                f"final_severity={hit.final_severity} floor_reason={hit.floor_reason or '(none)'}"
+            )
+            lines.append(f"finding_evidence: {json.dumps(compact_evidence(hit.evidence))}")
+        lines.append("")
+    return "\n".join(lines)
+
+
+def flag_stats(
+    labels: list[dict], pred: dict[tuple[str, str], str]
+) -> dict[str, float | int | None]:
+    gold = [row for row in labels if row["severity"] in GOLD_POS]
+    gold_keys = {(row["repo"], row["target"]) for row in gold}
+    flagged = [
+        row
+        for row in labels
+        if pred.get((row["repo"], row["target"]), "low") in GOLD_POS
+    ]
+    true_pos = sum(1 for row in flagged if (row["repo"], row["target"]) in gold_keys)
+    false_alarms = len(flagged) - true_pos
+    return {
+        "flagged": len(flagged),
+        "true_pos": true_pos,
+        "false_alarms": false_alarms,
+        "flag_precision": (true_pos / len(flagged)) if flagged else None,
+        "recall": (true_pos / len(gold)) if gold else None,
+    }
+
+
 def render_table(
     *,
     title: str,
@@ -115,20 +200,45 @@ def render_table(
     cost: float,
     baseline_conf: dict[str, dict[str, int]],
     trustmap_conf: dict[str, dict[str, int]],
+    baseline_flags: dict[str, float | int | None],
+    trustmap_flags: dict[str, float | int | None],
     include_cost: bool,
 ) -> str:
-    cost_h = " | cost_usd |" if include_cost else " |"
-    cost_sep = "---|---|" if include_cost else "---|"
-    b_cost = f" | 0.00000000 |" if include_cost else " |"
-    t_cost = f" | {cost:.8f} |" if include_cost else " |"
+    if include_cost:
+        header = (
+            "| system | precision@10 | flag_precision | flagged_ch | gold_ch_caught | "
+            "false_alarms | recall | cost_usd |"
+        )
+        sep = "|---|---|---|---|---|---|---|---|"
+        b_cost = " 0.00000000 |"
+        t_cost = f" {cost:.8f} |"
+    else:
+        header = (
+            "| system | precision@10 | flag_precision | flagged_ch | gold_ch_caught | "
+            "false_alarms | recall |"
+        )
+        sep = "|---|---|---|---|---|---|---|"
+        b_cost = ""
+        t_cost = ""
+
+    def row(name: str, p, flags, cost_cell: str) -> str:
+        return (
+            f"| {name} | {fmt(p)} | {fmt(flags['flag_precision'])} | "
+            f"{flags['flagged']} | {flags['true_pos']} | {flags['false_alarms']} | "
+            f"{fmt(flags['recall'])} |{cost_cell}"
+        )
+
     return "\n".join(
         [
             f"## {title}",
             "",
-            f"| system | precision@10 | recall (critical/high){cost_h}",
-            f"|---|---|---|{cost_sep}",
-            f"| baseline | {fmt(baseline_p)} | {fmt(baseline_r)}{b_cost}",
-            f"| trustmap | {fmt(trustmap_p)} | {fmt(trustmap_r)}{t_cost}",
+            "precision@10 ranks labeled targets only and is capped by the few gold "
+            "critical/high labels per repo.",
+            "",
+            header,
+            sep,
+            row("baseline", baseline_p, baseline_flags, b_cost),
+            row("trustmap", trustmap_p, trustmap_flags, t_cost),
             "",
             "### Confusion (baseline, gold \\ predicted)",
             _conf_md(baseline_conf),
@@ -167,7 +277,8 @@ async def scan_repos(
             client=client,
             cache=cache,
             ctx=ctx,
-            hydrate_only=False,
+            hydrate_only=True,
+            allow_partial_cache=True,
             cost_cap=cost_cap,
         )
         outcomes[repo] = outcome
@@ -199,12 +310,10 @@ def _metrics(labels: list[dict], outcomes: dict, cost: float) -> dict:
     }
     trustmap_pred = {}
     for row in labels:
-        outcome = outcomes.get(row["repo"])
-        findings = {
-            item.target: item.final_severity
-            for item in (outcome.findings if outcome else [])
-        }
-        trustmap_pred[(row["repo"], row["target"])] = findings.get(row["target"], "low")
+        hit = match_finding(row, outcomes.get(row["repo"]))
+        trustmap_pred[(row["repo"], row["target"])] = (
+            hit.final_severity if hit is not None else "low"
+        )
 
     def p_macro(pred: dict[tuple[str, str], str]) -> float | None:
         values = []
@@ -230,6 +339,8 @@ def _metrics(labels: list[dict], outcomes: dict, cost: float) -> dict:
         "cost": cost,
         "baseline_conf": _confusion_unique(labels, baseline_pred),
         "trustmap_conf": _confusion_unique(labels, trustmap_pred),
+        "baseline_flags": flag_stats(labels, baseline_pred),
+        "trustmap_flags": flag_stats(labels, trustmap_pred),
     }
 
 
@@ -251,6 +362,8 @@ def evaluate(labels, outcomes, cost, budget) -> str:
         "cost": cost,
         "baseline_conf": empty,
         "trustmap_conf": empty,
+        "baseline_flags": flag_stats([], {}),
+        "trustmap_flags": flag_stats([], {}),
     }
     lines = [
         "# Eval results",
@@ -258,6 +371,8 @@ def evaluate(labels, outcomes, cost, budget) -> str:
         render_table(title="All labels", include_cost=True, **all_m),
         "",
         render_table(title="Human-labeled only", include_cost=False, **human_m),
+        "",
+        debug_gold(labels, outcomes).rstrip(),
         "",
         "## Budget skips",
     ]

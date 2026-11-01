@@ -18,7 +18,9 @@ from eval.label import (
 )
 from eval.run_eval import (
     baseline_severity,
+    debug_gold,
     evaluate,
+    flag_stats,
     precision_at_10,
     run,
 )
@@ -286,7 +288,7 @@ def test_baseline_severity_rules():
     assert baseline_severity({"dns": {"status": "nxdomain"}}) == "high"
     assert (
         baseline_severity({"rdap": {"status": "registered", "days_to_expiry": 12}})
-        == "high"
+        == "low"
     )
     assert (
         baseline_severity({"bucket_probe": {"status": "exists"}, "dns": {"status": "resolves"}})
@@ -335,7 +337,7 @@ async def test_run_eval_labeled_only_metrics(tmp_path):
     labels_path.write_text("".join(json.dumps(row) + "\n" for row in labels))
 
     async def fake_scan(source, **kwargs):
-        assert kwargs["hydrate_only"] is False
+        assert kwargs["hydrate_only"] is True
         assert kwargs["cost_cap"] == EVAL_SCAN_COST_CAP_USD
         return ScanOutcome(
             findings=[
@@ -398,6 +400,53 @@ def test_evaluate_precision_ignores_unlabeled():
     assert "## All labels" in text
     assert "## Human-labeled only" in text
     assert "| trustmap | 0.500 |" in text
+    assert "flag_precision" in text
+    assert "NO MATCH" not in text
+    stats = flag_stats(
+        labels,
+        {("r", "a"): "critical", ("r", "b"): "low"},
+    )
+    assert stats["flagged"] == 1
+    assert stats["true_pos"] == 1
+    assert stats["false_alarms"] == 0
+
+
+def test_debug_gold_missed_critical_shows_no_match():
+    labels = [
+        {
+            "repo": "r",
+            "target": "quantopian-orchestration",
+            "severity": "critical",
+            "evidence": {"bucket_probe": {"status": "NoSuchBucket"}},
+        }
+    ]
+    miss = ScanOutcome(findings=[_finding("amazonaws.com", "info")])
+    text = debug_gold(labels, {"r": miss})
+    assert "quantopian-orchestration" in text
+    assert "NO MATCH" in text
+    assert "amazonaws.com" in text
+    hit = ScanOutcome(
+        findings=[
+            Finding(
+                target="quantopian-orchestration",
+                kind="bucket",
+                references=[".github/workflows/ci.yaml:31"],
+                severity="critical",
+                model_severity="low",
+                final_severity="critical",
+                classified_blast_radius=1,
+                ranked_blast_radius=1,
+                risk="x",
+                fix="No action needed",
+                floor_reason="NoSuchBucket in executing position (ci) is at least critical",
+                evidence={"bucket_probe": {"status": "NoSuchBucket"}},
+            )
+        ]
+    )
+    found = debug_gold(labels, {"r": hit})
+    assert "NO MATCH" not in found
+    assert "final_severity=critical" in found
+    assert "model_severity=low" in found
 
 
 def test_evaluate_reports_human_only_separately():

@@ -15,7 +15,7 @@ from scanner.config import (
     RANK_REASONING_EFFORT,
     SCAN_COST_CAP_USD,
 )
-from scanner.extract import extract
+from scanner.extract import extract, is_bucket_ref
 from scanner.llm import CallLog, ModelClient, call_json
 from scanner.lookups import LookupCache, consistent_evidence
 from scanner.models import (
@@ -103,6 +103,9 @@ RANK_SYSTEM_PROMPT = (
     "blast_radius, or status. "
     "A lookup whose status is unavailable or error is unknown: never treat it as "
     "evidence for or against risk. "
+    "A registered, resolving, actively used domain that renews soon is routine. "
+    "Expiry matters when combined with signs of abandonment (DNS does not resolve, "
+    "or the owner has shut down). Do not raise severity for expiry alone. "
     "You may raise or lower blast_radius versus classify when evidence shows the "
     "reference matters more or less; if you change it, set blast_override_reason. "
     "fix must be one of the allowed values."
@@ -143,7 +146,7 @@ RANK_JSON_SCHEMA = {
 
 
 def target_key(ref: Reference, cl: Classification) -> tuple[str, str]:
-    if cl.type == "bucket":
+    if cl.type == "bucket" or is_bucket_ref(ref):
         return ref.host_or_bucket, "bucket"
     return (ref.domain or ref.host_or_bucket), "domain"
 
@@ -384,12 +387,6 @@ def floor_decision(group: dict[str, Any]) -> tuple[str | None, str]:
             "high",
             f"NXDOMAIN in executing position ({where}) is at least high",
         )
-    days = rdap.get("days_to_expiry")
-    if isinstance(days, int) and days <= EXPIRY_INVESTIGATE_DAYS:
-        return (
-            "high",
-            f"expiry within {EXPIRY_INVESTIGATE_DAYS} days in executing position ({where}) is at least high",
-        )
     return None, ""
 
 
@@ -584,6 +581,7 @@ async def run_scan(
     cache: LookupCache,
     ctx: ToolContext | None = None,
     hydrate_only: bool = True,
+    allow_partial_cache: bool = False,
     cost_cap: float = SCAN_COST_CAP_USD,
 ) -> ScanOutcome:
     refs = extract(source)
@@ -599,7 +597,11 @@ async def run_scan(
     ]
     ctx = ctx or ToolContext(cache=cache)
     investigations: list[Investigation] = []
-    cached_rows = rows_from_lookup_cache(pairs, cache) if hydrate_only else None
+    cached_rows = (
+        rows_from_lookup_cache(pairs, cache, complete=not allow_partial_cache)
+        if hydrate_only
+        else None
+    )
     if cached_rows is not None:
         rows = cached_rows
     else:
@@ -634,7 +636,7 @@ async def run_scan(
 def hydrate_evidence(
     ref: Reference, cl: Classification, cache: LookupCache
 ) -> dict[str, Any] | None:
-    if cl.type == "bucket":
+    if cl.type == "bucket" or is_bucket_ref(ref):
         provider = "gcs" if "storage.googleapis.com" in ref.raw.lower() else "s3"
         hit = cache.get_json(f"bucket:{provider}:{ref.host_or_bucket}")
         if hit is None:
@@ -669,7 +671,10 @@ def hydrate_evidence(
 
 
 def rows_from_lookup_cache(
-    pairs: list[tuple[Reference, Classification]], cache: LookupCache
+    pairs: list[tuple[Reference, Classification]],
+    cache: LookupCache,
+    *,
+    complete: bool = True,
 ) -> list[tuple[Reference, Classification, Investigation]] | None:
     rows: list[tuple[Reference, Classification, Investigation]] = []
     for ref, cl in pairs:
@@ -677,7 +682,9 @@ def rows_from_lookup_cache(
             continue
         evidence = hydrate_evidence(ref, cl, cache)
         if evidence is None:
-            return None
+            if complete:
+                return None
+            continue
         if not should_investigate(ref, cl, evidence):
             continue
         rows.append(

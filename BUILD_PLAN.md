@@ -184,8 +184,8 @@ in its evidence.
 once per target. Muse (RANK_MODEL) sees classification plus merged evidence and returns
 `severity`, `risk`, `fix`, `uncertain_about`, and `blast_radius` (may override classify; record
 when it does). Code floors severity: claimable-now (NoSuchBucket, RDAP unregistered) in an
-executing position is at least critical; other hard signals (NXDOMAIN on a registered domain,
-expiry ≤ 90 days) are at least high. Self-check: every date, number and status word in `risk`
+executing position is at least critical; NXDOMAIN is at least high. Expiry is evidence for
+the ranker, not a floor. Self-check: every date, number and status word in `risk`
 must appear in the evidence JSON; regenerate on mismatch (max 2), else `needs_review`. Sort by
 severity then ranked blast radius.
 

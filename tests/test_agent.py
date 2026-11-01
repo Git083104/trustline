@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from scanner.agent import BUDGET_NOTE, investigate
+from scanner.agent import BUDGET_NOTE, investigate, precheck
 from scanner.extract import extract
 from scanner.llm import FakeModelClient
 from scanner.lookups import LookupCache
@@ -119,6 +119,22 @@ async def test_prerun_dns_and_bucket_always_in_evidence(tmp_path):
         "precomputed" in json.loads(call["messages"][0]["content"])
         for call in client.calls
     )
+
+
+@pytest.mark.asyncio
+async def test_precheck_probes_s3_url_even_if_classified_ci(tmp_path):
+    ref = Reference(
+        file=".github/workflows/ci.yaml",
+        line=31,
+        raw="https://s3.amazonaws.com/quantopian-orchestration/packages/x.tar.gz",
+        host_or_bucket="quantopian-orchestration",
+        domain="amazonaws.com",
+    )
+    evidence = await precheck(
+        ref, _classification(ref, type="other", runs_in="ci"), _ctx(tmp_path)
+    )
+    assert evidence["bucket_probe"]["status"] == "NoSuchBucket"
+    assert "dns" not in evidence
 
 
 @pytest.mark.asyncio
