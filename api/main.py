@@ -27,7 +27,8 @@ from scanner.ssrf import allow_local_scan
 from scanner.tools import ToolContext
 
 ScanRunner = Callable[..., Awaitable[ScanOutcome]]
-STATIC = Path(__file__).resolve().parent / "static"
+# The page lives in public/, which Vercel serves from its CDN; elsewhere this app serves it.
+PUBLIC = Path(__file__).resolve().parents[1] / "public"
 FIXTURES = Path(__file__).resolve().parents[1] / "tests" / "fixtures"
 LIVE_UNCONFIGURED = "Live scans aren't configured; try the demo"
 PATH_REFUSED = "Paste a GitHub repository or website URL"
@@ -127,9 +128,9 @@ def create_app(
 
     @app.get("/")
     def index() -> FileResponse:
-        return FileResponse(STATIC / "index.html", headers={"Cache-Control": "no-cache"})
+        return FileResponse(PUBLIC / "index.html", headers={"Cache-Control": "no-cache"})
 
-    app.mount("/static", FreshStatic(directory=STATIC), name="static")
+    app.mount("/static", FreshStatic(directory=PUBLIC / "static"), name="static")
 
     @app.get("/api/health")
     def health() -> dict[str, bool]:

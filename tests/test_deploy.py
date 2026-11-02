@@ -81,3 +81,22 @@ def test_requirements_txt_matches_pyproject():
         if line.strip() and not line.startswith("#")
     ]
     assert sorted(listed) == sorted(declared)
+
+
+def test_vercel_sees_one_fastapi_app_and_no_api_functions():
+    # Vercel builds every api/**/*.js|ts|go|rb|rs file as its own function (the FastAPI
+    # preset only switches that off for .py), so the page has to live outside api/
+    import json
+    import re
+
+    config = json.loads((ROOT / "vercel.json").read_text())
+    assert config["framework"] == "fastapi"
+    pattern = re.compile(r"\.(js|mjs|ts|tsx|go|rb|rs)$")
+    offenders = [
+        path.relative_to(ROOT).as_posix()
+        for path in (ROOT / "api").rglob("*")
+        if path.is_file() and pattern.search(path.name)
+    ]
+    assert offenders == []
+    assert (ROOT / "public" / "index.html").is_file()
+    assert "COPY public ./public" in (ROOT / "Dockerfile").read_text()

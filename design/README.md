@@ -5,7 +5,7 @@ A Swiss-grid page: paper background, thin salmon cell rules, a big grotesk title
 for the layers, and a Win95-style dialog for errors.
 
 - Fonts: Inter Tight (display), Inter (body), IBM Plex Mono (mono), from Google Fonts.
-- Tokens: `:root` in `api/static/app.css` (paper `#F3F2EE`, ink `#111111`, rules
+- Tokens: `:root` in `public/static/app.css` (paper `#F3F2EE`, ink `#111111`, rules
   `#E9B6AA`, cobalt `#1D3BD1`).
 - Layout: a five-column grid that collapses to one column under 860px.
 - Look: `docs/screenshot.png`.

@@ -253,11 +253,12 @@ def test_demo_gap_default_matches_config():
     assert SCAN_COST_CAP_USD == 1.00
 
 
-STATIC = Path(__file__).resolve().parents[1] / "api" / "static"
+PUBLIC = Path(__file__).resolve().parents[1] / "public"
+STATIC = PUBLIC / "static"
 
 
 def test_frontend_shows_the_five_layers_and_no_design_switcher():
-    markup = (STATIC / "index.html").read_text()
+    markup = (PUBLIC / "index.html").read_text()
     for number, name in enumerate(
         ("Gather", "Classify", "Investigate", "Reason", "Report"), start=1
     ):
@@ -271,7 +272,7 @@ def test_frontend_shows_the_five_layers_and_no_design_switcher():
 
 
 def test_layer_panels_ship_empty_so_only_api_data_renders():
-    markup = (STATIC / "index.html").read_text()
+    markup = (PUBLIC / "index.html").read_text()
     for panel in ("c1", "c2", "c3", "c4", "c5"):
         assert re.search(rf'id="{panel}"[^>]*>\s*</div>', markup), panel
     script = (STATIC / "app.js").read_text()
@@ -311,8 +312,8 @@ def test_static_assets_are_served_and_packaged():
             # a redeploy must never pair new HTML with a cached old script
             assert response.headers["cache-control"] == "no-cache"
     packaging = (Path(__file__).resolve().parents[1] / "pyproject.toml").read_text()
-    for name in ("index.html", "app.css", "app.js", "targets.json"):
-        assert f'"api/static/{name}"' in packaging
+    for name in ("index.html", "static/app.css", "static/app.js", "static/targets.json"):
+        assert f'"public/{name}"' in packaging
 
 
 async def test_events_emitted_from_a_worker_thread_reach_the_stream():
@@ -541,5 +542,5 @@ def test_repos_to_try_list_is_well_formed():
         assert item["expect"] in {"critical", "high", "flagged", "mostly safe", "big run"}
         assert isinstance(item["targets"], int) and item["finding"] and item["checked"]
     # the side panel builds from this file; the page itself ships no list
-    markup = (STATIC / "index.html").read_text()
+    markup = (PUBLIC / "index.html").read_text()
     assert 'id="targets-tab"' in markup and re.search(r'id="targets-list"[^>]*>\s*</div>', markup)

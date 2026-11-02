@@ -18,14 +18,14 @@ The page shows the scan as five layers, each filled in live from the scan's even
 | 02 Classify | Muse Spark: what each reference is, where it runs, blast radius 0–3 | `scanner/classify.py` |
 | 03 Investigate | code lookups (DNS, RDAP, bucket probes, GitHub, platform fingerprints, Tranco), then a Muse Spark agent that picks extra checks (crt.sh, Wayback, live fetch) | `scanner/agent.py`, `scanner/tools/` |
 | 04 Reason | Muse Spark writes the risk; code checks every claim against the evidence and applies severity floors | `scanner/report.py` |
-| 05 Report | code: fix today, review, checked and safe | `api/static/app.js` |
+| 05 Report | code: fix today, review, checked and safe | `public/static/app.js` |
 
 Facts come from deterministic tools and are cached in SQLite. The model never looks
 anything up and never does date math.
 
 **Repos to try** (the tab on the right edge of the page) lists real repos to scan:
 popular projects nobody maintains anymore that have something to flag, polyfill.io
-holdouts, quick runs and clean controls. It reads `api/static/targets.json`, so edit
+holdouts, quick runs and clean controls. It reads `public/static/targets.json`, so edit
 that file to change the list.
 
 This repo merges two team builds: the scanner engine from
@@ -95,8 +95,10 @@ trade-offs below.
 
 ### Vercel
 
-`pyproject.toml` points Vercel at `index.py` (`[tool.vercel] entrypoint = "index:app"`),
-and Vercel picks the FastAPI preset from the dependencies.
+`vercel.json` pins the FastAPI preset and `pyproject.toml` points it at `index.py`
+(`[tool.vercel] entrypoint = "index:app"`). The page itself lives in `public/`, which
+Vercel serves from its CDN; a `.js` file under `api/` would be built as its own function
+and break the deploy.
 
 1. Push this repository to GitHub.
 2. In Vercel: **Add New → Project**, import the repository, keep the detected settings.
