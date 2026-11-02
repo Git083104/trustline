@@ -384,3 +384,14 @@ def test_default_cache_lives_in_tmp_on_serverless_hosts(monkeypatch):
     assert lookups.default_cache() == "/tmp/trustmap.db"
     monkeypatch.setenv("TRUSTMAP_CACHE_DB", "/var/data/trustmap.db")
     assert lookups.default_cache() == "/var/data/trustmap.db"
+
+
+def test_default_cache_moves_to_tmp_when_the_app_folder_is_read_only(monkeypatch):
+    import scanner.lookups as lookups
+
+    monkeypatch.setattr(lookups, "LookupCache", lambda path: path)
+    monkeypatch.delenv("TRUSTMAP_CACHE_DB", raising=False)
+    monkeypatch.delenv("TRUSTMAP_SERVERLESS", raising=False)
+    monkeypatch.delenv("VERCEL", raising=False)
+    monkeypatch.setattr(lookups.os, "access", lambda path, mode: False)
+    assert lookups.default_cache() == "/tmp/trustmap.db"

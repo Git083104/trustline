@@ -92,8 +92,9 @@ class LookupCache:
 
 
 def default_cache() -> LookupCache:
-    # a serverless host can only write under /tmp
-    fallback = "/tmp/trustmap.db" if on_serverless() else "trustmap.db"
+    # a serverless host (or any read-only app folder) can only write under /tmp
+    writable = os.access(os.getcwd(), os.W_OK)
+    fallback = "trustmap.db" if writable and not on_serverless() else "/tmp/trustmap.db"
     path = os.environ.get("TRUSTMAP_CACHE_DB") or fallback
     return LookupCache(path)
 

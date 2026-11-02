@@ -544,3 +544,14 @@ def test_repos_to_try_list_is_well_formed():
     # the side panel builds from this file; the page itself ships no list
     markup = (PUBLIC / "index.html").read_text()
     assert 'id="targets-tab"' in markup and re.search(r'id="targets-list"[^>]*>\s*</div>', markup)
+
+
+def test_app_starts_without_the_public_folder(monkeypatch):
+    # Vercel's CDN serves public/ and leaves it out of the function bundle
+    import api.main as main
+
+    monkeypatch.setattr(main, "PUBLIC", Path("/nonexistent/public"))
+    app = create_app(model_client=FakeModelClient(handler=lambda r: {}))
+    with TestClient(app) as client:
+        assert client.get("/api/health").json() == {"ok": True}
+        assert client.get("/api/scan/demo").status_code == 200

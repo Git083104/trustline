@@ -130,7 +130,9 @@ def create_app(
     def index() -> FileResponse:
         return FileResponse(PUBLIC / "index.html", headers={"Cache-Control": "no-cache"})
 
-    app.mount("/static", FreshStatic(directory=PUBLIC / "static"), name="static")
+    # On Vercel the CDN serves public/ and leaves it out of the function bundle, so the
+    # folder must not be required at startup.
+    app.mount("/static", FreshStatic(directory=PUBLIC / "static", check_dir=False), name="static")
 
     @app.get("/api/health")
     def health() -> dict[str, bool]:
