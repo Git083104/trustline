@@ -18,7 +18,14 @@ from scanner.config import (
     RANK_REASONING_EFFORT,
     SCAN_COST_CAP_USD,
 )
-from scanner.events import OnEvent, emit, finding_public
+from scanner.events import (
+    OnEvent,
+    classified_public,
+    emit,
+    finding_public,
+    gather_public,
+    public_target,
+)
 from scanner.compromised import (
     POLYFILL_FIX,
     SRI_FIX,
@@ -35,7 +42,6 @@ from scanner.extract import (
     is_website_source,
     website_coverage,
 )
-from scanner.tools.platform_takeover import matching_platform
 from scanner.tranco import tranco_rank
 from scanner.website import extract_website
 from scanner.llm import CallLog, ModelClient, call_json
@@ -219,11 +225,8 @@ RANK_JSON_SCHEMA = {
 
 
 def target_key(ref: Reference, cl: Classification) -> tuple[str, str]:
-    if cl.type == "bucket" or is_bucket_ref(ref):
-        return ref.host_or_bucket, "bucket"
-    if matching_platform(ref.host_or_bucket):
-        return ref.host_or_bucket, "domain"
-    return (ref.domain or ref.host_or_bucket), "domain"
+    # One definition, shared with the events the page groups by.
+    return public_target(ref, cl)
 
 
 def group_by_target(
@@ -1028,6 +1031,7 @@ async def run_scan(
             "actionable": actionable,
             "filtered": len(refs) - actionable,
             "coverage": coverage,
+            **gather_public(refs),
         },
     )
     class_logs: list[CallLog] = []
@@ -1037,6 +1041,7 @@ async def run_scan(
     pairs = list(zip(refs, classified, strict=True))
     if is_website_source(source):
         pairs = apply_website_roles(pairs)
+    emit(on_event, {"type": "classified", **classified_public(pairs)})
     ctx = ctx or ToolContext(cache=cache)
     investigations: list[Investigation] = []
     cached_rows = (

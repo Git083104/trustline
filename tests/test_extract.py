@@ -274,3 +274,86 @@ def test_clone_timeout_names_the_limit(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(subprocess, "run", slow)
     with pytest.raises(CloneError, match=str(GITHUB_CLONE_TIMEOUT_S)):
         _clone_github("https://github.com/acme/widgets", tmp_path)
+
+
+def _tarball(files: dict[str, bytes]) -> bytes:
+    import io
+    import tarfile
+
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w:gz") as tar:
+        for name, data in files.items():
+            info = tarfile.TarInfo(name)
+            info.size = len(data)
+            tar.addfile(info, io.BytesIO(data))
+    return buf.getvalue()
+
+
+def test_archive_download_unpacks_the_default_branch(tmp_path: Path):
+    import httpx
+
+    from scanner.extract import _download_github_archive
+
+    body = _tarball(
+        {
+            "acme-widgets-1a2b3c/app.js": b'fetch("https://archived.example.net/v1")\n',
+            "acme-widgets-1a2b3c/.github/workflows/ci.yml": b"steps:\n  - uses: gone-owner/tools@v1\n",
+            "acme-widgets-1a2b3c/huge.js": b"x" * 1_000_001,
+        }
+    )
+    seen: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(str(request.url))
+        if "api.github.com" in request.url.host or request.url.path.endswith("/main"):
+            return httpx.Response(404)
+        return httpx.Response(200, content=body)
+
+    root = _download_github_archive(
+        "https://github.com/acme/widgets", tmp_path, transport=httpx.MockTransport(handler)
+    )
+    assert root.name == "acme-widgets-1a2b3c"
+    assert (root / "app.js").exists()
+    assert not (root / "huge.js").exists()
+    assert seen[-1].endswith("/refs/heads/master")
+    found = extract("https://github.com/acme/widgets", clone_github=lambda url, dest: root)
+    assert {ref.raw for ref in found} >= {"gone-owner/tools@v1"}
+
+
+def test_archive_download_names_a_missing_repo(tmp_path: Path):
+    import httpx
+
+    from scanner.extract import _download_github_archive
+
+    transport = httpx.MockTransport(lambda request: httpx.Response(404))
+    with pytest.raises(CloneError, match="private or renamed"):
+        _download_github_archive("https://github.com/acme/widgets", tmp_path, transport=transport)
+
+
+def test_repo_scan_falls_back_to_the_archive_without_git(monkeypatch, tmp_path: Path):
+    repo = tmp_path / "unpacked"
+    repo.mkdir()
+    (repo / "main.py").write_text('API = "https://api.archived.example.com/"\n')
+
+    def no_git(url, dest_parent):
+        raise CloneError("git is not installed on the scanner host")
+
+    monkeypatch.setattr("scanner.extract._clone_github", no_git)
+    monkeypatch.setattr("scanner.extract._git_works", lambda: False)
+    monkeypatch.setattr("scanner.extract._download_github_archive", lambda url, dest: repo)
+    found = extract("https://github.com/acme/widgets")
+    assert found[0].host_or_bucket == "api.archived.example.com"
+
+
+def test_a_private_repo_is_not_retried_as_an_archive(monkeypatch):
+    def private(url, dest_parent):
+        raise CloneError("acme/widgets could not be downloaded; it may be private or renamed")
+
+    def archive(url, dest_parent):
+        raise AssertionError("archive must not be tried when git works")
+
+    monkeypatch.setattr("scanner.extract._clone_github", private)
+    monkeypatch.setattr("scanner.extract._git_works", lambda: True)
+    monkeypatch.setattr("scanner.extract._download_github_archive", archive)
+    with pytest.raises(CloneError, match="private or renamed"):
+        extract("https://github.com/acme/widgets")

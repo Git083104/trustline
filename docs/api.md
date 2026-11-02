@@ -10,6 +10,14 @@ Jobs live in process memory. A restart forgets them.
 Start a scan. `kind` is inferred from `target` (`repo` = GitHub URL, `path` = existing
 local path, `website` = other `http(s)` URL) and may be set explicitly.
 
+`path` targets are refused with 400 `{"error": "Paste a GitHub repository or website URL"}`
+unless `TRUSTMAP_ALLOW_LOCAL_SCAN=1` or the path is inside `tests/fixtures`, so a public
+server never reads its own disk for a stranger.
+
+Repository targets are shallow-cloned with `git`. Without a working `git` (for example
+a Mac without developer tools) the scanner downloads GitHub's archive of the default
+branch instead.
+
 ```json
 {"target": "https://github.com/acme/widgets"}
 ```
@@ -67,8 +75,9 @@ Replay buffered events, then live ones, then close on `done` or `error`.
 | `type` | When | Payload |
 |---|---|---|
 | `started` | job accepted | `kind`, `target`, `cost_cap_usd` |
-| `extracted` | after extract | `references`, `actionable`, `filtered`, `coverage` (`files_scanned`, `files_total`, `truncated`, `reason`) |
-| `precheck` | after lookups for one target | `target`, `kind` (bucket/domain), `hard_signal` |
+| `extracted` | after extract | `references`, `actionable`, `filtered`, `coverage` (`files_scanned`, `files_total`, `truncated`, `reason`), `targets` (first 300: `target`, `kind`, `platform`, `refs`, `files`, `first` {`file`, `line`, `raw`}), `targets_total`, `set_aside` ({reason: {`count`, `examples`}}) |
+| `classified` | after classify | `items` (first 300 actionable references: `target`, `file`, `line`, `type`, `runs_in`, `blast_radius`, `confidence`, `reason`), `total` |
+| `precheck` | after lookups for one reference | `target`, `kind` (bucket/domain), `hard_signal`, `next` (`agent`, `popular`, `low_exposure`), `evidence` (first event for each target only) |
 | `plan` / `act` / `observe` | each agent turn | `target`, `tool`, `args`, `result_summary`, `tokens`, `cost_usd` |
 | `ranked` | each finding after rank | public finding fields (see report JSON) |
 | `done` | finished | `finding_count`, `cost_usd`, `classify_cost_usd`, `agent_cost_usd`, `rank_cost_usd`, `budget_targets` |
@@ -140,6 +149,10 @@ Extra finding fields:
 - `evidence.live_fetch`: `final_url`, `http_status`, `redirect_chain`, `title`, `parked`, `for_sale`, `signal`
 - `action_ref` / `action_sha_pinned`: GitHub Actions `uses:` pin (full 40-char SHA or not)
 - `evidence.github_repo`: `exists` / `missing` for `owner/repo` actions
+- `uncertain_about`: what the ranker said it could not tell from the evidence
+- `needs_review`: true when the ranker's sentence failed the evidence check and code set the severity
+- `classified_blast_radius` / `blast_radius` / `blast_override_reason`: blast radius from
+  classify, the ranker's value, and why the ranker changed it
 
 Website findings put page locations in `references` (`page_url`, `tag`, `attribute`,
 `line`, `sri`, `raw`) instead of `file:line`.

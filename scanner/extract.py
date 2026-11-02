@@ -4,11 +4,14 @@ import ipaddress
 import os
 import re
 import subprocess
+import tarfile
 import tempfile
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlparse
 
+import httpx
 import tldextract
 
 from scanner.config import (
@@ -215,7 +218,7 @@ def extract_scan(source: str, *, clone_github=None) -> ExtractResult:
     if path.exists():
         return _extract_dir(path.resolve())
     if GITHUB_RE.match(source.strip()):
-        cloner = clone_github or _clone_github
+        cloner = clone_github or _fetch_github
         with tempfile.TemporaryDirectory() as tmp:
             return _extract_dir(cloner(source.strip(), Path(tmp)))
     raise FileNotFoundError(f"not a local path or GitHub URL: {source}")
@@ -251,6 +254,107 @@ def _clone_github(url: str, dest_parent: Path) -> Path:
             f"{owner}/{repo} could not be downloaded; it may be private or renamed"
         ) from exc
     return dest
+
+
+# Without git (a laptop without developer tools, a slim host) the same files come
+# from GitHub's archive download instead.
+ARCHIVE_URLS = (
+    "https://api.github.com/repos/{owner}/{repo}/tarball",
+    "https://codeload.github.com/{owner}/{repo}/tar.gz/refs/heads/main",
+    "https://codeload.github.com/{owner}/{repo}/tar.gz/refs/heads/master",
+)
+MAX_ARCHIVE_BYTES = 200 * 1024 * 1024
+
+
+def _fetch_github(url: str, dest_parent: Path) -> Path:
+    try:
+        return _clone_github(url, dest_parent)
+    except CloneError:
+        if _git_works():
+            raise
+    return _download_github_archive(url, dest_parent)
+
+
+def _git_works() -> bool:
+    # macOS ships a /usr/bin/git stub that fails until developer tools are installed
+    try:
+        done = subprocess.run(
+            ["git", "--version"], capture_output=True, timeout=10, check=False
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return done.returncode == 0
+
+
+def _download_github_archive(
+    url: str, dest_parent: Path, *, transport: httpx.BaseTransport | None = None
+) -> Path:
+    match = GITHUB_RE.match(url)
+    if not match:
+        raise ValueError(f"not a GitHub URL: {url}")
+    owner, repo = match.group(1), match.group(2)
+    archive = dest_parent / "archive.tar.gz"
+    deadline = time.monotonic() + GITHUB_CLONE_TIMEOUT_S
+    token = os.environ.get("GITHUB_TOKEN", "").strip()
+    with httpx.Client(
+        transport=transport,
+        follow_redirects=True,
+        timeout=GITHUB_CLONE_TIMEOUT_S,
+        headers={"User-Agent": "trustline-scanner"},
+    ) as client:
+        for index, template in enumerate(ARCHIVE_URLS):
+            headers = {"Authorization": f"Bearer {token}"} if token and index == 0 else {}
+            try:
+                if _save_archive(client, template.format(owner=owner, repo=repo), headers, archive, deadline):
+                    break
+            except httpx.HTTPError:
+                continue
+            except TimeoutError as exc:
+                raise CloneError(
+                    f"{owner}/{repo} took longer than {GITHUB_CLONE_TIMEOUT_S}s to download"
+                ) from exc
+            except OverflowError as exc:
+                raise CloneError(f"{owner}/{repo} is too large to scan here") from exc
+        else:
+            raise CloneError(
+                f"{owner}/{repo} could not be downloaded; it may be private or renamed"
+            )
+    if not hasattr(tarfile, "data_filter"):
+        # Python builds before the 2023 tarfile fix cannot unpack untrusted archives safely
+        raise CloneError("git is not installed and this Python is too old to unpack GitHub's archive safely")
+    dest = dest_parent / "archive"
+    dest.mkdir()
+    try:
+        with tarfile.open(archive) as tar:
+            # same budget as `git clone --filter=blob:limit=1m`: big blobs are never read
+            members = [
+                item for item in tar.getmembers()
+                if item.isdir() or (item.isfile() and item.size <= MAX_FILE_BYTES)
+            ]
+            tar.extractall(dest, members=members, filter="data")
+    except (tarfile.TarError, OSError) as exc:
+        raise CloneError(f"{owner}/{repo} could not be unpacked") from exc
+    archive.unlink(missing_ok=True)
+    tops = [item for item in dest.iterdir() if item.is_dir()]
+    return tops[0] if len(tops) == 1 else dest
+
+
+def _save_archive(
+    client: httpx.Client, url: str, headers: dict[str, str], archive: Path, deadline: float
+) -> bool:
+    with client.stream("GET", url, headers=headers) as response:
+        if response.status_code != 200:
+            return False
+        size = 0
+        with archive.open("wb") as out:
+            for chunk in response.iter_bytes():
+                size += len(chunk)
+                if size > MAX_ARCHIVE_BYTES:
+                    raise OverflowError(size)
+                if time.monotonic() > deadline:
+                    raise TimeoutError
+                out.write(chunk)
+    return True
 
 
 def _extract_dir(root: Path) -> ExtractResult:

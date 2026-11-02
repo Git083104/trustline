@@ -1,6 +1,7 @@
 import asyncio
 import threading
 
+import pytest
 from fastapi.testclient import TestClient
 
 from api.limits import (
@@ -14,6 +15,13 @@ from api.main import create_app
 from scanner.llm import FakeModelClient
 from scanner.lookups import LookupCache
 from scanner.report import ScanOutcome
+
+
+@pytest.fixture(autouse=True)
+def local_paths_allowed(monkeypatch):
+    # these tests post a temp dir as the cheapest valid target; path policy is
+    # covered in test_api.py
+    monkeypatch.setenv("TRUSTMAP_ALLOW_LOCAL_SCAN", "1")
 
 
 class _Req:

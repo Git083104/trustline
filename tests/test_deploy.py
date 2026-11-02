@@ -68,3 +68,16 @@ def test_render_yaml_plan_and_disk_agree():
     assert "TRUSTMAP_CACHE_DB" in text
     dockerfile = (ROOT / "Dockerfile").read_text()
     assert "mkdir -p /var/data" in dockerfile
+
+
+def test_requirements_txt_matches_pyproject():
+    # pip users and uv users must install the same thing
+    import tomllib
+
+    declared = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]["dependencies"]
+    listed = [
+        line.strip()
+        for line in (ROOT / "requirements.txt").read_text().splitlines()
+        if line.strip() and not line.startswith("#")
+    ]
+    assert sorted(listed) == sorted(declared)

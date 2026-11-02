@@ -164,6 +164,15 @@ def should_investigate(ref: Reference, cl: Classification, evidence: dict[str, A
     return has_hard_signal(evidence) or cl.blast_radius >= 1
 
 
+def next_step(ref: Reference, cl: Classification, evidence: dict[str, Any]) -> str:
+    """What investigate() does with this reference after the precheck, for the page."""
+    if tranco_checked_safe(ref, evidence):
+        return "popular"
+    if should_investigate(ref, cl, evidence):
+        return "agent"
+    return "low_exposure"
+
+
 def _precheck_key(ref: Reference, cl: Classification) -> tuple:
     """Everything precheck() reads. Two references sharing this get one lookup."""
     is_bucket = cl.type == "bucket" or _is_bucket_ref(ref)
@@ -212,18 +221,23 @@ async def investigate(
     actionable = [(ref, cl) for ref, cl in pairs if ref.filter_reason is None]
     evidence_by_key = await _precheck_all(actionable, ctx)
     checked: list[tuple[Reference, Classification, dict[str, Any]]] = []
+    shown: set[str] = set()
     for ref, cl in actionable:
         evidence = dict(evidence_by_key[_precheck_key(ref, cl)])
         checked.append((ref, cl, evidence))
-        emit(
-            on_event,
-            {
-                "type": "precheck",
-                "target": _event_target(ref, cl),
-                "kind": _event_kind(ref, cl),
-                "hard_signal": has_hard_signal(evidence),
-            },
-        )
+        target = _event_target(ref, cl)
+        event = {
+            "type": "precheck",
+            "target": target,
+            "kind": _event_kind(ref, cl),
+            "hard_signal": has_hard_signal(evidence),
+            "next": next_step(ref, cl, evidence),
+        }
+        # The facts are about the target, so send them once, not once per line.
+        if target not in shown:
+            shown.add(target)
+            event["evidence"] = evidence
+        emit(on_event, event)
     eligible: list[tuple[Reference, Classification, dict[str, Any]]] = []
     skipped: list[Investigation] = []
     for ref, cl, evidence in checked:

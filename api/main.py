@@ -22,11 +22,30 @@ from scanner.config import SCAN_COST_CAP_USD
 from scanner.llm import LiveModelClient, ModelClient, redact_secrets
 from scanner.lookups import LookupCache, default_cache
 from scanner.report import ScanOutcome, run_scan
+from scanner.ssrf import allow_local_scan
 from scanner.tools import ToolContext
 
 ScanRunner = Callable[..., Awaitable[ScanOutcome]]
 STATIC = Path(__file__).resolve().parent / "static"
+FIXTURES = Path(__file__).resolve().parents[1] / "tests" / "fixtures"
 LIVE_UNCONFIGURED = "Live scans aren't configured; try the demo"
+PATH_REFUSED = "Paste a GitHub repository or website URL"
+
+
+class FreshStatic(StaticFiles):
+    """Revalidate on every load, so a redeploy never pairs new HTML with an old script."""
+
+    async def get_response(self, path, scope):
+        response = await super().get_response(path, scope)
+        response.headers["Cache-Control"] = "no-cache"
+        return response
+
+
+def path_scan_allowed(target: str) -> bool:
+    """A public server must not read its own disk for strangers; fixtures are fine."""
+    if allow_local_scan():
+        return True
+    return Path(target).resolve().is_relative_to(FIXTURES.resolve())
 
 
 def _load_local_env() -> None:
@@ -91,7 +110,7 @@ def create_app(
     def index() -> FileResponse:
         return FileResponse(STATIC / "index.html", headers={"Cache-Control": "no-cache"})
 
-    app.mount("/static", StaticFiles(directory=STATIC), name="static")
+    app.mount("/static", FreshStatic(directory=STATIC), name="static")
 
     @app.get("/api/health")
     def health() -> dict[str, bool]:
@@ -131,6 +150,8 @@ def create_app(
             kind, target = classify_target(body.target, body.kind)
         except TargetError as exc:
             return JSONResponse(status_code=exc.status_code, content=exc.body)
+        if kind == "path" and not path_scan_allowed(target):
+            return JSONResponse(status_code=400, content={"error": PATH_REFUSED, "kind": "path"})
         if not live_ready():
             return JSONResponse(status_code=503, content={"error": LIVE_UNCONFIGURED})
         ip = client_ip(request, hops=limit_store.trusted_hops)

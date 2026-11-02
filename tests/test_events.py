@@ -57,3 +57,48 @@ def test_finding_public_fields():
         "action_sha_pinned",
     ):
         assert key in public
+
+
+def _ref(**kwargs):
+    from scanner.models import Reference
+
+    base = {"file": "index.html", "line": 1, "raw": "https://cdn.acme.dev/a.js", "host_or_bucket": "cdn.acme.dev", "domain": "acme.dev"}
+    return Reference(**{**base, **kwargs})
+
+
+def test_gather_public_groups_by_target_and_counts_what_was_set_aside():
+    from scanner.events import gather_public
+
+    refs = [
+        _ref(),
+        _ref(file="app.js", line=4, host_or_bucket="api.acme.dev"),
+        _ref(file="infra.yaml", line=2, raw="s3://gone-bucket", host_or_bucket="gone-bucket", domain=""),
+        _ref(line=9, raw="https://docs.example.com/x", host_or_bucket="docs.example.com", domain="example.com", filter_reason="reserved_domain"),
+        _ref(line=10, raw="api_key=sk-live-abcdefghijklmnopqrstuvwxyz https://x.acme.dev", host_or_bucket="x.acme.dev"),
+    ]
+    out = gather_public(refs)
+    rows = {row["target"]: row for row in out["targets"]}
+    assert rows["acme.dev"]["refs"] == 3
+    assert rows["acme.dev"]["files"] == 2
+    assert rows["gone-bucket"]["kind"] == "bucket"
+    assert out["targets_total"] == 2
+    assert out["set_aside"] == {"reserved_domain": {"count": 1, "examples": ["docs.example.com"]}}
+    assert all("sk-live" not in row["first"]["raw"] for row in out["targets"])
+
+
+def test_classified_public_lists_only_actionable_references():
+    from scanner.events import classified_public
+    from scanner.models import Classification
+
+    keep = _ref()
+    noise = _ref(line=2, host_or_bucket="docs.example.com", domain="example.com", filter_reason="reserved_domain")
+
+    def cl(ref, **kw):
+        return Classification(id="0", file=ref.file, line=ref.line, host_or_bucket=ref.host_or_bucket,
+                              type=kw.get("type", "script"), runs_in="browser", blast_radius=3,
+                              confidence=0.8, reason="loaded by a script tag")
+
+    out = classified_public([(keep, cl(keep)), (noise, cl(noise))])
+    assert out["total"] == 1
+    assert out["items"][0]["target"] == "acme.dev"
+    assert out["items"][0]["blast_radius"] == 3

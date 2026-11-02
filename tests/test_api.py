@@ -256,20 +256,23 @@ def test_demo_gap_default_matches_config():
 STATIC = Path(__file__).resolve().parents[1] / "api" / "static"
 
 
-def test_frontend_has_the_three_screens_and_no_design_switcher():
+def test_frontend_shows_the_five_layers_and_no_design_switcher():
     markup = (STATIC / "index.html").read_text()
-    for anchor in ('id="page-home"', 'id="screen-scanning"', 'id="screen-results"'):
-        assert anchor in markup
-    # the floating Home/Scanning/Results control is a design-tool affordance
+    for number, name in enumerate(
+        ("Gather", "Classify", "Investigate", "Reason", "Report"), start=1
+    ):
+        assert f'id="layer-{number}"' in markup
+        assert f">{name}</h2>" in markup
+    # a floating Home/Scanning/Results control is a design-tool affordance
     assert "showSwitcher" not in markup
     assert "Trustmap" not in markup
     assert markup.count("Trustline") > 1
-    assert "Inter" in markup and "JetBrains+Mono" in markup
+    assert "Inter+Tight" in markup and "IBM+Plex+Mono" in markup
 
 
-def test_report_panels_ship_empty_so_only_api_data_renders():
+def test_layer_panels_ship_empty_so_only_api_data_renders():
     markup = (STATIC / "index.html").read_text()
-    for panel in ("tab-fix", "tab-all", "tab-trace", "tab-raw"):
+    for panel in ("c1", "c2", "c3", "c4", "c5"):
         assert re.search(rf'id="{panel}"[^>]*>\s*</div>', markup), panel
     script = (STATIC / "app.js").read_text()
     for mock in ("paperplane", "trustline-demo-", "polyfill.io"):
@@ -294,8 +297,8 @@ def test_frontend_keeps_only_the_scan_id_in_the_url():
 
 def test_frontend_handles_every_documented_sse_event():
     script = (STATIC / "app.js").read_text()
-    for event_type in ("started", "extracted", "precheck", "plan", "act",
-                       "observe", "ranked", "done", "error"):
+    for event_type in ("started", "extracted", "classified", "precheck", "plan",
+                       "act", "observe", "ranked", "done", "error"):
         assert f'"{event_type}"' in script, event_type
 
 
@@ -303,7 +306,10 @@ def test_static_assets_are_served_and_packaged():
     app = create_app(model_client=FakeModelClient(handler=lambda r: {}))
     with TestClient(app) as client:
         for path in ("/static/app.css", "/static/app.js"):
-            assert client.get(path).status_code == 200
+            response = client.get(path)
+            assert response.status_code == 200
+            # a redeploy must never pair new HTML with a cached old script
+            assert response.headers["cache-control"] == "no-cache"
     packaging = (Path(__file__).resolve().parents[1] / "pyproject.toml").read_text()
     for name in ("index.html", "app.css", "app.js"):
         assert f'"api/static/{name}"' in packaging
@@ -383,3 +389,51 @@ def test_frontend_falls_back_when_the_event_stream_cannot_open():
     assert "new EventSource" in script
     assert "catch" in script.split("new EventSource")[1][:200]
     assert "Live updates aren't available" in script
+
+
+def test_events_carry_what_each_layer_shows(tmp_path):
+    app = _fixture_app(tmp_path=tmp_path)
+    with TestClient(app) as client:
+        scan_id = client.post("/api/scan", json={"target": str(FIXTURE_ROOT)}).json()["scan_id"]
+        events = _parse_sse(client.get(f"/api/scan/{scan_id}/events").text)
+    types = [item["type"] for item in events]
+    assert types.index("extracted") < types.index("classified") < types.index("precheck")
+    extracted = next(item for item in events if item["type"] == "extracted")
+    gathered = {row["target"]: row for row in extracted["targets"]}
+    assert extracted["targets_total"] == len(gathered)
+    assert gathered["acme-legacy-uploads-a3f91c2e"]["kind"] == "bucket"
+    assert gathered["acme-legacy-uploads-a3f91c2e"]["refs"] == 2
+    assert gathered["trustmap-demo-pages.github.io"]["platform"] == "GitHub Pages"
+    assert gathered["cdn-assets-trustmap-7f3k2.com"]["first"]["file"] == "index.html"
+    assert extracted["set_aside"]["reserved_domain"]["count"] >= 1
+    assert sum(item["count"] for item in extracted["set_aside"].values()) == extracted["filtered"]
+    classified = next(item for item in events if item["type"] == "classified")
+    assert classified["total"] == extracted["actionable"] == len(classified["items"])
+    assert {"type", "runs_in", "blast_radius", "reason"} <= set(classified["items"][0])
+    prechecks = [item for item in events if item["type"] == "precheck"]
+    with_evidence = [item for item in prechecks if "evidence" in item]
+    # facts are about a target, so they travel once per target
+    assert len(with_evidence) == len({item["target"] for item in prechecks})
+    assert all(item["next"] in {"agent", "popular", "low_exposure"} for item in prechecks)
+    gone = next(item for item in with_evidence if item["target"] == "acme-legacy-uploads-a3f91c2e")
+    assert gone["evidence"]["bucket_probe"]["status"] == "NoSuchBucket"
+    # the ranked targets are the same names the earlier layers used
+    ranked = {item["target"] for item in events if item["type"] == "ranked"}
+    assert ranked <= set(gathered)
+
+
+def test_server_paths_are_refused_unless_local_scans_are_on(tmp_path, monkeypatch):
+    async def runner(*args, **kwargs):
+        return ScanOutcome(findings=[])
+
+    monkeypatch.delenv("TRUSTMAP_ALLOW_LOCAL_SCAN", raising=False)
+    app = create_app(model_client=FakeModelClient(handler=lambda r: {}), runner=runner)
+    with TestClient(app) as client:
+        refused = client.post("/api/scan", json={"target": str(tmp_path)})
+        assert refused.status_code == 400
+        assert refused.json()["error"] == "Paste a GitHub repository or website URL"
+        assert app.state.store._jobs == {}
+        fixture = client.post("/api/scan", json={"target": str(FIXTURE_ROOT)})
+        assert fixture.status_code == 200
+        monkeypatch.setenv("TRUSTMAP_ALLOW_LOCAL_SCAN", "1")
+        assert client.post("/api/scan", json={"target": str(tmp_path)}).status_code == 200

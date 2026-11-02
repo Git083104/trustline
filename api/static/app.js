@@ -1,671 +1,877 @@
-/* Trustline frontend. Every number and label comes from the API; nothing is mocked.
-   Report text is attacker-controlled, so it only ever reaches the DOM as textContent. */
+/* Trustline frontend: the five layers, filled in from the scan's event stream.
+   Report text comes from scanned code and from the model, so it only ever
+   reaches the page through textContent. Nothing on this page is mocked. */
 (function () {
   "use strict";
 
-  var STAGES = ["Find", "Check", "Investigate", "Rank", "Report"];
-  var SEV_ORDER = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
-  var SEV_KEY = { critical: "critical", high: "high", medium: "medium", low: "low", info: "safe" };
-  var SEV_LABEL = { critical: "Critical", high: "High", medium: "Medium", low: "Low", info: "Safe" };
-  var KIND_LABEL = { repo: "GitHub repo", website: "Website", path: "Local path" };
-  var PLAN_QUESTION = {
-    rdap: "Who owns this domain now?",
-    dns: "Does this host still resolve?",
-    bucket_probe: "Does this bucket still exist?",
-    github_owner: "Is this GitHub account still there?",
-    github_repo: "Does this repository still exist?",
-    live_fetch: "What does this URL serve now?",
-    tranco: "How widely used is this host?"
-  };
   var POLL_EVERY_MS = 1500;
-  var POLL_LIMIT = 240;   // ~6 minutes of waiting before offering a retry
-  var FOUND_BUCKETS = [
-    { key: "claimable", label: "Claimable now", sev: "critical" },
-    { key: "compromised", label: "Known compromised", sev: "high" },
-    { key: "checking", label: "Checking", sev: "checking" },
-    { key: "safe", label: "Looks safe", sev: "safe" }
-  ];
+  var POLL_LIMIT = 240; // about six minutes before offering to keep waiting
+  var TABLE_ROWS = 14;
 
-  var $ = function (id) { return document.getElementById(id); };
-  var el = {
-    home: $("page-home"),
-    app: $("page-app"),
-    scanning: $("screen-scanning"),
-    results: $("screen-results"),
-    homeError: $("home-error"),
-    appError: $("app-error"),
-    nav: $("top-nav"),
-    hero: $("hero"),
-    heroInner: document.querySelector(".hero-inner"),
-    glow: $("hero-glow"),
-    haze: $("hero-haze"),
-    form: $("scan-form"),
-    target: $("target"),
-    chip: $("kind-chip"),
-    scanBtn: $("scan-btn"),
-    howTool: $("how-tool"),
-    scanTarget: $("scan-target"),
-    scanKind: $("scan-kind"),
-    clock: $("scan-clock"),
-    progress: document.querySelector(".progress"),
-    progressFill: $("progress-fill"),
-    stepper: $("stepper"),
-    feed: $("feed"),
-    foundCount: $("found-count"),
-    foundBar: $("found-bar"),
-    foundLegend: $("found-legend"),
-    callsUsed: $("calls-used"),
-    callsTotal: $("calls-total"),
-    pips: $("call-pips"),
-    skip: $("skip-report"),
-    resTarget: $("res-target"),
-    resKind: $("res-kind"),
-    headline: $("res-headline"),
-    resChips: $("res-chips"),
-    resMeta: $("res-meta"),
-    tabFix: $("tab-fix"),
-    tabAll: $("tab-all"),
-    tabTrace: $("tab-trace"),
-    tabRaw: $("tab-raw"),
-    tabNFix: $("tab-n-fix"),
-    tabNAll: $("tab-n-all"),
-    tabNTrace: $("tab-n-trace")
+  var SEV_ORDER = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
+  var SEV_LABEL = { critical: "critical", high: "high", medium: "medium", low: "low", info: "safe" };
+  var KIND_LABEL = { repo: "GitHub repo", website: "website", path: "local folder" };
+  var TYPE_LABEL = { script: "Script", api: "API endpoint", asset: "Static asset", bucket: "Storage bucket", docs_link: "Docs link", other: "Other" };
+  var RUNS_LABEL = { browser: "Every visitor’s browser", server: "Your servers", build: "Build", deploy: "Deploy / infra", ci: "CI", test: "Tests only", docs_only: "Docs only" };
+  var ASIDE_LABEL = {
+    allowlisted: ["well-known host", "well-known hosts"],
+    reserved_domain: ["reserved example domain", "reserved example domains"],
+    reserved_tld: ["reserved test TLD", "reserved test TLDs"],
+    ip_address: ["IP literal", "IP literals"],
+    placeholder: ["template placeholder", "template placeholders"],
+    no_public_suffix: ["name without a public suffix", "names without a public suffix"]
+  };
+  var PROVIDER = { s3: "S3", gcs: "GCS", azure: "Azure Blob" };
+  var WAITING = {
+    1: "Waiting for a target.",
+    2: "Waiting for Layer 01.",
+    3: "Waiting for Layer 02.",
+    4: "Waiting for Layer 03.",
+    5: "Waiting for Layer 04."
+  };
+  var ENGINE = {
+    1: "code · file walk + patterns",
+    2: "Muse Spark 1.3",
+    3: "code lookups + Muse Spark agent",
+    4: "Muse Spark 1.3 + code rules",
+    5: "code · ranked list"
+  };
+  var DEMO_ENGINE = {
+    2: "scripted stand-in for Muse Spark",
+    3: "stubbed lookups + scripted agent",
+    4: "scripted stand-in + code rules"
   };
 
-  var state = {
-    screen: "home",
-    kind: "",
-    target: "",
-    scanId: "",
-    demo: false,
-    source: null,
-    timer: null,
-    startedAt: 0,
-    elapsedMs: 0,
-    report: null,
-    finished: false,
-    streamed: false,
-    pollTimer: null,
-    stage: 0,
-    calls: 0,
-    turns: [],
-    rows: {},
-    buckets: {},
-    targetsSeen: 0
-  };
+  /* ---------- DOM helpers (textContent only) ---------- */
 
-  /* ---------- small DOM helpers (textContent only) ---------- */
+  function $(selector, root) { return (root || document).querySelector(selector); }
+  function $$(selector, root) { return Array.prototype.slice.call((root || document).querySelectorAll(selector)); }
 
-  function make(tag, className, textValue) {
+  function h(tag, props) {
     var node = document.createElement(tag);
-    if (className) { node.className = className; }
-    if (textValue != null) { node.textContent = String(textValue); }
+    if (props) {
+      Object.keys(props).forEach(function (key) {
+        var value = props[key];
+        if (value == null || value === false) { return; }
+        if (key === "class") { node.className = value; }
+        else if (key === "text") { node.textContent = String(value); }
+        else if (key.slice(0, 2) === "on") { node.addEventListener(key.slice(2), value); }
+        else { node.setAttribute(key, value === true ? "" : String(value)); }
+      });
+    }
+    add(node, Array.prototype.slice.call(arguments, 2));
     return node;
   }
 
-  function svgIcon(paths, size, strokeWidth) {
-    var ns = "http://www.w3.org/2000/svg";
-    var svg = document.createElementNS(ns, "svg");
-    svg.setAttribute("width", String(size));
-    svg.setAttribute("height", String(size));
-    svg.setAttribute("viewBox", "0 0 24 24");
-    svg.setAttribute("fill", "none");
-    svg.setAttribute("stroke", "currentColor");
-    svg.setAttribute("stroke-width", String(strokeWidth));
-    svg.setAttribute("aria-hidden", "true");
-    paths.forEach(function (spec) {
-      var node = document.createElementNS(ns, spec.tag);
-      Object.keys(spec.attrs).forEach(function (key) {
-        node.setAttribute(key, spec.attrs[key]);
-      });
-      svg.appendChild(node);
+  function add(node, kids) {
+    kids.forEach(function (kid) {
+      if (Array.isArray(kid)) { add(node, kid); return; }
+      if (kid == null || kid === false || kid === "") { return; }
+      node.appendChild(kid instanceof Node ? kid : document.createTextNode(String(kid)));
     });
-    return svg;
+    return node;
   }
 
-  function caretIcon() {
-    var svg = svgIcon([{ tag: "polyline", attrs: { points: "6 9 12 15 18 9" } }], 14, 2.2);
-    svg.classList.add("caret");
-    return svg;
-  }
-
-  function copyIcon() {
-    return svgIcon([
-      { tag: "rect", attrs: { x: "8", y: "8", width: "12", height: "12", rx: "2" } },
-      { tag: "path", attrs: { d: "M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" } }
-    ], 14, 2);
-  }
-
-  /* ---------- errors ---------- */
-
-  function errorNode() {
-    return state.screen === "home" ? el.homeError : el.appError;
-  }
-
-  function clearErrors() {
-    [el.homeError, el.appError].forEach(function (node) {
-      node.hidden = true;
-      node.replaceChildren();
-    });
-  }
-
-  function showError(message, retry) {
-    clearErrors();
-    if (!message) { return; }
-    var node = errorNode();
-    node.hidden = false;
-    node.replaceChildren(make("span", null, message));
-    if (retry) {
-      var btn = make("button", "btn btn-secondary", "Retry");
-      btn.type = "button";
-      btn.addEventListener("click", function () {
-        clearErrors();
-        retry();
-      });
-      node.appendChild(btn);
-    }
-  }
-
-  /* ---------- navigation between screens ---------- */
-
-  function show(screen) {
-    state.screen = screen;
-    el.home.hidden = screen !== "home";
-    el.app.hidden = screen === "home";
-    el.scanning.hidden = screen !== "scanning";
-    el.results.hidden = screen !== "results";
-    window.scrollTo(0, 0);
-    if (screen === "home") { onScroll(); }
-  }
-
-  function closeSource() {
-    if (state.source) {
-      state.source.close();
-      state.source = null;
-    }
-    if (state.timer) {
-      clearInterval(state.timer);
-      state.timer = null;
-    }
-    if (state.pollTimer) {
-      clearTimeout(state.pollTimer);
-      state.pollTimer = null;
-    }
-  }
-
-  function goHome() {
-    closeSource();
-    clearErrors();
-    history.replaceState({}, "", window.location.pathname);
-    state.report = null;
-    show("home");
-  }
-
-  /* ---------- target detection ---------- */
-
-  function normalize(raw) {
-    var value = (raw || "").trim();
-    if (!value) { return ""; }
-    if (/^[\w.-]+\/[\w.-]+$/.test(value) && value.indexOf(".") === -1) {
-      return "https://github.com/" + value;
-    }
-    if (!/^https?:\/\//i.test(value) && /^[\w-]+(\.[\w-]+)+(\/|$)/.test(value)) {
-      return "https://" + value;
-    }
-    return value;
-  }
-
-  function detectKind(raw) {
-    var value = normalize(raw);
-    if (/^https?:\/\/(www\.)?github\.com\/[^/]+\/[^/#?]+/i.test(value)) { return "repo"; }
-    if (/^https?:\/\/[\w-]+(\.[\w-]+)+/i.test(value)) { return "website"; }
-    return "";
-  }
-
-  function syncInput() {
-    var kind = detectKind(el.target.value);
-    el.chip.hidden = !kind;
-    if (kind) { el.chip.textContent = KIND_LABEL[kind]; }
-    el.scanBtn.disabled = !kind;
-  }
-
-  /* ---------- clock ---------- */
-
+  function fmt(n) { return Number(n || 0).toLocaleString("en-US"); }
+  function pad(n) { return String(n).padStart(2, "0"); }
+  function plural(n, one, many) { return n === 1 ? one : (many || one + "s"); }
+  function secs(s) { return s < 10 ? s.toFixed(1) + "s" : Math.round(s) + "s"; }
   function clock(ms) {
     var total = Math.max(0, Math.floor(ms / 1000));
     return Math.floor(total / 60) + ":" + String(total % 60).padStart(2, "0");
   }
+  function money(x) { return "$" + (x < 0.01 ? x.toFixed(4) : x.toFixed(2)); }
+  function unique(list) { return list.filter(function (item, i) { return list.indexOf(item) === i; }); }
+  function scanQuery(id) { return "?scan=" + encodeURIComponent(id); }
 
-  function longClock(ms) {
-    var total = Math.max(0, Math.floor(ms / 1000));
-    var minutes = Math.floor(total / 60);
-    var seconds = total % 60;
-    if (!minutes) { return seconds + "s"; }
-    return minutes + "m " + String(seconds).padStart(2, "0") + "s";
-  }
+  /* ---------- state ---------- */
 
-  function tick() {
-    state.elapsedMs = Date.now() - state.startedAt;
-    el.clock.textContent = "Scanning · " + clock(state.elapsedMs);
-  }
+  var S = fresh();
+  var dirty = {};
+  var queued = false;
+  var timer = null;
 
-  /* ---------- scanning screen ---------- */
-
-  function renderStepper() {
-    el.stepper.replaceChildren();
-    STAGES.forEach(function (name, index) {
-      var li = make("li");
-      var done = index < state.stage;
-      var current = index === state.stage;
-      if (done) { li.className = "is-done"; }
-      if (current) { li.className = "is-current"; }
-      li.appendChild(make("span", "step-mark", done ? "✓" : String(index + 1)));
-      li.appendChild(make("span", null, name));
-      el.stepper.appendChild(li);
-    });
-  }
-
-  function setProgress(pct) {
-    var value = Math.max(0, Math.min(100, pct));
-    el.progressFill.style.width = value + "%";
-    el.progress.setAttribute("aria-valuenow", String(Math.round(value)));
-  }
-
-  function renderPips() {
-    var total = Math.max(state.targetsSeen, state.calls, 1);
-    el.callsUsed.textContent = String(state.calls);
-    el.callsTotal.textContent = "of " + total + (total === 1 ? " target" : " targets");
-    el.pips.style.gridTemplateColumns = "repeat(" + total + ", 1fr)";
-    el.pips.replaceChildren();
-    for (var i = 0; i < total; i += 1) {
-      var pip = make("span");
-      if (i < state.calls) { pip.className = "is-on"; }
-      else if (i === state.calls) { pip.className = "is-next"; }
-      el.pips.appendChild(pip);
-    }
-  }
-
-  function renderFound() {
-    var counts = {};
-    Object.keys(state.buckets).forEach(function (key) {
-      var bucket = state.buckets[key];
-      counts[bucket] = (counts[bucket] || 0) + 1;
-    });
-    // The headline number is the legend's own total, so the two always agree.
-    el.foundCount.textContent = String(Object.keys(state.buckets).length);
-    el.foundBar.replaceChildren();
-    el.foundLegend.replaceChildren();
-    FOUND_BUCKETS.forEach(function (bucket) {
-      var n = counts[bucket.key] || 0;
-      var bar = make("span");
-      bar.style.flex = String(n);
-      bar.style.background = "var(--sev-" + bucket.sev + "-bar)";
-      el.foundBar.appendChild(bar);
-
-      var row = make("div", "legend-row");
-      var swatch = make("span", "legend-sw");
-      swatch.style.background = "var(--sev-" + bucket.sev + "-bar)";
-      row.appendChild(swatch);
-      row.appendChild(make("span", "legend-label", bucket.label));
-      row.appendChild(make("span", "legend-n", String(n)));
-      el.foundLegend.appendChild(row);
-    });
-  }
-
-  function parseSummary(raw) {
-    if (raw == null) { return null; }
-    try {
-      var parsed = JSON.parse(String(raw));
-      return parsed && typeof parsed === "object" ? parsed : null;
-    } catch (err) {
-      return null;
-    }
-  }
-
-  // Turns a tool's raw result into a short line and a severity key, from the
-  // facts in the result itself — no model text, no guessing.
-  function readResult(tool, raw) {
-    var data = parseSummary(raw);
-    var text = "";
-    var sev = "checking";
-    if (data && data.done === true) {
-      // The agent ended this target's turn: the precomputed lookups were enough.
-      return { text: String(data.summary || "no further checks needed"), sev: "neutral" };
-    }
-    if (data) {
-      if (typeof data.status === "string" && data.status) {
-        text = data.status;
-      } else if (typeof data.exists === "boolean") {
-        text = data.exists ? "exists" : "not found";
-      } else if (typeof data.http_status === "number") {
-        text = "HTTP " + data.http_status;
-      }
-      if (data.vulnerable === true) { text = text ? text + " · unclaimed" : "unclaimed"; }
-      if (data.http_status === 404 && text.toLowerCase() !== "nosuchbucket") {
-        text = text ? text + " (404)" : "404";
-      }
-    }
-    if (!text) { text = String(raw == null ? "" : raw).slice(0, 80); }
-    var probe = text.toLowerCase();
-    if (/unregistered|nxdomain|nosuchbucket|not found|missing|404|unclaimed/.test(probe)) {
-      sev = "critical";
-    } else if (/registered|resolves|exists|\bok\b/.test(probe)) {
-      sev = "safe";
-    }
-    return { text: text, sev: sev };
-  }
-
-  function callText(tool, args) {
-    var value = "";
-    if (args && typeof args === "object") {
-      var keys = Object.keys(args);
-      if (keys.length) { value = String(args[keys[0]]); }
-    }
-    return { tool: String(tool || ""), arg: value };
-  }
-
-  function setRowResult(row, sev, text) {
-    row.resultBadge.className = "sev-badge sev-" + sev;
-    row.resultBadge.replaceChildren();
-    if (sev === "checking") { row.resultBadge.appendChild(make("span", "spinner")); }
-    row.resultBadge.appendChild(make("span", null, sev === "checking" ? "Checking" : sevLabelFor(sev)));
-    row.resultText.className = "feed-result sev-fg-" + sev;
-    row.resultText.textContent = text;
-  }
-
-  function sevLabelFor(key) {
-    if (key === "safe") { return "Safe"; }
-    if (key === "neutral") { return "Checked"; }
-    return key.charAt(0).toUpperCase() + key.slice(1);
-  }
-
-  function newTurn(event) {
-    var call = callText(event.tool, event.args);
-    var turn = {
-      target: String(event.target || ""),
-      tool: call.tool,
-      arg: call.arg,
-      plan: call.tool === "done"
-        ? "The precomputed lookups already answer " + String(event.target || "this reference") + "."
-        : PLAN_QUESTION[call.tool] || "Checking what this reference points to now.",
-      result: "running…",
-      sev: "checking"
+  function fresh() {
+    return {
+      mode: "idle",        // live | demo | shared
+      scanId: "",
+      kind: "",
+      target: "",
+      recordedWith: "",
+      layers: {},
+      gather: null,
+      classified: null,
+      pre: {},             // target -> { kind, refs, next, hard, evidence }
+      turns: {},           // target -> [{ tool, args, result, alert }]
+      order: [],
+      calls: 0,
+      ranked: {},          // target -> finding
+      done: null,
+      report: null,
+      failed: "",
+      notices: [],
+      source: null,
+      pollTimer: null,
+      streamed: false,
+      finished: false,
+      fromReport: false,
+      startedTs: null,
+      doneTs: null,
+      clientStart: Date.now()
     };
-    state.turns.push(turn);
-
-    var row = make("div", "feed-row");
-    row.appendChild(make("span", "feed-n", String(state.turns.length).padStart(2, "0")));
-    var body = make("div", "feed-body");
-
-    var planLine = make("div", "feed-line");
-    planLine.appendChild(make("span", "feed-k", "Plan"));
-    planLine.appendChild(make("span", "feed-plan", turn.plan));
-    body.appendChild(planLine);
-
-    var callLine = make("div", "feed-line");
-    callLine.appendChild(make("span", "feed-k", "Call"));
-    var code = make("code", "feed-call");
-    code.appendChild(make("span", "accent", turn.tool));
-    code.appendChild(document.createTextNode('("' + turn.arg + '")'));
-    callLine.appendChild(code);
-    body.appendChild(callLine);
-
-    var resultLine = make("div", "feed-line feed-line-result");
-    resultLine.appendChild(make("span", "feed-k", "Result"));
-    var badge = make("span", "sev-badge sev-checking");
-    var resultText = make("span", "feed-result sev-fg-checking");
-    resultLine.appendChild(badge);
-    resultLine.appendChild(resultText);
-    body.appendChild(resultLine);
-
-    row.appendChild(body);
-    el.feed.appendChild(row);
-
-    turn.node = { resultBadge: badge, resultText: resultText };
-    setRowResult(turn.node, "checking", "running…");
-    state.rows[turn.target] = state.rows[turn.target] || [];
-    state.rows[turn.target].push(turn);
-    return turn;
   }
 
-  function handleAgentEvent(event) {
-    if (event.type === "plan") {
-      // "done" ends a target's turn without an outside lookup, so it is shown
-      // in the feed but never counted as an agent call.
-      if (event.tool !== "done") { state.calls += 1; }
-      newTurn(event);
-      renderPips();
+  function layer(n) {
+    if (!S.layers[n]) { S.layers[n] = { state: "pending", t0: null, t1: null }; }
+    return S.layers[n];
+  }
+  function begin(n, ts) {
+    var l = layer(n);
+    if (l.state === "pending") { l.state = "running"; l.t0 = ts; }
+  }
+  function finish(n, ts) {
+    var l = layer(n);
+    if (l.state === "done") { return; }
+    if (l.t0 == null) { l.t0 = ts; }
+    l.state = "done";
+    l.t1 = ts;
+  }
+  function noteTarget(name) {
+    var key = String(name || "");
+    if (key && S.order.indexOf(key) === -1) { S.order.push(key); }
+    return key;
+  }
+
+  function mark() {
+    var list = arguments.length ? Array.prototype.slice.call(arguments) : [1, 2, 3, 4, 5];
+    list.forEach(function (n) { dirty[n] = true; });
+    if (queued) { return; }
+    queued = true;
+    requestAnimationFrame(function () {
+      queued = false;
+      renderChrome();
+      Object.keys(dirty).forEach(function (n) { renderLayer(Number(n)); });
+      dirty = {};
+    });
+  }
+
+  /* ---------- the event stream ---------- */
+
+  function consume(ev) {
+    var ts = typeof ev.ts === "number" ? ev.ts : Date.now() / 1000;
+    var key;
+    switch (ev.type) {
+      case "started":
+        S.kind = ev.kind || S.kind;
+        S.target = ev.target || S.target;
+        S.recordedWith = ev.recorded_with || S.recordedWith;
+        S.startedTs = ts;
+        begin(1, ts);
+        mark(1);
+        break;
+      case "extracted":
+        S.gather = ev;
+        (ev.targets || []).forEach(function (row) { noteTarget(row.target); });
+        finish(1, ts);
+        begin(2, ts);
+        mark(1, 2);
+        break;
+      case "classified":
+        S.classified = ev;
+        (ev.items || []).forEach(function (item) { noteTarget(item.target); });
+        finish(1, ts);
+        finish(2, ts);
+        begin(3, ts);
+        mark(2, 3);
+        break;
+      case "precheck":
+        finish(1, ts);
+        finish(2, ts);
+        begin(3, ts);
+        key = noteTarget(ev.target);
+        var row = S.pre[key] || { refs: 0 };
+        row.refs += 1;
+        row.kind = ev.kind || row.kind;
+        row.hard = row.hard || !!ev.hard_signal;
+        row.next = ev.next || row.next;
+        if (ev.evidence) { row.evidence = ev.evidence; }
+        S.pre[key] = row;
+        mark(2, 3);
+        break;
+      case "plan":
+      case "act":
+      case "observe":
+        finish(1, ts);
+        finish(2, ts);
+        begin(3, ts);
+        agentStep(ev);
+        mark(3);
+        break;
+      case "ranked":
+        finish(1, ts);
+        finish(2, ts);
+        finish(3, ts);
+        begin(4, ts);
+        key = noteTarget(ev.target);
+        S.ranked[key] = ev;
+        mark(3, 4);
+        break;
+      case "done":
+        [1, 2, 3, 4, 5].forEach(function (n) { finish(n, ts); });
+        S.done = ev;
+        S.doneTs = ts;
+        S.finished = true;
+        mark();
+        break;
+      case "error":
+        S.failed = String(ev.message || "The scan failed.");
+        [1, 2, 3, 4, 5].forEach(function (n) {
+          if (layer(n).state === "running") { layer(n).state = "error"; }
+        });
+        mark();
+        break;
+    }
+  }
+
+  // plan names the tool Muse Spark picked; observe carries what the tool returned.
+  function agentStep(ev) {
+    var key = noteTarget(ev.target);
+    var list = S.turns[key] || (S.turns[key] = []);
+    if (ev.type === "plan") {
+      if (ev.tool !== "done") { S.calls += 1; }
+      list.push({ tool: String(ev.tool || ""), args: ev.args || {}, result: null, alert: false });
       return;
     }
-    var turn = state.turns[state.turns.length - 1];
-    if (!turn) { return; }
-    if (event.type === "observe") {
-      var read = readResult(event.tool, event.result_summary);
-      turn.result = read.text;
-      turn.sev = read.sev;
-      setRowResult(turn.node, read.sev, read.text);
+    if (ev.type !== "observe") { return; }
+    var open = null;
+    for (var i = list.length - 1; i >= 0; i -= 1) {
+      if (list[i].result == null && list[i].tool === ev.tool) { open = list[i]; break; }
     }
+    if (!open) { return; }
+    var read = readResult(ev.result_summary);
+    open.result = read.text;
+    open.alert = read.alert;
   }
 
-  function applyRanked(event) {
-    var key = SEV_KEY[String(event.severity || "")] || "checking";
-    var turns = state.rows[String(event.target || "")] || [];
-    turns.forEach(function (turn) {
-      turn.sev = key;
-      setRowResult(turn.node, key, turn.result);
+  // A short line from the tool's own result fields. No model text, no guessing.
+  function readResult(raw) {
+    var data = null;
+    try { data = JSON.parse(String(raw)); } catch (err) { data = null; }
+    if (!data || typeof data !== "object") {
+      return { text: String(raw == null ? "" : raw).slice(0, 90), alert: false };
+    }
+    if (data.done === true) { return { text: String(data.summary || "enough evidence"), alert: false }; }
+    if (data.error) { return { text: "refused: " + String(data.error).slice(0, 80), alert: false }; }
+    var parts = [];
+    if (typeof data.status === "string" && data.status) { parts.push(data.status); }
+    else if (typeof data.exists === "boolean") { parts.push(data.exists ? "exists" : "not found"); }
+    if (typeof data.http_status === "number") { parts.push("HTTP " + data.http_status); }
+    if (typeof data.days_to_expiry === "number") { parts.push(data.days_to_expiry + " days to expiry"); }
+    if (data.first_snapshot) { parts.push("archived since " + String(data.first_snapshot).slice(0, 4)); }
+    if (data.first_seen) { parts.push("certs since " + String(data.first_seen).slice(0, 4)); }
+    if (data.parked) { parts.push("parked"); }
+    if (data.for_sale) { parts.push("for sale"); }
+    var text = parts.join(" · ") || String(raw).slice(0, 90);
+    return { text: text, alert: /unregistered|nxdomain|nosuchbucket|not found|missing|unclaimed|parked|for sale/i.test(text) };
+  }
+
+  /* ---------- facts: evidence fields to plain lines ---------- */
+
+  function facts(evidence) {
+    var e = evidence || {};
+    var out = [];
+    var bucket = e.bucket_probe;
+    if (bucket) {
+      var provider = (PROVIDER[bucket.provider] || bucket.provider || "storage") + " bucket";
+      if (bucket.status === "NoSuchBucket") { out.push(["alert", provider, "does not exist; anyone can create it"]); }
+      else if (bucket.status === "exists") { out.push(["ok", provider, "exists" + (bucket.http_status ? " (HTTP " + bucket.http_status + ")" : "")]); }
+      else { out.push(["unknown", provider, String(bucket.status || "no answer")]); }
+    }
+    var dns = e.dns;
+    if (dns) {
+      var dnsStatus = String(dns.status || "").toLowerCase();
+      if (dnsStatus === "nxdomain") { out.push(["alert", "DNS", "does not resolve (NXDOMAIN)"]); }
+      else if (dnsStatus === "resolves") {
+        var via = (dns.cnames || []).slice(0, 2).join(", ");
+        out.push(["ok", "DNS", "resolves" + (via ? " via " + via : "")]);
+      } else { out.push(["unknown", "DNS", dnsStatus || "no answer"]); }
+    }
+    var rdap = e.rdap;
+    if (rdap) {
+      var rdapStatus = String(rdap.status || "").toLowerCase();
+      var days = rdap.days_to_expiry;
+      if (rdapStatus === "unregistered") { out.push(["alert", "RDAP", (rdap.domain || "the domain") + " is not registered"]); }
+      else if (rdapStatus === "registered") {
+        var line = "registered" + (rdap.registrar ? " with " + rdap.registrar : "");
+        if (typeof days === "number") { line += ", expires in " + fmt(days) + " " + plural(days, "day"); }
+        out.push([typeof days === "number" && days <= 90 ? "notice" : "ok", "RDAP", line]);
+      } else { out.push(["unknown", "RDAP", rdapStatus || "no record"]); }
+    }
+    var platform = e.platform_takeover;
+    if (platform && platform.status && platform.status !== "skipped") {
+      var name = platform.platform || "Platform";
+      if (platform.status === "unclaimed") { out.push(["alert", "Platform", name + " is unclaimed" + (platform.takeover ? " (" + platform.takeover + ")" : "")]); }
+      else { out.push(["ok", "Platform", name + ": " + platform.status]); }
+    }
+    var owner = e.github_owner;
+    if (owner) {
+      var ownerStatus = String(owner.status || "").toLowerCase();
+      var who = owner.owner ? "account " + owner.owner : "account";
+      if (ownerStatus === "missing" || owner.exists === false) { out.push(["alert", "GitHub", who + " does not exist"]); }
+      else if (ownerStatus === "exists" || owner.exists === true) { out.push(["ok", "GitHub", who + " exists"]); }
+      else { out.push(["unknown", "GitHub", ownerStatus || "no answer"]); }
+    }
+    var repo = e.github_repo;
+    if (repo) {
+      var repoStatus = String(repo.status || "").toLowerCase();
+      var what = repo.owner && repo.repo ? "repo " + repo.owner + "/" + repo.repo : "repo";
+      if (repoStatus === "missing" || repo.exists === false) { out.push(["alert", "GitHub", what + " does not exist"]); }
+      else if (repoStatus === "exists" || repo.exists === true) { out.push(["ok", "GitHub", what + " exists"]); }
+      else { out.push(["unknown", "GitHub", repoStatus || "no answer"]); }
+    }
+    var live = e.live_fetch;
+    if (live && live.status) {
+      if (live.for_sale) { out.push(["alert", "Live fetch", "listed for sale"]); }
+      else if (live.parked) { out.push(["alert", "Live fetch", "parked page"]); }
+      else { out.push(["info", "Live fetch", (live.http_status ? "HTTP " + live.http_status : live.status) + (live.title ? " · " + live.title : "")]); }
+    }
+    var certs = e.cert_history;
+    if (certs && certs.status) {
+      out.push(certs.first_seen
+        ? ["info", "crt.sh", "certificates from " + certs.first_seen + " to " + (certs.last_seen || "now")]
+        : ["unknown", "crt.sh", "no certificates returned"]);
+    }
+    var wayback = e.wayback;
+    if (wayback && wayback.status) {
+      out.push(wayback.first_snapshot
+        ? ["info", "Wayback", "snapshots from " + snapshotDate(wayback.first_snapshot) + " to " + snapshotDate(wayback.last_snapshot)]
+        : ["unknown", "Wayback", "no snapshots returned"]);
+    }
+    // a bucket's rank is its cloud provider's, which says nothing about the bucket
+    if (typeof e.tranco_rank === "number" && !bucket) { out.push(["info", "Tranco", "rank " + fmt(e.tranco_rank) + " (popularity only)"]); }
+    return out;
+  }
+
+  function snapshotDate(stamp) {
+    var text = String(stamp || "");
+    return /^\d{8}/.test(text) ? text.slice(0, 4) + "-" + text.slice(4, 6) + "-" + text.slice(6, 8) : text || "now";
+  }
+
+  function kindLabel(target, kind, evidence, platform) {
+    if (kind === "bucket") { return "storage bucket"; }
+    if (/^github\.com\/[^/]+\/[^/]+/.test(target)) { return "GitHub Action repo"; }
+    if (/^github\.com\//.test(target)) { return "GitHub account"; }
+    var found = platform || (evidence && evidence.platform_takeover && evidence.platform_takeover.platform);
+    return found ? found + " host" : "domain";
+  }
+
+  /* ---------- small pieces ---------- */
+
+  function wait(text) { return h("p", { class: "wait mono", text: text }); }
+  function pending(text) { return h("p", { class: "pending", text: text }); }
+  function tname(name, sub) { return h("div", { class: "tgt" }, name, sub ? h("small", { text: sub }) : null); }
+  function stat(big, label) { return h("div", { class: "stat" }, h("b", { text: big }), h("span", { text: label })); }
+  function sev(severity) { return h("span", { class: "sev sev-" + (SEV_LABEL[severity] ? severity : "low"), text: SEV_LABEL[severity] || severity }); }
+  function meter(n) {
+    return h("span", { class: "meter" + (n >= 3 ? " critical" : ""), "aria-hidden": "true" },
+      [0, 1, 2].map(function (i) { return h("i", { class: i < n ? "on" : null }); }));
+  }
+  function fact(item) {
+    return h("li", { class: "fact lvl-" + item[0] },
+      h("i", { class: "sq", "aria-hidden": "true" }),
+      h("span", { class: "src", text: item[1] }),
+      h("span", { class: "val" }, h("span", { class: "sr", text: item[0] + ": " }), item[2]));
+  }
+  function more(key, summary, body) {
+    return h("details", { class: "more", "data-key": key }, h("summary", { text: summary }), body);
+  }
+  function table(className, heads, rows) {
+    return h("table", { class: className },
+      h("thead", null, h("tr", null, heads.map(function (name) {
+        return h("th", { class: name === "Refs" || name === "Files" ? "num-col" : null, text: name });
+      }))),
+      h("tbody", null, rows));
+  }
+  function whereList(finding) {
+    return (finding.references || []).map(function (ref) {
+      if (typeof ref === "string") { return ref; }
+      if (!ref || typeof ref !== "object") { return ""; }
+      var base = ref.page_url || ref.file || "";
+      return base ? base + (ref.line ? ":" + ref.line : "") : "";
+    }).filter(Boolean);
+  }
+  function whereText(finding) {
+    var all = whereList(finding);
+    return all.slice(0, 3).join(", ") + (all.length > 3 ? " +" + (all.length - 3) + " more" : "");
+  }
+  function evidenceKeys(finding) {
+    var text = String(finding.evidence_line || "").replace(/^Evidence:\s*/, "");
+    var parts = text ? text.split(" · ") : [];
+    return parts.length ? h("div", { class: "keys", "aria-label": "Evidence used" },
+      parts.map(function (part) { return h("span", { class: "key", text: part }); })) : null;
+  }
+  function findingsSorted() {
+    var list = S.report && Array.isArray(S.report.findings)
+      ? S.report.findings.slice()
+      : Object.keys(S.ranked).map(function (key) { return S.ranked[key]; });
+    return list.sort(function (a, b) {
+      var left = SEV_ORDER[a.severity] == null ? 9 : SEV_ORDER[a.severity];
+      var right = SEV_ORDER[b.severity] == null ? 9 : SEV_ORDER[b.severity];
+      if (left !== right) { return left - right; }
+      if ((b.blast_radius || 0) !== (a.blast_radius || 0)) { return (b.blast_radius || 0) - (a.blast_radius || 0); }
+      return String(a.target).localeCompare(String(b.target));
+    });
+  }
+  // scripts/record_demo.py marks a demo recorded with Muse Spark as "live"
+  function scripted() { return S.mode === "demo" && S.recordedWith !== "live"; }
+
+  /* ---------- layer 01: gather ---------- */
+
+  function renderGather() {
+    var g = S.gather;
+    if (!g) {
+      if (S.fromReport) { return pending("Not part of the saved report. Run the scan again to see every reference."); }
+      if (layer(1).state !== "running") { return null; }
+      return pending(S.kind === "website"
+        ? "Fetching the page and the scripts it loads…"
+        : S.kind === "repo" ? "Downloading the repository and reading every text file…" : "Reading every text file…");
+    }
+    var cov = g.coverage || {};
+    var site = S.kind === "website";
+    var total = g.targets_total != null ? g.targets_total : (g.targets || []).length;
+    var out = [h("div", { class: "stats" },
+      stat(fmt(cov.files_scanned), site ? plural(cov.files_scanned, "page") + " read" : cov.truncated ? "of " + fmt(cov.files_total) + " files read" : "files read"),
+      stat(fmt(g.references), "outside references"),
+      stat(fmt(total), "targets that could change hands"),
+      stat(fmt(g.filtered), "set aside as inert"))];
+    var rows = (g.targets || []).map(function (t) {
+      var first = t.first || {};
+      return h("tr", null,
+        h("td", { "data-label": "Target" }, tname(t.target, kindLabel(t.target, t.kind, null, t.platform))),
+        h("td", { "data-label": "First found" },
+          h("span", { class: "loc", text: first.file + (first.line ? ":" + first.line : "") }),
+          h("code", { class: "code", text: first.raw })),
+        h("td", { "data-label": "Refs", class: "num-col", text: fmt(t.refs) }),
+        h("td", { "data-label": "Files", class: "num-col", text: fmt(t.files) }));
+    });
+    var heads = ["Target", "First found", "Refs", "Files"];
+    if (!rows.length) {
+      out.push(h("p", { class: "mono", text: "No outside domains, buckets, or accounts that could change hands." }));
+    } else {
+      out.push(table("gat", heads, rows.slice(0, TABLE_ROWS)));
+      if (rows.length > TABLE_ROWS) {
+        out.push(more("g-more", (rows.length - TABLE_ROWS) + " more " + plural(rows.length - TABLE_ROWS, "target"), table("gat", heads, rows.slice(TABLE_ROWS))));
+      }
+      if (total > rows.length) { out.push(h("p", { class: "aside-line mono", text: "Showing the first " + fmt(rows.length) + " of " + fmt(total) + " targets." })); }
+    }
+    var aside = g.set_aside || {};
+    var parts = Object.keys(aside).map(function (reason) {
+      var item = aside[reason];
+      var examples = (item.examples || []).slice(0, 3).join(", ");
+      var label = ASIDE_LABEL[reason] || [reason.replace(/_/g, " "), reason.replace(/_/g, " ")];
+      return fmt(item.count) + " " + label[item.count === 1 ? 0 : 1] + (examples ? " (" + examples + (item.count > 3 ? ", …" : "") + ")" : "");
+    });
+    if (parts.length) { out.push(h("p", { class: "aside-line mono" }, h("span", { class: "dim", text: "Set aside: " }), parts.join(" · "))); }
+    if (cov.truncated) {
+      out.push(h("p", { class: "aside-line mono", text: "Scan limit reached (" + String(cov.reason || "cap").replace(/_/g, " ") + "): " + fmt(cov.files_total - cov.files_scanned) + " files were not read." }));
+    }
+    return out;
+  }
+
+  /* ---------- layer 02: classify ---------- */
+
+  function renderClassify() {
+    var c = S.classified;
+    if (!c) {
+      if (S.fromReport) { return pending("Not part of the saved report."); }
+      if (layer(2).state === "running") {
+        var n = S.gather ? S.gather.actionable : 0;
+        return pending("Muse Spark is reading the code around " + (n ? fmt(n) + " " + plural(n, "reference") : "each reference") + "…");
+      }
+      return layer(2).state === "done" ? pending("No classification details were sent.") : null;
+    }
+    var items = c.items || [];
+    if (!items.length) { return h("p", { class: "mono", text: "Nothing to classify." }); }
+    var groups = {};
+    var keys = [];
+    items.forEach(function (item) {
+      if (!groups[item.target]) { groups[item.target] = []; keys.push(item.target); }
+      groups[item.target].push(item);
+    });
+    var rows = keys.map(function (target) {
+      var list = groups[target];
+      var top = list.reduce(function (best, item) { return item.blast_radius > best.blast_radius ? item : best; }, list[0]);
+      var runs = unique(list.map(function (item) { return RUNS_LABEL[item.runs_in] || item.runs_in; }));
+      return h("tr", null,
+        h("td", { "data-label": "Target" }, tname(target, fmt(list.length) + " " + plural(list.length, "reference"))),
+        h("td", { "data-label": "What it is", text: TYPE_LABEL[top.type] || top.type }),
+        h("td", { "data-label": "Runs in", text: runs.join(", ") }),
+        h("td", { "data-label": "Blast radius" }, meter(top.blast_radius), String(top.blast_radius) + " of 3"),
+        h("td", { "data-label": "Why" }, top.reason, h("span", { class: "heur", text: top.file + ":" + top.line + " · confidence " + Math.round((top.confidence || 0) * 100) + "%" })));
+    });
+    var heads = ["Target", "What it is", "Runs in", "Blast radius", "Why"];
+    var out = [table("cls", heads, rows.slice(0, TABLE_ROWS))];
+    if (rows.length > TABLE_ROWS) {
+      out.push(more("c-more", (rows.length - TABLE_ROWS) + " more " + plural(rows.length - TABLE_ROWS, "target"), table("cls", heads, rows.slice(TABLE_ROWS))));
+    }
+    if (c.total > items.length) { out.push(h("p", { class: "aside-line mono", text: "Showing the first " + fmt(items.length) + " of " + fmt(c.total) + " references." })); }
+    return out;
+  }
+
+  /* ---------- layer 03: investigate ---------- */
+
+  function stepNote(key, pre, turns) {
+    var budget = (S.done && S.done.budget_targets) || [];
+    if (budget.indexOf(key) !== -1) { return "Not investigated: the scan’s model budget ran out."; }
+    if (pre.next === "popular") { return "No agent needed: a top-ranked domain that resolves."; }
+    if (pre.next === "low_exposure") { return "No agent needed: low exposure and no hard signal."; }
+    if (pre.next === "agent" && !turns.length && layer(3).state === "running") { return "Queued for the agent…"; }
+    return "";
+  }
+
+  function traceLine(turn, index) {
+    var call = turn.tool === "done"
+      ? [h("span", { class: "tool", text: "done" })]
+      : [h("span", { class: "tool", text: turn.tool }), "(" + argText(turn.args) + ")"];
+    return h("li", null,
+      h("span", { class: "tn", text: pad(index + 1) }),
+      h("span", null, call, " → ",
+        h("span", { class: "res" + (turn.alert ? " alert" : ""), text: turn.result == null ? "running…" : turn.result })));
+  }
+
+  function argText(args) {
+    var keys = Object.keys(args || {});
+    if (!keys.length) { return ""; }
+    var value = args[keys[0]];
+    return JSON.stringify(typeof value === "string" ? value : String(value));
+  }
+
+  function renderInvestigate() {
+    var state = layer(3).state;
+    var keys = S.order.filter(function (key) {
+      return S.pre[key] || S.turns[key] || (S.fromReport && S.ranked[key]);
+    });
+    if (!keys.length) {
+      if (state === "running") { return pending("Looking up who owns each target now…"); }
+      return state === "done" ? h("p", { class: "mono", text: "Nothing to look up." }) : null;
+    }
+    var legend = h("div", { class: "legend", "aria-hidden": "true" },
+      ["alert", "notice", "ok", "info"].map(function (level) {
+        return h("span", null, h("i", { class: "sq sq-" + level }), level);
+      }));
+    var blocks = keys.map(function (key) {
+      var pre = S.pre[key] || {};
+      var finding = S.ranked[key];
+      var evidence = (finding && finding.evidence) || pre.evidence || {};
+      var list = facts(evidence);
+      var turns = S.turns[key] || [];
+      var kind = (finding && finding.kind) || pre.kind;
+      var note = stepNote(key, pre, turns);
+      return h("div", { class: "ev" },
+        tname(key, kindLabel(key, kind, evidence) + (pre.refs > 1 ? " · " + pre.refs + " refs" : "")),
+        h("div", null,
+          list.length ? h("ul", { class: "facts" }, list.map(fact)) : pending("Checking…"),
+          turns.length ? [
+            h("p", { class: "step", text: (scripted() ? "Scripted agent" : "Muse Spark agent") + ", " + turns.length + " " + plural(turns.length, "step") + ":" }),
+            h("ol", { class: "trace" }, turns.map(traceLine))
+          ] : null,
+          note ? h("p", { class: "step", text: note }) : null));
+    });
+    return [legend].concat(blocks);
+  }
+
+  /* ---------- layer 04: reason ---------- */
+
+  function renderReason() {
+    var list = findingsSorted();
+    if (!list.length) {
+      if (layer(4).state === "running") { return pending("Muse Spark is weighing exposure against the evidence…"); }
+      return layer(4).state === "done" ? h("p", { class: "mono", text: "Nothing to rank." }) : null;
+    }
+    return list.map(function (f) {
+      var raised = f.floor_applied && f.model_severity && f.model_severity !== f.severity;
+      var blast = "";
+      if (typeof f.blast_radius === "number" && typeof f.classified_blast_radius === "number" && f.classified_blast_radius !== f.blast_radius) {
+        var why = /versus classify/.test(f.blast_override_reason || "") ? "" : f.blast_override_reason;
+        blast = "Blast radius changed from " + f.classified_blast_radius + " to " + f.blast_radius + (why ? ": " + why : "") + ".";
+      }
+      return h("article", { class: "judg" },
+        h("div", null, sev(f.severity)),
+        tname(f.target, kindLabel(f.target, f.kind, f.evidence)),
+        h("div", null,
+          h("h3", { text: f.risk || "No explanation." }),
+          raised ? h("p", { class: "rule" }, h("b", { text: "Rule" }),
+            "Model said " + f.model_severity + ", raised to " + f.severity + (f.floor_reason ? ": " + f.floor_reason : ".")) : null,
+          f.uncertain_about ? h("p", { class: "unsure", text: "Unsure: " + f.uncertain_about }) : null,
+          f.needs_review ? h("p", { class: "unsure", text: "Needs review: the model’s explanation failed the evidence check, so code rules set the severity." }) : null,
+          blast ? h("p", { class: "unsure", text: blast }) : null,
+          evidenceKeys(f)));
     });
   }
 
-  function bucketFor(event) {
-    var line = String(event.evidence_line || event.risk || "");
-    if (/compromis/i.test(line)) { return "compromised"; }
-    if (event.severity === "info") { return "safe"; }
-    if (event.severity === "critical" || event.severity === "high") { return "claimable"; }
-    return "checking";
+  /* ---------- layer 05: report ---------- */
+
+  function groupsOf(list) {
+    return {
+      today: list.filter(function (f) { return f.severity === "critical" || f.severity === "high"; }),
+      review: list.filter(function (f) { return f.severity === "medium" || f.severity === "low"; }),
+      safe: list.filter(function (f) { return f.severity === "info"; })
+    };
   }
 
-  function stageFor(type) {
-    if (type === "extracted") { return 0; }
-    if (type === "precheck") { return 1; }
-    if (type === "plan" || type === "act" || type === "observe") { return 2; }
-    if (type === "ranked") { return 3; }
-    if (type === "done") { return 4; }
-    return state.stage;
+  function verdict(groups) {
+    var today = groups.today;
+    if (today.length) {
+      var crit = today.filter(function (f) { return f.severity === "critical"; }).length;
+      var high = today.length - crit;
+      var split = [crit ? crit + " critical" : "", high ? high + " high" : ""].filter(Boolean).join(", ");
+      return "Fix " + today.length + " " + plural(today.length, "thing") + " today: " + split + ".";
+    }
+    if (groups.review.length) { return "Nothing to fix today. " + groups.review.length + " " + plural(groups.review.length, "thing") + " to review."; }
+    return "Nothing to fix today. Every outside target checked out.";
   }
 
-  function resetScan(meta) {
+  function findingNode(f, rank) {
+    return h("article", { class: "finding" },
+      h("div", { class: "rank", text: pad(rank) }),
+      h("div", { class: "body" },
+        h("h4", { text: f.target }),
+        h("p", { class: "head", text: f.risk }),
+        h("p", { class: "fixline" }, h("span", { class: "fixtype", text: "Fix" }), f.fix),
+        h("div", { class: "where", text: whereText(f) })),
+      h("div", { class: "sevcol" }, sev(f.severity)));
+  }
+
+  function renderReport() {
+    if (layer(5).state !== "done") { return null; }
+    var list = findingsSorted();
+    var groups = groupsOf(list);
+    var rank = 0;
+    function section(key, title, items, open) {
+      if (!items.length) { return h("div", { class: "group" }, h("h3", null, title, h("span", { text: "0" })), h("p", { class: "empty mono", text: "Nothing here." })); }
+      var body = items.map(function (f) { rank += 1; return findingNode(f, rank); });
+      return open
+        ? h("div", { class: "group" }, h("h3", null, title, h("span", { text: String(items.length) })), body)
+        : h("div", { class: "group" }, more("r-" + key, title + " · " + items.length, body));
+    }
+    var budget = (S.done && S.done.budget_targets) || [];
+    var source = "Plain summary from the ranked findings.";
+    if (budget.length) { source += " " + budget.length + " lower-priority " + plural(budget.length, "target was", "targets were") + " not investigated (model budget)."; }
+    if (!list.length && S.gather && !S.gather.actionable) { source = "Nothing in this target could change hands."; }
+    var actions = [
+      S.scanId && S.mode !== "demo" ? h("button", { class: "btn", type: "button", onclick: copyShare, text: "Copy share link" }) : null,
+      h("button", { class: "btn", type: "button", onclick: copyMarkdown, text: "Copy as Markdown" }),
+      h("button", { class: "btn", type: "button", onclick: downloadJson, text: "Download JSON" })
+    ];
+    return [
+      h("p", { class: "verdict", text: verdict(groups) }),
+      h("p", { class: "verdict-src mono", text: source }),
+      h("div", { class: "tally" },
+        h("div", { class: "today" }, h("b", { text: String(groups.today.length) }), h("span", { text: "Fix today" })),
+        h("div", null, h("b", { text: String(groups.review.length) }), h("span", { text: "Review" })),
+        h("div", null, h("b", { text: String(groups.safe.length) }), h("span", { text: "Checked and safe" }))),
+      section("today", "Fix today", groups.today, true),
+      section("review", "Review", groups.review, true),
+      section("safe", "Checked and safe", groups.safe, false),
+      h("div", { class: "actions" }, actions)
+    ];
+  }
+
+  /* ---------- rendering ---------- */
+
+  var RENDER = [null, renderGather, renderClassify, renderInvestigate, renderReason, renderReport];
+
+  function renderLayer(n) {
+    var box = $("#c" + n);
+    var open = $$("details[open]", box).map(function (d) { return d.getAttribute("data-key"); });
+    var made = RENDER[n]();
+    var nodes = made == null ? [wait(S.failed ? "Not run." : WAITING[n])] : [].concat(made);
+    box.replaceChildren();
+    add(box, nodes);
+    $$("details", box).forEach(function (d) {
+      if (open.indexOf(d.getAttribute("data-key")) !== -1) { d.open = true; }
+    });
+  }
+
+  function layerSummary(n) {
+    if (n === 1) {
+      if (!S.gather) { return S.fromReport ? "Not in saved report" : "Done"; }
+      var t = S.gather.targets_total != null ? S.gather.targets_total : 0;
+      return fmt(t) + " " + plural(t, "target");
+    }
+    if (n === 2) {
+      if (!S.classified) { return S.fromReport ? "Not in saved report" : "Done"; }
+      return fmt(S.classified.total) + " classified";
+    }
+    if (n === 3) {
+      var checked = Object.keys(S.pre).length || Object.keys(S.ranked).length;
+      return fmt(checked) + " checked" + (S.calls ? " · " + S.calls + " agent " + plural(S.calls, "call") : "");
+    }
+    if (n === 4) { return fmt(Object.keys(S.ranked).length) + " ranked"; }
+    return groupsOf(findingsSorted()).today.length + " to fix today";
+  }
+
+  function layerStatus(n) {
+    var l = layer(n);
+    if (l.state === "error") { return "Stopped"; }
+    if (l.state === "pending") { return S.failed ? "Not run" : "Waiting"; }
+    if (l.state === "running") {
+      if (n === 3) {
+        var total = S.gather && S.gather.targets_total != null ? S.gather.targets_total : 0;
+        var seen = Object.keys(S.pre).length;
+        return total ? "Running · " + Math.min(seen, total) + "/" + total : "Running…";
+      }
+      if (n === 4) {
+        // targets with low exposure and no hard signal are never ranked
+        var ranked = Object.keys(S.ranked).length;
+        var of = Object.keys(S.pre).filter(function (key) { return S.pre[key].next !== "low_exposure"; }).length;
+        return of ? "Running · " + Math.min(ranked, of) + "/" + of : "Running…";
+      }
+      return "Running…";
+    }
+    var took = l.t0 != null && l.t1 != null && !S.fromReport && S.mode !== "demo" ? l.t1 - l.t0 : 0;
+    return layerSummary(n) + (took >= 0.05 ? " · " + secs(took) : "");
+  }
+
+  function renderChrome() {
+    for (var n = 1; n <= 5; n += 1) {
+      var state = layer(n).state;
+      var status = layerStatus(n);
+      $('.slab[data-layer="' + n + '"]').setAttribute("data-state", state);
+      var li = $('#stack-list li[data-layer="' + n + '"]');
+      li.setAttribute("data-state", state);
+      $(".sl-st", li).textContent = status;
+      var section = $("#layer-" + n);
+      section.setAttribute("data-state", state);
+      $(".lstatus", section).textContent = status;
+      var engine = n === 1 && S.kind === "website" ? "code · page fetch + parse" : scripted() && DEMO_ENGINE[n] ? DEMO_ENGINE[n] : ENGINE[n];
+      $(".lengine", section).textContent = engine;
+    }
+    renderRun();
+    renderNotices();
+  }
+
+  function renderRun() {
+    var run = $("#run");
+    if (S.mode === "idle") { run.hidden = true; return; }
+    run.hidden = false;
+    var parts = [S.target || "…"];
+    if (S.mode === "demo") { parts.push("demo replay"); }
+    else if (S.kind) { parts.push(KIND_LABEL[S.kind] || S.kind); }
+    if (S.mode === "shared") { parts.push("shared scan"); }
+    if (!S.finished && !S.failed) {
+      parts.push("scanning " + clock(Date.now() - S.clientStart));
+    } else if (S.mode !== "demo") {
+      if (S.startedTs != null && S.doneTs != null) { parts.push(secs(S.doneTs - S.startedTs)); }
+      if (S.calls) { parts.push(S.calls + " agent " + plural(S.calls, "call")); }
+      var cost = S.done && typeof S.done.cost_usd === "number" ? S.done.cost_usd : null;
+      if (cost != null) { parts.push(money(cost) + " model cost"); }
+    }
+    if (S.failed) { parts.push("stopped"); }
+    $("#run-text").textContent = parts.join(" · ");
+  }
+
+  function renderNotices() {
+    var list = S.notices.slice();
+    if (S.mode === "demo") {
+      list.unshift(scripted()
+        ? "Demo replay: a recorded scan of the fixture repo that ships with Trustline, made offline with stubbed lookups and a scripted stand-in for Muse Spark. Paste a repository for a live scan."
+        : "Demo replay: a recorded live scan of the fixture repo that ships with Trustline, with Muse Spark and real lookups. Paste a repository to scan your own.");
+    }
+    var budget = (S.done && S.done.budget_targets) || [];
+    if (budget.length) { list.push("The scan hit its model budget, so " + budget.length + " lower-priority " + plural(budget.length, "target was", "targets were") + " not investigated."); }
+    var box = $("#notices");
+    box.hidden = !list.length;
+    box.replaceChildren();
+    list.forEach(function (text) { box.appendChild(h("p", null, h("b", { text: "Note: " }), text)); });
+  }
+
+  /* ---------- error dialog ---------- */
+
+  var lastFocus = null;
+  var dialogAction = null;
+
+  function showDialog(message, detail, action) {
+    lastFocus = document.activeElement;
+    $("#win-msg").textContent = message;
+    $("#win-detail").textContent = detail || "";
+    var act = $("#win-act");
+    dialogAction = action || null;
+    act.hidden = !action;
+    act.textContent = action ? action.label : "";
+    $("#win").hidden = false;
+    (action ? act : $("#win-ok")).focus();
+  }
+
+  function hideDialog() {
+    $("#win").hidden = true;
+    var target = lastFocus && lastFocus.focus && document.body.contains(lastFocus) ? lastFocus : $("#target");
+    target.focus();
+  }
+
+  $("#win-ok").addEventListener("click", hideDialog);
+  $("#win-act").addEventListener("click", function () {
+    var action = dialogAction;
+    hideDialog();
+    if (action) { action.run(); }
+  });
+  $("#win").addEventListener("keydown", function (event) {
+    if (event.key === "Escape") { event.preventDefault(); hideDialog(); return; }
+    if (event.key !== "Tab") { return; }
+    var buttons = $$(".win-ok", $("#win")).filter(function (b) { return !b.hidden; });
+    var index = buttons.indexOf(document.activeElement);
+    event.preventDefault();
+    buttons[(index + (event.shiftKey ? -1 : 1) + buttons.length) % buttons.length].focus();
+  });
+
+  var DEMO_ACTION = { label: "Watch demo", run: function () { startDemo(); } };
+
+  /* ---------- starting and following scans ---------- */
+
+  function setBusy(on) {
+    $("#scan-btn").disabled = on;
+    $("#scan-label").textContent = on ? "Scanning…" : "Scan";
+    $("#target").readOnly = on;
+    $$("[data-demo]").forEach(function (btn) { btn.disabled = on; });
+    if (timer) { clearInterval(timer); timer = null; }
+    if (on) { timer = setInterval(function () { renderRun(); }, 1000); }
+  }
+
+  function closeSource() {
+    if (S.source) { S.source.close(); S.source = null; }
+    if (S.pollTimer) { clearTimeout(S.pollTimer); S.pollTimer = null; }
+  }
+
+  function reset(meta) {
     closeSource();
-    clearErrors();
-    state.kind = meta.kind;
-    state.target = meta.target;
-    state.scanId = meta.scanId;
-    state.demo = meta.demo;
-    state.report = null;
-    state.finished = false;
-    state.streamed = false;
-    state.stage = 0;
-    state.calls = 0;
-    state.turns = [];
-    state.rows = {};
-    state.buckets = {};
-    state.targetsSeen = 0;
-    state.startedAt = Date.now();
-    state.elapsedMs = 0;
-    el.feed.replaceChildren();
-    setTargetLabels();
-    renderStepper();
-    setProgress(6);
-    renderPips();
-    renderFound();
-    el.skip.disabled = true;
-    tick();
-    state.timer = setInterval(tick, 250);
-    show("scanning");
+    S = fresh();
+    Object.keys(meta || {}).forEach(function (key) { S[key] = meta[key]; });
+    mark();
   }
 
-  function setTargetLabels() {
-    el.scanTarget.textContent = state.target;
-    el.scanKind.hidden = !state.kind;
-    if (state.kind) { el.scanKind.textContent = KIND_LABEL[state.kind] || state.kind; }
+  function normalize(raw) {
+    var value = (raw || "").trim();
+    if (!value) { return ""; }
+    if (/^[A-Za-z0-9-]+\/[\w.-]+$/.test(value)) { return "https://github.com/" + value.replace(/\.git$/, ""); }
+    if (!/^https?:\/\//i.test(value) && /^[\w-]+(\.[\w-]+)+(\/|$)/.test(value)) { return "https://" + value; }
+    return value;
   }
 
-  function beginStream(url, meta) {
-    resetScan(meta);
-    var source;
-    try {
-      source = new EventSource(url);
-    } catch (err) {
-      // No EventSource here (older webview, blocked by an extension). The scan
-      // is already running on the server, so wait it out instead of losing it.
-      waitWithoutStream();
-      return;
-    }
-    if (!source) {
-      waitWithoutStream();
-      return;
-    }
-    state.source = source;
-    source.onmessage = function (message) {
-      var event;
-      try {
-        event = JSON.parse(message.data);
-      } catch (err) {
-        return;
-      }
-      state.streamed = true;
-      consume(event);
-    };
-    source.onerror = function () {
-      source.close();
-      state.source = null;
-      if (state.finished) { return; }
-      if (!state.streamed) {
-        // Never received a frame: the stream itself is the problem, not the
-        // scan. A buffering proxy looks exactly like this.
-        waitWithoutStream();
-        return;
-      }
-      showError("The live scan connection dropped.", function () {
-        if (state.demo) { startDemo(); }
-        else if (state.scanId) { reattach(state.scanId); }
-      });
-    };
-  }
-
-  // Fallback when live events can't reach us: poll for the finished report.
-  function waitWithoutStream() {
-    if (state.demo) {
-      showError("Live updates aren't available in this browser, so the demo can't play.");
-      return;
-    }
-    showError("Live updates aren't available in this browser. Waiting for the report…");
-    el.clock.textContent = "Scanning";
-    var attempts = 0;
-    function poll() {
-      if (state.finished) { return; }
-      attempts += 1;
-      if (attempts > POLL_LIMIT) {
-        showError("The scan is taking longer than expected.", function () {
-          attempts = 0;
-          poll();
-        });
-        return;
-      }
-      fetch("/api/scan/" + encodeURIComponent(state.scanId))
-        .then(function (res) {
-          if (res.status === 409) { return null; }
-          if (!res.ok) { throw new Error("scan " + res.status); }
-          return res.json();
-        })
-        .then(function (report) {
-          if (report) {
-            clearErrors();
-            state.stage = STAGES.length - 1;
-            showResults(report);
-            return;
-          }
-          state.pollTimer = setTimeout(poll, POLL_EVERY_MS);
-        })
-        .catch(function () {
-          showError("The scan failed.", function () { startScan(state.target); });
-        });
-    }
-    state.pollTimer = setTimeout(poll, POLL_EVERY_MS);
-  }
-
-  function consume(event) {
-    var next = stageFor(event.type);
-    if (next > state.stage) {
-      state.stage = next;
-      renderStepper();
-      setProgress((state.stage + 1) / STAGES.length * 100);
-    }
-    if (event.type === "started") {
-      state.kind = event.kind || state.kind;
-      state.target = event.target || state.target;
-      setTargetLabels();
-    }
-    if (event.type === "precheck" && event.target) {
-      if (!state.buckets[event.target]) { state.targetsSeen += 1; }
-      state.buckets[event.target] = event.hard_signal ? "claimable" : "checking";
-      renderFound();
-      renderPips();
-    }
-    if (event.type === "plan" || event.type === "act" || event.type === "observe") {
-      handleAgentEvent(event);
-    }
-    if (event.type === "ranked" && event.target) {
-      state.buckets[event.target] = bucketFor(event);
-      applyRanked(event);
-      renderFound();
-    }
-    if (event.type === "error") {
-      closeSource();
-      showError(event.message || "The scan failed.", function () {
-        if (state.demo) { startDemo(); } else { startScan(state.target); }
-      });
-    }
-    if (event.type === "done") {
-      closeSource();
-      state.elapsedMs = Date.now() - state.startedAt;
-      loadReport();
-    }
-  }
-
-  function loadReport() {
-    var url = state.demo ? "/api/scan/demo" : "/api/scan/" + encodeURIComponent(state.scanId);
-    fetch(url)
-      .then(function (res) {
-        if (!res.ok) { throw new Error("report " + res.status); }
-        return res.json();
-      })
-      .then(function (report) {
-        state.report = report;
-        el.skip.disabled = false;
-        showResults(report);
-      })
-      .catch(function () {
-        showError("The scan finished but the report could not be loaded.", loadReport);
-      });
-  }
-
-  /* ---------- starting scans ---------- */
-
-  function httpMessage(status, body) {
-    var message = (body && (body.error || body.message || body.detail)) || "";
-    if (status === 503) { return message || "Live scans aren't configured; try the demo"; }
-    if (status === 429) { return message || "Too many scans right now; try the demo"; }
-    if (status === 400) { return message || "That target can't be scanned"; }
-    return message || "The scan could not be started.";
+  function detectKind(value) {
+    if (/^https?:\/\/(www\.)?github\.com\/[^/]+\/[^/#?]+/i.test(value)) { return "repo"; }
+    if (/^https?:\/\/[\w-]+(\.[\w-]+)+(:\d+)?(\/|$|\?|#)/i.test(value)) { return "website"; }
+    return "";
   }
 
   function startScan(raw) {
     var target = normalize(raw);
-    if (!detectKind(target)) {
-      showError("Paste a GitHub repository or website URL.");
+    var kind = detectKind(target);
+    if (!kind) {
+      showDialog("This is not a GitHub repository or website.", "Paste github.com/owner/repo, or a full address like https://example.com.");
       return;
     }
-    clearErrors();
+    reset({ mode: "live", kind: kind, target: target });
+    setBusy(true);
     fetch("/api/scan", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -677,446 +883,273 @@
         });
       })
       .then(function (out) {
-        if (!out.ok) {
-          showError(httpMessage(out.status, out.body), function () { startScan(raw); });
-          return;
-        }
+        if (!out.ok) { refused(out.status, out.body, raw); return; }
         var id = String(out.body.scan_id);
-        history.replaceState({}, "", "?scan=" + encodeURIComponent(id));
-        beginStream("/api/scan/" + encodeURIComponent(id) + "/events", {
-          kind: out.body.kind,
-          target: out.body.target,
-          scanId: id,
-          demo: false
-        });
+        S.scanId = id;
+        S.kind = out.body.kind || S.kind;
+        S.target = out.body.target || S.target;
+        history.replaceState(null, "", scanQuery(id));
+        openStream("/api/scan/" + encodeURIComponent(id) + "/events");
       })
-      .catch(function () {
-        showError("The scan could not be started.", function () { startScan(raw); });
-      });
+      .catch(function () { refused(0, {}, raw); });
+  }
+
+  function refused(status, body, raw) {
+    var detail = String((body && (body.error || body.detail)) || "");
+    reset({});
+    setBusy(false);
+    history.replaceState(null, "", window.location.pathname);
+    var retry = { label: "Retry", run: function () { startScan(raw); } };
+    if (status === 503) { showDialog("Live scans aren’t configured on this server.", "The server has no MODEL_API_KEY. Add it to the server’s environment, or watch the recorded demo.", DEMO_ACTION); }
+    else if (status === 429) { showDialog("Trustline is busy.", detail || "Too many scans right now.", DEMO_ACTION); }
+    else if (status === 400) { showDialog("This target can’t be scanned.", detail); }
+    else if (status === 0) { showDialog("Could not reach the Trustline server.", "Check that it is running, then try again.", retry); }
+    else { showDialog("The scan could not be started.", detail || "The server answered HTTP " + status + ".", retry); }
   }
 
   function startDemo() {
-    history.replaceState({}, "", "?demo=1");
-    beginStream("/api/scan/demo/events", {
-      kind: "",
-      target: "",
-      scanId: "demo",
-      demo: true
-    });
-    // The demo report is a checked-in fixture, so "Skip to report" can work at once.
-    fetch("/api/scan/demo")
-      .then(function (res) { return res.json(); })
+    $("#win").hidden = true;
+    reset({ mode: "demo", kind: "path", target: "demo repo" });
+    setBusy(true);
+    history.replaceState(null, "", "?demo=1");
+    openStream("/api/scan/demo/events");
+  }
+
+  function openShared(id) {
+    reset({ mode: "shared", scanId: id });
+    setBusy(true);
+    fetch("/api/scan/" + encodeURIComponent(id))
+      .then(function (res) {
+        return res.json().catch(function () { return {}; }).then(function (body) { return { status: res.status, body: body }; });
+      })
+      .then(function (out) {
+        if (out.status === 200 || out.status === 409) {
+          S.target = out.body.target || S.target;
+          S.kind = out.body.kind || S.kind;
+          openStream("/api/scan/" + encodeURIComponent(id) + "/events");
+          return;
+        }
+        if (out.status === 500) {
+          S.target = out.body.target || S.target;
+          consume({ type: "error", message: out.body.error });
+          setBusy(false);
+          showDialog("That scan stopped with an error.", String(out.body.error || ""));
+          return;
+        }
+        gone();
+      })
+      .catch(gone);
+  }
+
+  function gone() {
+    reset({});
+    setBusy(false);
+    history.replaceState(null, "", window.location.pathname);
+    showDialog("That scan is no longer available.", "Shared links last until the server restarts. Run the scan again.");
+  }
+
+  // Following a scan again replays it from the first event.
+  function reattach() {
+    var keep = { mode: S.mode, scanId: S.scanId, kind: S.kind, target: S.target };
+    reset(keep);
+    setBusy(true);
+    openStream(S.mode === "demo" ? "/api/scan/demo/events" : "/api/scan/" + encodeURIComponent(S.scanId) + "/events");
+  }
+
+  function openStream(url) {
+    closeSource();
+    var source;
+    try {
+      source = new EventSource(url);
+    } catch (err) {
+      // No EventSource here (an old webview, an extension). The scan is
+      // already running on the server, so wait it out instead of losing it.
+      waitWithoutStream();
+      return;
+    }
+    S.source = source;
+    source.onmessage = function (message) {
+      var ev;
+      try { ev = JSON.parse(message.data); } catch (err) { return; }
+      S.streamed = true;
+      consume(ev);
+      if (ev.type === "done" || ev.type === "error") {
+        closeSource();
+        ended(ev);
+      }
+    };
+    source.onerror = function () {
+      closeSource();
+      if (S.finished || S.failed) { return; }
+      if (!S.streamed) {
+        // Not one frame arrived: the stream is the problem, not the scan.
+        // A proxy that buffers the response looks exactly like this.
+        waitWithoutStream();
+        return;
+      }
+      setBusy(false);
+      showDialog("The live scan connection dropped.", "The scan may still be running on the server.", { label: "Reconnect", run: reattach });
+    };
+  }
+
+  function ended(ev) {
+    setBusy(false);
+    if (ev.type === "error") {
+      var again = S.mode === "demo" ? DEMO_ACTION : S.target && S.mode === "live"
+        ? { label: "Retry", run: function () { startScan(S.target); } } : null;
+      showDialog("The scan stopped.", S.failed, again);
+      return;
+    }
+    loadReport();
+  }
+
+  // The finished report has the server's own ordering and totals for export.
+  function loadReport() {
+    var url = S.mode === "demo" ? "/api/scan/demo" : "/api/scan/" + encodeURIComponent(S.scanId);
+    fetch(url)
+      .then(function (res) {
+        if (!res.ok) { throw new Error("report " + res.status); }
+        return res.json();
+      })
       .then(function (report) {
-        state.report = report;
-        el.skip.disabled = false;
+        S.report = report;
+        mark(4, 5);
       })
       .catch(function () {});
   }
 
-  function reattach(id) {
-    beginStream("/api/scan/" + encodeURIComponent(id) + "/events", {
-      kind: state.kind,
-      target: state.target,
-      scanId: id,
-      demo: false
-    });
-  }
-
-  function openScanId(id) {
-    fetch("/api/scan/" + encodeURIComponent(id))
-      .then(function (res) {
-        if (res.status === 409) {
-          reattach(id);
-          return null;
-        }
-        if (!res.ok) { throw new Error("scan " + res.status); }
-        return res.json();
-      })
-      .then(function (report) {
-        if (!report) { return; }
-        state.scanId = id;
-        state.demo = false;
-        state.elapsedMs = 0;
-        state.report = report;
-        showResults(report);
-      })
-      .catch(function () {
-        show("home");
-        showError("That scan is no longer available. Run it again.");
-      });
-  }
-
-  /* ---------- report helpers (all code-derived) ---------- */
-
-  function whereUsed(item) {
-    var refs = item.references || [];
-    return refs.map(function (ref) {
-      if (typeof ref === "string") { return ref; }
-      if (!ref || typeof ref !== "object") { return ""; }
-      if (ref.page_url) { return ref.page_url + (ref.line ? ":" + ref.line : ""); }
-      if (ref.file_line) { return ref.file_line; }
-      if (ref.file) { return ref.file + (ref.line ? ":" + ref.line : ""); }
-      return "";
-    }).filter(Boolean).join(", ");
-  }
-
-  function evidenceText(item) {
-    return String(item.evidence_line || "").replace(/^Evidence:\s*/, "");
-  }
-
-  function ownerStatus(item) {
-    var evidence = item.evidence || {};
-    var rdap = evidence.rdap || {};
-    var dns = evidence.dns || {};
-    var bucket = evidence.bucket_probe || {};
-    var owner = evidence.github_owner || {};
-    var repo = evidence.github_repo || {};
-    if (bucket.status) { return String(bucket.status); }
-    if (String(owner.status || "") === "missing" || owner.exists === false) { return "owner 404"; }
-    if (String(repo.status || "") === "missing" || repo.exists === false) { return "repo 404"; }
-    if (rdap.status) { return String(rdap.status); }
-    if (dns.status) { return String(dns.status); }
-    if (owner.exists === true) { return "owner exists"; }
-    return "—";
-  }
-
-  function sortFindings(list) {
-    return list.slice().sort(function (a, b) {
-      var left = SEV_ORDER[a.severity];
-      var right = SEV_ORDER[b.severity];
-      left = left == null ? 9 : left;
-      right = right == null ? 9 : right;
-      if (left !== right) { return left - right; }
-      return String(a.target).localeCompare(String(b.target));
-    });
-  }
-
-  /* ---------- results rendering ---------- */
-
-  function findingCard(item) {
-    var key = SEV_KEY[item.severity] || "low";
-    var article = make("article", "finding ring-" + key);
-    var main = make("div", "finding-main");
-
-    var top = make("div", "finding-top");
-    var sev = make("span", "finding-sev sev-" + key);
-    sev.appendChild(make("span", "sev-dot"));
-    sev.appendChild(make("span", null, SEV_LABEL[item.severity] || item.severity));
-    top.appendChild(sev);
-    top.appendChild(make("span", "finding-target", item.target));
-    if (item.kind) { top.appendChild(make("span", "finding-type", item.kind)); }
-    var where = whereUsed(item);
-    if (where) { top.appendChild(make("span", "finding-where", where)); }
-    main.appendChild(top);
-
-    if (item.risk) { main.appendChild(make("p", "finding-risk", item.risk)); }
-
-    var fixRow = make("div", "fix-row");
-    fixRow.appendChild(make("span", "fix-k", "Fix"));
-    fixRow.appendChild(make("span", "fix-text", item.fix || ""));
-    var copy = make("button", "btn btn-secondary copy-btn");
-    copy.type = "button";
-    var copyLabel = make("span", null, "Copy");
-    copy.appendChild(copyIcon());
-    copy.appendChild(copyLabel);
-    copy.addEventListener("click", function () {
-      var value = item.fix || "";
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(value).catch(function () {});
-      }
-      copyLabel.textContent = "Copied";
-      setTimeout(function () { copyLabel.textContent = "Copy"; }, 1500);
-    });
-    fixRow.appendChild(copy);
-    main.appendChild(fixRow);
-
-    var details = make("div", "finding-details");
-    details.hidden = true;
-    addDetail(details, "Evidence", evidenceText(item), false);
-    addDetail(details, "Found in", where, false);
-    if (item.floor_reason) { addDetail(details, "Rule note", item.floor_reason, true); }
-    if (item.tranco_rank != null) { addDetail(details, "Tranco", "rank " + item.tranco_rank, false); }
-    if (item.for_sale || item.parked) {
-      addDetail(details, "Live fetch", item.for_sale ? "listed for sale" : "parked", false);
-    }
-    if (item.action_ref) {
-      addDetail(details, "Action ref",
-        item.action_ref + (item.action_sha_pinned ? " (SHA-pinned)" : " (not SHA-pinned)"), false);
-    }
-
-    var toggle = make("button", "details-btn");
-    toggle.type = "button";
-    toggle.setAttribute("aria-expanded", "false");
-    toggle.appendChild(caretIcon());
-    toggle.appendChild(make("span", null, "Details"));
-    toggle.addEventListener("click", function () {
-      var open = toggle.getAttribute("aria-expanded") === "true";
-      toggle.setAttribute("aria-expanded", open ? "false" : "true");
-      details.hidden = open;
-    });
-    main.appendChild(toggle);
-
-    article.appendChild(main);
-    article.appendChild(details);
-    return article;
-  }
-
-  function addDetail(grid, label, value, isRule) {
-    if (!value) { return; }
-    grid.appendChild(make("span", "detail-k" + (isRule ? " is-rule" : ""), label));
-    grid.appendChild(make("span", "detail-v" + (isRule ? " is-prose" : ""), value));
-  }
-
-  function collapsedGroup(tag, sevKey, title, items) {
-    var wrap = make("div", "group");
-    var btn = make("button", "group-btn");
-    btn.type = "button";
-    btn.setAttribute("aria-expanded", "false");
-    btn.appendChild(caretIcon());
-    btn.appendChild(make("span", "group-tag sev-" + sevKey, tag));
-    btn.appendChild(make("span", null, title));
-
-    var rows = make("div", "group-rows");
-    rows.hidden = true;
-    items.forEach(function (item) {
-      var row = make("div", "group-row");
-      row.appendChild(make("span", "group-row-target", item.target));
-      row.appendChild(make("span", "group-row-note", evidenceText(item) || whereUsed(item)));
-      rows.appendChild(row);
-    });
-
-    btn.addEventListener("click", function () {
-      var open = btn.getAttribute("aria-expanded") === "true";
-      btn.setAttribute("aria-expanded", open ? "false" : "true");
-      rows.hidden = open;
-    });
-    wrap.appendChild(btn);
-    wrap.appendChild(rows);
-    return wrap;
-  }
-
-  function renderChips(findings) {
-    el.resChips.replaceChildren();
-    ["critical", "high", "medium", "low", "info"].forEach(function (severity) {
-      var n = findings.filter(function (f) { return f.severity === severity; }).length;
-      if (!n) { return; }
-      var chip = make("span", "res-chip res-chip-" + SEV_KEY[severity]);
-      chip.appendChild(make("span", "res-chip-n", String(n)));
-      chip.appendChild(make("span", null, SEV_LABEL[severity]));
-      el.resChips.appendChild(chip);
-    });
-  }
-
-  function metaItem(label, value, mono) {
-    var span = make("span", null, label + " ");
-    span.appendChild(make("b", mono ? "mono" : null, value));
-    return span;
-  }
-
-  function renderMeta(report) {
-    var coverage = report.coverage || {};
-    el.resMeta.replaceChildren();
-    if (state.elapsedMs > 0) {
-      el.resMeta.appendChild(metaItem("Scan time", longClock(state.elapsedMs), true));
-    }
-    if (state.calls > 0) {
-      el.resMeta.appendChild(metaItem("Agent calls", String(state.calls), true));
-    }
-    var coverageText = coverage.truncated
-      ? coverage.files_scanned + " of " + coverage.files_total + " files scanned"
-      : "all files scanned";
-    el.resMeta.appendChild(metaItem("Coverage:", coverageText, false));
-  }
-
-  function renderAllTargets(findings) {
-    var wrap = make("div", "table-wrap");
-    var table = make("table", "table");
-    var thead = make("thead");
-    var headRow = make("tr");
-    ["Target", "Type", "Owner status", "Severity", "Where used"].forEach(function (name) {
-      headRow.appendChild(make("th", null, name));
-    });
-    thead.appendChild(headRow);
-    var tbody = make("tbody");
-    findings.forEach(function (item) {
-      var tr = make("tr");
-      tr.appendChild(make("td", "col-target", item.target));
-      tr.appendChild(make("td", "col-type", item.kind || ""));
-      tr.appendChild(make("td", "col-owner", ownerStatus(item)));
-      var sevCell = make("td");
-      sevCell.appendChild(make("span", "sev-badge sev-" + (SEV_KEY[item.severity] || "low"),
-        SEV_LABEL[item.severity] || item.severity));
-      tr.appendChild(sevCell);
-      tr.appendChild(make("td", "col-where", whereUsed(item)));
-      tbody.appendChild(tr);
-    });
-    table.appendChild(thead);
-    table.appendChild(tbody);
-    wrap.appendChild(table);
-    el.tabAll.replaceChildren(wrap);
-  }
-
-  function renderTrace() {
-    el.tabTrace.replaceChildren();
-    if (!state.turns.length) {
-      el.tabTrace.appendChild(make("div", "empty-note",
-        "The agent trace is only available while a scan is streaming."));
+  // Fallback when live events can't reach this page: poll for the finished report.
+  function waitWithoutStream() {
+    if (S.mode === "demo") {
+      S.notices.push("Live updates aren't available in this browser, so the demo can't play. Showing its finished report instead.");
+      fetch("/api/scan/demo")
+        .then(function (res) { return res.json(); })
+        .then(fromReport)
+        .catch(function () { setBusy(false); showDialog("The demo could not be loaded.", ""); });
       return;
     }
-    var card = make("div", "trace-card");
-    state.turns.forEach(function (turn, index) {
-      var row = make("div", "trace-row");
-      row.appendChild(make("span", "feed-n", String(index + 1).padStart(2, "0")));
-      var body = make("div", "trace-body");
-      body.appendChild(make("span", "trace-plan", turn.plan));
-      var line = make("div", "trace-call-line");
-      var call = make("span", "trace-call");
-      call.appendChild(make("span", "accent", turn.tool));
-      call.appendChild(document.createTextNode('("' + turn.arg + '")'));
-      line.appendChild(call);
-      line.appendChild(make("span", "dim", "→"));
-      line.appendChild(make("span", "sev-fg-" + turn.sev, turn.result));
-      body.appendChild(line);
-      row.appendChild(body);
-      card.appendChild(row);
-    });
-    el.tabTrace.appendChild(card);
-  }
-
-  function showResults(report) {
-    closeSource();
-    state.report = report;
-    state.finished = true;
-    show("results");
-
-    el.resTarget.textContent = report.target || state.target;
-    var kind = report.kind || state.kind;
-    el.resKind.hidden = !kind;
-    if (kind) { el.resKind.textContent = KIND_LABEL[kind] || kind; }
-
-    var findings = sortFindings(report.findings || []);
-    var fix = findings.filter(function (f) { return f.severity === "critical" || f.severity === "high"; });
-    var later = findings.filter(function (f) { return f.severity === "medium" || f.severity === "low"; });
-    var safe = findings.filter(function (f) { return f.severity === "info"; });
-
-    el.headline.textContent = fix.length === 0
-      ? "Nothing to fix today"
-      : fix.length + (fix.length === 1 ? " thing to fix today" : " things to fix today");
-    renderChips(findings);
-    renderMeta(report);
-
-    el.tabNFix.textContent = String(fix.length);
-    el.tabNAll.textContent = String(findings.length);
-    el.tabNTrace.textContent = String(state.turns.length);
-
-    el.tabFix.replaceChildren();
-    fix.forEach(function (item) { el.tabFix.appendChild(findingCard(item)); });
-    if (!fix.length) {
-      el.tabFix.appendChild(make("div", "empty-note", "No critical or high findings in this scan."));
+    S.notices.push("Live updates aren't available in this browser. Waiting for the report…");
+    mark();
+    var attempts = 0;
+    function poll() {
+      if (S.finished) { return; }
+      attempts += 1;
+      if (attempts > POLL_LIMIT) {
+        showDialog("The scan is taking longer than expected.", "", { label: "Keep waiting", run: function () { attempts = 0; poll(); } });
+        return;
+      }
+      fetch("/api/scan/" + encodeURIComponent(S.scanId))
+        .then(function (res) {
+          if (res.status === 409) { return null; }
+          return res.json().catch(function () { return {}; }).then(function (body) { return { status: res.status, body: body }; });
+        })
+        .then(function (out) {
+          if (!out) { S.pollTimer = setTimeout(poll, POLL_EVERY_MS); return; }
+          if (out.status === 200) { fromReport(out.body); return; }
+          if (out.status === 404) { gone(); return; }
+          consume({ type: "error", message: out.body.error || "The scan failed." });
+          setBusy(false);
+          showDialog("The scan stopped.", S.failed, { label: "Retry", run: function () { startScan(S.target); } });
+        })
+        .catch(function () {
+          setBusy(false);
+          showDialog("Lost contact with the Trustline server.", "", { label: "Keep waiting", run: function () { setBusy(true); attempts = 0; poll(); } });
+        });
     }
-    if (later.length) {
-      el.tabFix.appendChild(collapsedGroup("Low", "low",
-        later.length + " to review later", later));
-    }
-    if (safe.length) {
-      el.tabFix.appendChild(collapsedGroup("Safe", "safe",
-        safe.length + (safe.length === 1 ? " reference checked and safe" : " references checked and safe"), safe));
-    }
-
-    renderAllTargets(findings);
-    renderTrace();
-    el.tabRaw.replaceChildren();
-    var pre = make("pre", "raw-json", JSON.stringify(report, null, 2));
-    el.tabRaw.appendChild(pre);
-    selectTab("fix");
+    S.pollTimer = setTimeout(poll, POLL_EVERY_MS);
   }
 
-  function selectTab(name) {
-    var panels = { fix: el.tabFix, all: el.tabAll, trace: el.tabTrace, raw: el.tabRaw };
-    Array.prototype.forEach.call(document.querySelectorAll(".tab"), function (btn) {
-      btn.setAttribute("aria-selected", btn.getAttribute("data-tab") === name ? "true" : "false");
+  // Draw the layers a finished report can fill without its event stream.
+  function fromReport(report) {
+    S.notices = S.notices.map(function (text) {
+      return text.indexOf("Waiting for the report") === -1 ? text
+        : "Live updates aren't available in this browser, so the layers below come from the finished report.";
     });
-    Object.keys(panels).forEach(function (key) { panels[key].hidden = key !== name; });
+    S.fromReport = true;
+    S.report = report;
+    S.target = report.target || S.target;
+    S.kind = report.kind || S.kind;
+    (report.findings || []).forEach(function (f) { S.ranked[noteTarget(f.target)] = f; });
+    S.done = { cost_usd: report.cost_usd, budget_targets: report.budget_targets || [] };
+    [1, 2, 3, 4, 5].forEach(function (n) { layer(n).state = "done"; });
+    S.finished = true;
+    setBusy(false);
+    mark();
   }
 
-  /* ---------- home: nav tint, hero clearance, layer picker ---------- */
+  /* ---------- exports ---------- */
 
-  function onScroll() {
-    if (el.home.hidden) { return; }
-    var y = window.scrollY || 0;
-    el.glow.style.transform = "translateY(" + (-Math.min(y * 0.32, 150)) + "px)";
-    el.haze.style.opacity = String(0.7 + Math.min(y / 500, 0.3));
-    var bottom = el.hero.getBoundingClientRect().bottom;
-    el.nav.classList.toggle("is-light", bottom > 0 && bottom < 140);
+  function flash(button, text) {
+    var before = button.textContent;
+    button.textContent = text;
+    setTimeout(function () { button.textContent = before; }, 1600);
   }
 
-  // The nav is fixed, so the hero has to start below whatever height it wraps to.
-  function syncHeroClearance() {
-    var navHeight = el.nav.offsetHeight;
-    el.heroInner.style.setProperty("--hero-top",
-      "max(clamp(130px, 14vw, 180px), " + (navHeight + 24) + "px)");
+  function copy(text, button) {
+    if (!navigator.clipboard || !navigator.clipboard.writeText) { flash(button, "Copy not available"); return; }
+    navigator.clipboard.writeText(text)
+      .then(function () { flash(button, "Copied"); })
+      .catch(function () { flash(button, "Copy failed"); });
   }
 
-  function selectLayer(index) {
-    Array.prototype.forEach.call(document.querySelectorAll(".layer-label"), function (btn) {
-      btn.classList.toggle("is-on", Number(btn.getAttribute("data-layer")) === index);
+  function copyShare(event) {
+    copy(window.location.origin + window.location.pathname + scanQuery(S.scanId), event.currentTarget);
+  }
+
+  function markdown() {
+    var list = findingsSorted();
+    var groups = groupsOf(list);
+    var lines = ["# Trustline report: " + S.target, "", verdict(groups), ""];
+    [["today", "Fix today"], ["review", "Review"], ["safe", "Checked and safe"]].forEach(function (pair) {
+      var items = groups[pair[0]];
+      if (!items.length) { return; }
+      lines.push("## " + pair[1], "");
+      items.forEach(function (f) {
+        lines.push("- **" + String(SEV_LABEL[f.severity] || f.severity).toUpperCase() + "** `" + f.target + "`: " + f.risk);
+        lines.push("  - Fix: " + f.fix);
+        var where = whereList(f);
+        if (where.length) { lines.push("  - Where: " + where.join(", ")); }
+      });
+      lines.push("");
     });
-    Array.prototype.forEach.call(document.querySelectorAll(".layer-solid"), function (group) {
-      group.classList.toggle("is-on", Number(group.getAttribute("data-solid")) === index);
-    });
-    Array.prototype.forEach.call(document.querySelectorAll(".l-line"), function (line) {
-      line.classList.toggle("is-on", Number(line.getAttribute("data-line")) === index);
-    });
-    Array.prototype.forEach.call(document.querySelectorAll(".how-panel"), function (panel) {
-      panel.hidden = Number(panel.getAttribute("data-panel")) !== index;
-    });
-    el.howTool.textContent = [
-      "files → targets",
-      "dns · rdap · bucket_probe · github_api",
-      "plan → tool call → observation",
-      "model judgment + code rules",
-      "web · PR comment · MCP"
-    ][index];
+    return lines.join("\n");
+  }
+
+  function copyMarkdown(event) { copy(markdown(), event.currentTarget); }
+
+  function downloadJson() {
+    var data = {
+      tool: "Trustline",
+      generated_at: new Date().toISOString(),
+      report: S.report || { target: S.target, kind: S.kind, findings: findingsSorted() },
+      gather: S.gather,
+      classified: S.classified
+    };
+    var url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }));
+    var link = $("#download");
+    link.href = url;
+    link.download = "trustline-" + String(S.target || "scan").replace(/^https?:\/\//, "").replace(/[^\w.-]+/g, "-").slice(0, 60) + ".json";
+    link.click();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
   }
 
   /* ---------- wiring ---------- */
 
-  el.target.addEventListener("input", syncInput);
-  el.form.addEventListener("submit", function (event) {
+  $("#scan-form").addEventListener("submit", function (event) {
     event.preventDefault();
-    startScan(el.target.value);
+    var value = $("#target").value.trim();
+    if (!value) { $("#target").focus(); return; }
+    startScan(value);
   });
-  Array.prototype.forEach.call(document.querySelectorAll("[data-demo]"), function (btn) {
-    btn.addEventListener("click", startDemo);
-  });
-  Array.prototype.forEach.call(document.querySelectorAll("[data-home]"), function (btn) {
-    btn.addEventListener("click", goHome);
-  });
-  Array.prototype.forEach.call(document.querySelectorAll(".tab"), function (btn) {
-    btn.addEventListener("click", function () { selectTab(btn.getAttribute("data-tab")); });
-  });
-  Array.prototype.forEach.call(document.querySelectorAll(".layer-label"), function (btn) {
-    btn.addEventListener("click", function () {
-      selectLayer(Number(btn.getAttribute("data-layer")));
-    });
-  });
-  el.skip.addEventListener("click", function () {
-    if (state.report) { showResults(state.report); }
-  });
+  $$("[data-demo]").forEach(function (btn) { btn.addEventListener("click", startDemo); });
 
-  window.addEventListener("scroll", onScroll, { passive: true });
-  window.addEventListener("resize", syncHeroClearance);
-
-  syncInput();
-  syncHeroClearance();
-  selectLayer(2);
-  onScroll();
+  mark();
 
   var params = new URLSearchParams(window.location.search);
   var scanParam = params.get("scan");
   if (params.get("demo") === "1") {
     startDemo();
   } else if (scanParam && /^[A-Za-z0-9_-]+$/.test(scanParam)) {
-    openScanId(scanParam);
+    openShared(scanParam);
   }
 })();
