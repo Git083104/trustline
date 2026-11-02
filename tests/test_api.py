@@ -2,6 +2,7 @@ import asyncio
 import json
 import re
 import shutil
+import ssl
 import threading
 from pathlib import Path
 
@@ -380,6 +381,30 @@ def test_clone_failure_is_reported_as_a_scan_error(tmp_path, monkeypatch):
         assert failure["type"] == "error"
         assert "private or renamed" in failure["message"]
         assert client.get(f"/api/scan/{scan_id}").status_code == 500
+
+
+def test_model_connection_failure_names_its_cause(tmp_path, caplog):
+    # The SDK says only "Connection error."; the page and the host log need the reason.
+    import httpx
+    import openai
+
+    async def runner(*args, **kwargs):
+        request = httpx.Request("POST", "https://api.meta.ai/v1/chat/completions")
+        try:
+            raise ssl.SSLCertVerificationError(1, "[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed")
+        except ssl.SSLError as cause:
+            raise openai.APIConnectionError(request=request) from cause
+
+    app = create_app(model_client=FakeModelClient(handler=lambda r: {}), runner=runner)
+    with caplog.at_level("ERROR", logger="trustmap"), TestClient(app) as client:
+        events = _parse_sse(
+            client.post("/api/scan/stream", json={"target": str(FIXTURE_ROOT)}).text
+        )
+    failure = events[-1]
+    assert failure["type"] == "error"
+    assert failure["message"].startswith("Couldn't reach the Meta Model API")
+    assert "CERTIFICATE_VERIFY_FAILED" in failure["message"]
+    assert "Traceback" in caplog.text and "APIConnectionError" in caplog.text
 
 
 def test_frontend_falls_back_when_the_event_stream_cannot_open():

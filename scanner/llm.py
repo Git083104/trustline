@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import re
+import ssl
 import time
 from dataclasses import dataclass, field
 from typing import Any, Callable, Protocol, TypeVar
@@ -20,6 +21,7 @@ from scanner.lookups import LookupCache, default_cache
 from scanner.models import CallLog
 
 T = TypeVar("T", bound=BaseModel)
+FAILURE_LIMIT = 300
 
 _SECRET_ASSIGN = re.compile(
     r"(?i)\b(api[_-]?key|token|password|secret)\s*[=:]\s*[^\s'\"\\,;]+"
@@ -137,14 +139,62 @@ class FakeModelClient:
         )
 
 
+def _tls_context() -> ssl.SSLContext:
+    """The host's CA certificates plus certifi's bundle.
+
+    The OpenAI SDK's HTTP stack (httpx2) trusts only the operating system's store and,
+    unlike httpx, never falls back to certifi. On a host whose image has no CA store,
+    every model call then fails with a bare "Connection error."."""
+    ctx = ssl.create_default_context()
+    try:
+        import certifi
+    except ImportError:  # pragma: no cover - httpx depends on certifi
+        return ctx
+    ctx.load_verify_locations(certifi.where())
+    return ctx
+
+
+def failure_message(exc: BaseException) -> str:
+    """One line for the page when a scan fails, with secrets removed.
+
+    The SDK reports every network failure as "Connection error.", so name the
+    cause underneath it (a certificate, DNS, a refused connection)."""
+    text = str(exc) or type(exc).__name__
+    try:
+        from openai import APIConnectionError, APITimeoutError
+    except ImportError:  # pragma: no cover
+        APIConnectionError = APITimeoutError = ()
+    if isinstance(exc, APIConnectionError):
+        root, seen = exc, {id(exc)}
+        while True:
+            nxt = root.__cause__ or root.__context__
+            if nxt is None or id(nxt) in seen:
+                break
+            root = nxt
+            seen.add(id(root))
+        cause = f"{type(root).__name__}: {root}" if root is not exc and str(root) else text
+        head = (
+            "The Meta Model API did not answer in time"
+            if isinstance(exc, APITimeoutError)
+            else "Couldn't reach the Meta Model API"
+        )
+        text = f"{head} ({cause})"
+    text = redact_secrets(text)
+    return text if len(text) <= FAILURE_LIMIT else text[:FAILURE_LIMIT] + "..."
+
+
 class LiveModelClient:
     def __init__(self, api_key: str | None = None):
-        from openai import OpenAI
+        from openai import DefaultHttpxClient, OpenAI
 
         key = api_key or os.environ.get("MODEL_API_KEY")
         if not key:
             raise RuntimeError("MODEL_API_KEY is not set")
-        self._client = OpenAI(base_url=META_BASE_URL, api_key=key)
+        self._client = OpenAI(
+            base_url=META_BASE_URL,
+            api_key=key,
+            http_client=DefaultHttpxClient(verify=_tls_context()),
+        )
 
     def complete_json(
         self,

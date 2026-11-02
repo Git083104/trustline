@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import os
 import time
+import traceback
 from pathlib import Path
 from collections.abc import AsyncIterator, Awaitable, Callable
 from typing import Any, Literal
@@ -20,13 +22,14 @@ from api.demo import demo_gap_ms, demo_report, load_demo
 from api.jobs import Job, JobStore
 from api.limits import LimitsStore, client_ip
 from scanner.config import SCAN_COST_CAP_USD, SERVERLESS_AGENT_DEADLINE_S, on_serverless
-from scanner.llm import LiveModelClient, ModelClient, redact_secrets
+from scanner.llm import LiveModelClient, ModelClient, failure_message, redact_secrets
 from scanner.lookups import LookupCache, default_cache
 from scanner.report import ScanOutcome, run_scan
 from scanner.ssrf import allow_local_scan
 from scanner.tools import ToolContext
 
 ScanRunner = Callable[..., Awaitable[ScanOutcome]]
+log = logging.getLogger("trustmap")
 # The page lives in public/, which Vercel serves from its CDN; elsewhere this app serves it.
 PUBLIC = Path(__file__).resolve().parents[1] / "public"
 FIXTURES = Path(__file__).resolve().parents[1] / "tests" / "fixtures"
@@ -236,7 +239,10 @@ def create_app(
             actual = outcome.cost_usd
             job.finish(outcome)
         except Exception as exc:
-            job.fail(redact_secrets(str(exc)))
+            # the page gets one line; the host's log gets the whole traceback
+            trace = "".join(traceback.format_exception(exc))
+            log.error("scan %s failed\n%s", job.scan_id, redact_secrets(trace))
+            job.fail(failure_message(exc))
         finally:
             limit_store.reconcile(job.scan_id, actual)
 

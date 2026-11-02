@@ -1,6 +1,12 @@
 import json
+import ssl
 
-from scanner.llm import FakeModelClient, _tokens, call_json, cost_usd, redact_secrets
+import certifi
+import httpx
+import openai
+
+from scanner import llm
+from scanner.llm import FakeModelClient, _tokens, call_json, cost_usd, failure_message, redact_secrets
 from scanner.lookups import LookupCache
 from scanner.models import ClassificationBatch
 
@@ -113,3 +119,60 @@ def test_cache_hit_skips_client_and_costs_zero(tmp_path):
     assert log2.cached is True
     assert log2.cost_usd == 0
     assert log2.input_tokens == 0
+
+
+def test_model_client_trusts_certifi_when_the_host_has_no_ca_store(monkeypatch):
+    # The SDK's HTTP stack trusts only the OS store; a host image without one made
+    # every Muse Spark call fail with a bare "Connection error."
+    monkeypatch.setattr(ssl.SSLContext, "load_default_certs", lambda self, purpose=None: None)
+    certifi_only = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    certifi_only.load_verify_locations(certifi.where())
+    ctx = llm._tls_context()
+    assert ctx.cert_store_stats()["x509_ca"] == certifi_only.cert_store_stats()["x509_ca"] > 0
+    assert ctx.verify_mode == ssl.CERT_REQUIRED and ctx.check_hostname
+
+
+def test_live_client_hands_the_sdk_that_trust_store(monkeypatch):
+    sentinel = ssl.create_default_context()
+    seen = {}
+    real = openai.DefaultHttpxClient
+
+    def recording(**kwargs):
+        seen.update(kwargs)
+        return real(**kwargs)
+
+    monkeypatch.setattr(llm, "_tls_context", lambda: sentinel)
+    monkeypatch.setattr(openai, "DefaultHttpxClient", recording)
+    llm.LiveModelClient(api_key="test-key-not-real")
+    assert seen["verify"] is sentinel
+
+
+def _connection_error(root: BaseException, kind=openai.APIConnectionError) -> BaseException:
+    request = httpx.Request("POST", "https://api.meta.ai/v1/chat/completions")
+    try:
+        try:
+            raise root
+        except BaseException as cause:
+            raise kind(request=request) from cause
+    except openai.APIConnectionError as exc:
+        return exc
+
+
+def test_failure_message_names_the_cause_behind_connection_error():
+    exc = _connection_error(
+        ssl.SSLCertVerificationError(1, "[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed")
+    )
+    assert str(exc) == "Connection error."
+    message = failure_message(exc)
+    assert message.startswith("Couldn't reach the Meta Model API (SSLCertVerificationError:")
+    assert "CERTIFICATE_VERIFY_FAILED" in message
+
+
+def test_failure_message_for_timeouts_secrets_and_plain_errors():
+    late = failure_message(_connection_error(TimeoutError("read timed out"), openai.APITimeoutError))
+    assert late.startswith("The Meta Model API did not answer in time")
+    leaky = failure_message(_connection_error(OSError("proxy said api_key=sk-live-abcdef123456")))
+    assert "sk-live" not in leaky and "[REDACTED]" in leaky
+    assert failure_message(ValueError("model did not pick a tool")) == "model did not pick a tool"
+    assert len(failure_message(RuntimeError("x" * 1000))) == llm.FAILURE_LIMIT + 3
+
