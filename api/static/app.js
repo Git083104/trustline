@@ -17,6 +17,8 @@
     live_fetch: "What does this URL serve now?",
     tranco: "How widely used is this host?"
   };
+  var POLL_EVERY_MS = 1500;
+  var POLL_LIMIT = 240;   // ~6 minutes of waiting before offering a retry
   var FOUND_BUCKETS = [
     { key: "claimable", label: "Claimable now", sev: "critical" },
     { key: "compromised", label: "Known compromised", sev: "high" },
@@ -82,6 +84,8 @@
     elapsedMs: 0,
     report: null,
     finished: false,
+    streamed: false,
+    pollTimer: null,
     stage: 0,
     calls: 0,
     turns: [],
@@ -182,6 +186,10 @@
     if (state.timer) {
       clearInterval(state.timer);
       state.timer = null;
+    }
+    if (state.pollTimer) {
+      clearTimeout(state.pollTimer);
+      state.pollTimer = null;
     }
   }
 
@@ -474,6 +482,7 @@
     state.demo = meta.demo;
     state.report = null;
     state.finished = false;
+    state.streamed = false;
     state.stage = 0;
     state.calls = 0;
     state.turns = [];
@@ -502,7 +511,19 @@
 
   function beginStream(url, meta) {
     resetScan(meta);
-    var source = new EventSource(url);
+    var source;
+    try {
+      source = new EventSource(url);
+    } catch (err) {
+      // No EventSource here (older webview, blocked by an extension). The scan
+      // is already running on the server, so wait it out instead of losing it.
+      waitWithoutStream();
+      return;
+    }
+    if (!source) {
+      waitWithoutStream();
+      return;
+    }
     state.source = source;
     source.onmessage = function (message) {
       var event;
@@ -511,17 +532,65 @@
       } catch (err) {
         return;
       }
+      state.streamed = true;
       consume(event);
     };
     source.onerror = function () {
       source.close();
       state.source = null;
       if (state.finished) { return; }
+      if (!state.streamed) {
+        // Never received a frame: the stream itself is the problem, not the
+        // scan. A buffering proxy looks exactly like this.
+        waitWithoutStream();
+        return;
+      }
       showError("The live scan connection dropped.", function () {
         if (state.demo) { startDemo(); }
         else if (state.scanId) { reattach(state.scanId); }
       });
     };
+  }
+
+  // Fallback when live events can't reach us: poll for the finished report.
+  function waitWithoutStream() {
+    if (state.demo) {
+      showError("Live updates aren't available in this browser, so the demo can't play.");
+      return;
+    }
+    showError("Live updates aren't available in this browser. Waiting for the report…");
+    el.clock.textContent = "Scanning";
+    var attempts = 0;
+    function poll() {
+      if (state.finished) { return; }
+      attempts += 1;
+      if (attempts > POLL_LIMIT) {
+        showError("The scan is taking longer than expected.", function () {
+          attempts = 0;
+          poll();
+        });
+        return;
+      }
+      fetch("/api/scan/" + encodeURIComponent(state.scanId))
+        .then(function (res) {
+          if (res.status === 409) { return null; }
+          if (!res.ok) { throw new Error("scan " + res.status); }
+          return res.json();
+        })
+        .then(function (report) {
+          if (report) {
+            clearErrors();
+            state.stage = STAGES.length - 1;
+            showResults(report);
+            return;
+          }
+          state.pollTimer = setTimeout(poll, POLL_EVERY_MS);
+        })
+        .catch(function () {
+          showError("The scan failed.", function () { startScan(state.target); });
+        });
+    }
+    state.pollTimer = setTimeout(poll, POLL_EVERY_MS);
   }
 
   function consume(event) {

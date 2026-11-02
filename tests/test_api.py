@@ -373,3 +373,13 @@ def test_clone_failure_is_reported_as_a_scan_error(tmp_path, monkeypatch):
         assert failure["type"] == "error"
         assert "private or renamed" in failure["message"]
         assert client.get(f"/api/scan/{scan_id}").status_code == 500
+
+
+def test_frontend_falls_back_when_the_event_stream_cannot_open():
+    # a client without EventSource, or a proxy that buffers the stream, must
+    # still end up with the report rather than a dropped scan
+    script = (STATIC / "app.js").read_text()
+    assert "waitWithoutStream" in script
+    assert "new EventSource" in script
+    assert "catch" in script.split("new EventSource")[1][:200]
+    assert "Live updates aren't available" in script
