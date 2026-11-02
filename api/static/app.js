@@ -1,116 +1,177 @@
+/* Trustline frontend. Every number and label comes from the API; nothing is mocked.
+   Report text is attacker-controlled, so it only ever reaches the DOM as textContent. */
 (function () {
-  var MAX_CALLS = 6;
+  "use strict";
+
   var STAGES = ["Find", "Check", "Investigate", "Rank", "Report"];
   var SEV_ORDER = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
-  var LEGEND = [
-    { key: "claimable", label: "Claimable now", color: "oklch(0.62 0.18 25)" },
-    { key: "compromised", label: "Known compromised", color: "oklch(0.70 0.14 55)" },
-    { key: "checking", label: "Checking", color: "#968ae0" },
-    { key: "safe", label: "Looks safe", color: "oklch(0.62 0.12 160)" }
+  var SEV_KEY = { critical: "critical", high: "high", medium: "medium", low: "low", info: "safe" };
+  var SEV_LABEL = { critical: "Critical", high: "High", medium: "Medium", low: "Low", info: "Safe" };
+  var KIND_LABEL = { repo: "GitHub repo", website: "Website", path: "Local path" };
+  var PLAN_QUESTION = {
+    rdap: "Who owns this domain now?",
+    dns: "Does this host still resolve?",
+    bucket_probe: "Does this bucket still exist?",
+    github_owner: "Is this GitHub account still there?",
+    github_repo: "Does this repository still exist?",
+    live_fetch: "What does this URL serve now?",
+    tranco: "How widely used is this host?"
+  };
+  var FOUND_BUCKETS = [
+    { key: "claimable", label: "Claimable now", sev: "critical" },
+    { key: "compromised", label: "Known compromised", sev: "high" },
+    { key: "checking", label: "Checking", sev: "checking" },
+    { key: "safe", label: "Looks safe", sev: "safe" }
   ];
 
+  var $ = function (id) { return document.getElementById(id); };
+  var el = {
+    home: $("page-home"),
+    app: $("page-app"),
+    scanning: $("screen-scanning"),
+    results: $("screen-results"),
+    homeError: $("home-error"),
+    appError: $("app-error"),
+    nav: $("top-nav"),
+    hero: $("hero"),
+    heroInner: document.querySelector(".hero-inner"),
+    glow: $("hero-glow"),
+    haze: $("hero-haze"),
+    form: $("scan-form"),
+    target: $("target"),
+    chip: $("kind-chip"),
+    scanBtn: $("scan-btn"),
+    howTool: $("how-tool"),
+    scanTarget: $("scan-target"),
+    scanKind: $("scan-kind"),
+    clock: $("scan-clock"),
+    progress: document.querySelector(".progress"),
+    progressFill: $("progress-fill"),
+    stepper: $("stepper"),
+    feed: $("feed"),
+    foundCount: $("found-count"),
+    foundBar: $("found-bar"),
+    foundLegend: $("found-legend"),
+    callsUsed: $("calls-used"),
+    callsTotal: $("calls-total"),
+    pips: $("call-pips"),
+    skip: $("skip-report"),
+    resTarget: $("res-target"),
+    resKind: $("res-kind"),
+    headline: $("res-headline"),
+    resChips: $("res-chips"),
+    resMeta: $("res-meta"),
+    tabFix: $("tab-fix"),
+    tabAll: $("tab-all"),
+    tabTrace: $("tab-trace"),
+    tabRaw: $("tab-raw"),
+    tabNFix: $("tab-n-fix"),
+    tabNAll: $("tab-n-all"),
+    tabNTrace: $("tab-n-trace")
+  };
+
   var state = {
+    screen: "home",
     kind: "",
     target: "",
     scanId: "",
     demo: false,
     source: null,
-    events: [],
-    report: null,
-    calls: 0,
-    found: 0,
-    stage: 0,
-    startedAt: 0,
     timer: null,
+    startedAt: 0,
+    elapsedMs: 0,
+    report: null,
+    finished: false,
+    stage: 0,
+    calls: 0,
+    turns: [],
+    rows: {},
     buckets: {},
-    ready: false
+    targetsSeen: 0
   };
 
-  var el = {
-    error: document.getElementById("error"),
-    home: document.getElementById("page-home"),
-    scan: document.getElementById("page-scan"),
-    results: document.getElementById("page-results"),
-    target: document.getElementById("target"),
-    chip: document.getElementById("kind-chip"),
-    form: document.getElementById("scan-form"),
-    demo: document.getElementById("demo"),
-    stepper: document.getElementById("stepper"),
-    feed: document.getElementById("feed"),
-    bar: document.getElementById("progress-bar"),
-    foundCount: document.getElementById("found-count"),
-    legendBar: document.getElementById("legend-bar"),
-    legend: document.getElementById("legend"),
-    callsUsed: document.getElementById("calls-used"),
-    callsMax: document.getElementById("calls-max"),
-    pips: document.getElementById("calls-pips"),
-    scanLabel: document.getElementById("scan-target-label"),
-    scanChip: document.getElementById("scan-kind-chip"),
-    scanStatus: document.getElementById("scan-status"),
-    skip: document.getElementById("skip-report"),
-    resTarget: document.getElementById("res-target"),
-    resChip: document.getElementById("res-kind-chip"),
-    headline: document.getElementById("res-headline"),
-    chips: document.getElementById("res-chips"),
-    resMeta: document.getElementById("res-meta"),
-    tabFix: document.getElementById("tab-fix"),
-    tabAll: document.getElementById("tab-all"),
-    tabTrace: document.getElementById("tab-trace"),
-    tabRaw: document.getElementById("tab-raw"),
-    tabNFix: document.getElementById("tab-n-fix"),
-    tabNAll: document.getElementById("tab-n-all"),
-    tabNTrace: document.getElementById("tab-n-trace")
-  };
+  /* ---------- small DOM helpers (textContent only) ---------- */
 
-  el.callsMax.textContent = String(MAX_CALLS);
+  function make(tag, className, textValue) {
+    var node = document.createElement(tag);
+    if (className) { node.className = className; }
+    if (textValue != null) { node.textContent = String(textValue); }
+    return node;
+  }
 
-  function text(node, value) {
-    node.textContent = value == null ? "" : String(value);
+  function svgIcon(paths, size, strokeWidth) {
+    var ns = "http://www.w3.org/2000/svg";
+    var svg = document.createElementNS(ns, "svg");
+    svg.setAttribute("width", String(size));
+    svg.setAttribute("height", String(size));
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("fill", "none");
+    svg.setAttribute("stroke", "currentColor");
+    svg.setAttribute("stroke-width", String(strokeWidth));
+    svg.setAttribute("aria-hidden", "true");
+    paths.forEach(function (spec) {
+      var node = document.createElementNS(ns, spec.tag);
+      Object.keys(spec.attrs).forEach(function (key) {
+        node.setAttribute(key, spec.attrs[key]);
+      });
+      svg.appendChild(node);
+    });
+    return svg;
+  }
+
+  function caretIcon() {
+    var svg = svgIcon([{ tag: "polyline", attrs: { points: "6 9 12 15 18 9" } }], 14, 2.2);
+    svg.classList.add("caret");
+    return svg;
+  }
+
+  function copyIcon() {
+    return svgIcon([
+      { tag: "rect", attrs: { x: "8", y: "8", width: "12", height: "12", rx: "2" } },
+      { tag: "path", attrs: { d: "M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" } }
+    ], 14, 2);
+  }
+
+  /* ---------- errors ---------- */
+
+  function errorNode() {
+    return state.screen === "home" ? el.homeError : el.appError;
+  }
+
+  function clearErrors() {
+    [el.homeError, el.appError].forEach(function (node) {
+      node.hidden = true;
+      node.replaceChildren();
+    });
   }
 
   function showError(message, retry) {
-    el.error.hidden = !message;
-    el.error.replaceChildren();
-    if (!message) {
-      return;
-    }
-    var span = document.createElement("span");
-    text(span, message);
-    el.error.appendChild(span);
-    if (retry) {
-      var btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "btn btn-secondary";
-      text(btn, "Retry");
-      btn.addEventListener("click", retry);
-      el.error.appendChild(btn);
-    }
-  }
-
-  function detectKind(value) {
-    var v = (value || "").trim();
-    if (/^https?:\/\/(www\.)?github\.com\/[^/]+\/[^/]+/i.test(v)) {
-      return "GitHub repo";
-    }
-    if (/^https?:\/\//i.test(v)) {
-      return "Website";
-    }
-    return "";
-  }
-
-  function setChip(node, kind) {
-    if (!kind) {
-      node.hidden = true;
-      return;
-    }
+    clearErrors();
+    if (!message) { return; }
+    var node = errorNode();
     node.hidden = false;
-    text(node, kind);
+    node.replaceChildren(make("span", null, message));
+    if (retry) {
+      var btn = make("button", "btn btn-secondary", "Retry");
+      btn.type = "button";
+      btn.addEventListener("click", function () {
+        clearErrors();
+        retry();
+      });
+      node.appendChild(btn);
+    }
   }
 
-  function page(name) {
-    el.home.hidden = name !== "home";
-    el.scan.hidden = name !== "scan";
-    el.results.hidden = name !== "results";
+  /* ---------- navigation between screens ---------- */
+
+  function show(screen) {
+    state.screen = screen;
+    el.home.hidden = screen !== "home";
+    el.app.hidden = screen === "home";
+    el.scanning.hidden = screen !== "scanning";
+    el.results.hidden = screen !== "results";
+    window.scrollTo(0, 0);
+    if (screen === "home") { onScroll(); }
   }
 
   function closeSource() {
@@ -124,819 +185,869 @@
     }
   }
 
-  function formatClock(ms) {
-    var sec = Math.max(0, Math.floor(ms / 1000));
-    var m = Math.floor(sec / 60);
-    var s = sec % 60;
-    return m + ":" + String(s).padStart(2, "0");
-  }
-
-  function tickTimer() {
-    text(el.scanStatus, "Scanning · " + formatClock(Date.now() - state.startedAt));
-  }
-
-  function mapHttpError(status, body) {
-    var err = (body && (body.error || body.message)) || "";
-    if (status === 503) {
-      return err || "Live scans aren't configured; try the demo";
-    }
-    if (status === 429) {
-      if (/daily/i.test(err)) {
-        return "Daily limit reached, try the demo";
-      }
-      return "5 scans per hour per IP; try again later";
-    }
-    if (/can't be scanned|blocked/i.test(err)) {
-      return "This address can't be scanned";
-    }
-    if (status === 400) {
-      return err || "That URL isn't supported";
-    }
-    return err || "Scan failed";
-  }
-
-  function startScan(target) {
-    showError("");
+  function goHome() {
     closeSource();
-    page("home");
+    clearErrors();
+    history.replaceState({}, "", window.location.pathname);
+    state.report = null;
+    show("home");
+  }
+
+  /* ---------- target detection ---------- */
+
+  function normalize(raw) {
+    var value = (raw || "").trim();
+    if (!value) { return ""; }
+    if (/^[\w.-]+\/[\w.-]+$/.test(value) && value.indexOf(".") === -1) {
+      return "https://github.com/" + value;
+    }
+    if (!/^https?:\/\//i.test(value) && /^[\w-]+(\.[\w-]+)+(\/|$)/.test(value)) {
+      return "https://" + value;
+    }
+    return value;
+  }
+
+  function detectKind(raw) {
+    var value = normalize(raw);
+    if (/^https?:\/\/(www\.)?github\.com\/[^/]+\/[^/#?]+/i.test(value)) { return "repo"; }
+    if (/^https?:\/\/[\w-]+(\.[\w-]+)+/i.test(value)) { return "website"; }
+    return "";
+  }
+
+  function syncInput() {
+    var kind = detectKind(el.target.value);
+    el.chip.hidden = !kind;
+    if (kind) { el.chip.textContent = KIND_LABEL[kind]; }
+    el.scanBtn.disabled = !kind;
+  }
+
+  /* ---------- clock ---------- */
+
+  function clock(ms) {
+    var total = Math.max(0, Math.floor(ms / 1000));
+    return Math.floor(total / 60) + ":" + String(total % 60).padStart(2, "0");
+  }
+
+  function longClock(ms) {
+    var total = Math.max(0, Math.floor(ms / 1000));
+    var minutes = Math.floor(total / 60);
+    var seconds = total % 60;
+    if (!minutes) { return seconds + "s"; }
+    return minutes + "m " + String(seconds).padStart(2, "0") + "s";
+  }
+
+  function tick() {
+    state.elapsedMs = Date.now() - state.startedAt;
+    el.clock.textContent = "Scanning · " + clock(state.elapsedMs);
+  }
+
+  /* ---------- scanning screen ---------- */
+
+  function renderStepper() {
+    el.stepper.replaceChildren();
+    STAGES.forEach(function (name, index) {
+      var li = make("li");
+      var done = index < state.stage;
+      var current = index === state.stage;
+      if (done) { li.className = "is-done"; }
+      if (current) { li.className = "is-current"; }
+      li.appendChild(make("span", "step-mark", done ? "✓" : String(index + 1)));
+      li.appendChild(make("span", null, name));
+      el.stepper.appendChild(li);
+    });
+  }
+
+  function setProgress(pct) {
+    var value = Math.max(0, Math.min(100, pct));
+    el.progressFill.style.width = value + "%";
+    el.progress.setAttribute("aria-valuenow", String(Math.round(value)));
+  }
+
+  function renderPips() {
+    var total = Math.max(state.targetsSeen, state.calls, 1);
+    el.callsUsed.textContent = String(state.calls);
+    el.callsTotal.textContent = "of " + total + (total === 1 ? " target" : " targets");
+    el.pips.style.gridTemplateColumns = "repeat(" + total + ", 1fr)";
+    el.pips.replaceChildren();
+    for (var i = 0; i < total; i += 1) {
+      var pip = make("span");
+      if (i < state.calls) { pip.className = "is-on"; }
+      else if (i === state.calls) { pip.className = "is-next"; }
+      el.pips.appendChild(pip);
+    }
+  }
+
+  function renderFound() {
+    var counts = {};
+    Object.keys(state.buckets).forEach(function (key) {
+      var bucket = state.buckets[key];
+      counts[bucket] = (counts[bucket] || 0) + 1;
+    });
+    // The headline number is the legend's own total, so the two always agree.
+    el.foundCount.textContent = String(Object.keys(state.buckets).length);
+    el.foundBar.replaceChildren();
+    el.foundLegend.replaceChildren();
+    FOUND_BUCKETS.forEach(function (bucket) {
+      var n = counts[bucket.key] || 0;
+      var bar = make("span");
+      bar.style.flex = String(n);
+      bar.style.background = "var(--sev-" + bucket.sev + "-bar)";
+      el.foundBar.appendChild(bar);
+
+      var row = make("div", "legend-row");
+      var swatch = make("span", "legend-sw");
+      swatch.style.background = "var(--sev-" + bucket.sev + "-bar)";
+      row.appendChild(swatch);
+      row.appendChild(make("span", "legend-label", bucket.label));
+      row.appendChild(make("span", "legend-n", String(n)));
+      el.foundLegend.appendChild(row);
+    });
+  }
+
+  function parseSummary(raw) {
+    if (raw == null) { return null; }
+    try {
+      var parsed = JSON.parse(String(raw));
+      return parsed && typeof parsed === "object" ? parsed : null;
+    } catch (err) {
+      return null;
+    }
+  }
+
+  // Turns a tool's raw result into a short line and a severity key, from the
+  // facts in the result itself — no model text, no guessing.
+  function readResult(tool, raw) {
+    var data = parseSummary(raw);
+    var text = "";
+    var sev = "checking";
+    if (data && data.done === true) {
+      // The agent ended this target's turn: the precomputed lookups were enough.
+      return { text: String(data.summary || "no further checks needed"), sev: "neutral" };
+    }
+    if (data) {
+      if (typeof data.status === "string" && data.status) {
+        text = data.status;
+      } else if (typeof data.exists === "boolean") {
+        text = data.exists ? "exists" : "not found";
+      } else if (typeof data.http_status === "number") {
+        text = "HTTP " + data.http_status;
+      }
+      if (data.vulnerable === true) { text = text ? text + " · unclaimed" : "unclaimed"; }
+      if (data.http_status === 404 && text.toLowerCase() !== "nosuchbucket") {
+        text = text ? text + " (404)" : "404";
+      }
+    }
+    if (!text) { text = String(raw == null ? "" : raw).slice(0, 80); }
+    var probe = text.toLowerCase();
+    if (/unregistered|nxdomain|nosuchbucket|not found|missing|404|unclaimed/.test(probe)) {
+      sev = "critical";
+    } else if (/registered|resolves|exists|\bok\b/.test(probe)) {
+      sev = "safe";
+    }
+    return { text: text, sev: sev };
+  }
+
+  function callText(tool, args) {
+    var value = "";
+    if (args && typeof args === "object") {
+      var keys = Object.keys(args);
+      if (keys.length) { value = String(args[keys[0]]); }
+    }
+    return { tool: String(tool || ""), arg: value };
+  }
+
+  function setRowResult(row, sev, text) {
+    row.resultBadge.className = "sev-badge sev-" + sev;
+    row.resultBadge.replaceChildren();
+    if (sev === "checking") { row.resultBadge.appendChild(make("span", "spinner")); }
+    row.resultBadge.appendChild(make("span", null, sev === "checking" ? "Checking" : sevLabelFor(sev)));
+    row.resultText.className = "feed-result sev-fg-" + sev;
+    row.resultText.textContent = text;
+  }
+
+  function sevLabelFor(key) {
+    if (key === "safe") { return "Safe"; }
+    if (key === "neutral") { return "Checked"; }
+    return key.charAt(0).toUpperCase() + key.slice(1);
+  }
+
+  function newTurn(event) {
+    var call = callText(event.tool, event.args);
+    var turn = {
+      target: String(event.target || ""),
+      tool: call.tool,
+      arg: call.arg,
+      plan: call.tool === "done"
+        ? "The precomputed lookups already answer " + String(event.target || "this reference") + "."
+        : PLAN_QUESTION[call.tool] || "Checking what this reference points to now.",
+      result: "running…",
+      sev: "checking"
+    };
+    state.turns.push(turn);
+
+    var row = make("div", "feed-row");
+    row.appendChild(make("span", "feed-n", String(state.turns.length).padStart(2, "0")));
+    var body = make("div", "feed-body");
+
+    var planLine = make("div", "feed-line");
+    planLine.appendChild(make("span", "feed-k", "Plan"));
+    planLine.appendChild(make("span", "feed-plan", turn.plan));
+    body.appendChild(planLine);
+
+    var callLine = make("div", "feed-line");
+    callLine.appendChild(make("span", "feed-k", "Call"));
+    var code = make("code", "feed-call");
+    code.appendChild(make("span", "accent", turn.tool));
+    code.appendChild(document.createTextNode('("' + turn.arg + '")'));
+    callLine.appendChild(code);
+    body.appendChild(callLine);
+
+    var resultLine = make("div", "feed-line feed-line-result");
+    resultLine.appendChild(make("span", "feed-k", "Result"));
+    var badge = make("span", "sev-badge sev-checking");
+    var resultText = make("span", "feed-result sev-fg-checking");
+    resultLine.appendChild(badge);
+    resultLine.appendChild(resultText);
+    body.appendChild(resultLine);
+
+    row.appendChild(body);
+    el.feed.appendChild(row);
+
+    turn.node = { resultBadge: badge, resultText: resultText };
+    setRowResult(turn.node, "checking", "running…");
+    state.rows[turn.target] = state.rows[turn.target] || [];
+    state.rows[turn.target].push(turn);
+    return turn;
+  }
+
+  function handleAgentEvent(event) {
+    if (event.type === "plan") {
+      // "done" ends a target's turn without an outside lookup, so it is shown
+      // in the feed but never counted as an agent call.
+      if (event.tool !== "done") { state.calls += 1; }
+      newTurn(event);
+      renderPips();
+      return;
+    }
+    var turn = state.turns[state.turns.length - 1];
+    if (!turn) { return; }
+    if (event.type === "observe") {
+      var read = readResult(event.tool, event.result_summary);
+      turn.result = read.text;
+      turn.sev = read.sev;
+      setRowResult(turn.node, read.sev, read.text);
+    }
+  }
+
+  function applyRanked(event) {
+    var key = SEV_KEY[String(event.severity || "")] || "checking";
+    var turns = state.rows[String(event.target || "")] || [];
+    turns.forEach(function (turn) {
+      turn.sev = key;
+      setRowResult(turn.node, key, turn.result);
+    });
+  }
+
+  function bucketFor(event) {
+    var line = String(event.evidence_line || event.risk || "");
+    if (/compromis/i.test(line)) { return "compromised"; }
+    if (event.severity === "info") { return "safe"; }
+    if (event.severity === "critical" || event.severity === "high") { return "claimable"; }
+    return "checking";
+  }
+
+  function stageFor(type) {
+    if (type === "extracted") { return 0; }
+    if (type === "precheck") { return 1; }
+    if (type === "plan" || type === "act" || type === "observe") { return 2; }
+    if (type === "ranked") { return 3; }
+    if (type === "done") { return 4; }
+    return state.stage;
+  }
+
+  function resetScan(meta) {
+    closeSource();
+    clearErrors();
+    state.kind = meta.kind;
+    state.target = meta.target;
+    state.scanId = meta.scanId;
+    state.demo = meta.demo;
+    state.report = null;
+    state.finished = false;
+    state.stage = 0;
+    state.calls = 0;
+    state.turns = [];
+    state.rows = {};
+    state.buckets = {};
+    state.targetsSeen = 0;
+    state.startedAt = Date.now();
+    state.elapsedMs = 0;
+    el.feed.replaceChildren();
+    setTargetLabels();
+    renderStepper();
+    setProgress(6);
+    renderPips();
+    renderFound();
+    el.skip.disabled = true;
+    tick();
+    state.timer = setInterval(tick, 250);
+    show("scanning");
+  }
+
+  function setTargetLabels() {
+    el.scanTarget.textContent = state.target;
+    el.scanKind.hidden = !state.kind;
+    if (state.kind) { el.scanKind.textContent = KIND_LABEL[state.kind] || state.kind; }
+  }
+
+  function beginStream(url, meta) {
+    resetScan(meta);
+    var source = new EventSource(url);
+    state.source = source;
+    source.onmessage = function (message) {
+      var event;
+      try {
+        event = JSON.parse(message.data);
+      } catch (err) {
+        return;
+      }
+      consume(event);
+    };
+    source.onerror = function () {
+      source.close();
+      state.source = null;
+      if (state.finished) { return; }
+      showError("The live scan connection dropped.", function () {
+        if (state.demo) { startDemo(); }
+        else if (state.scanId) { reattach(state.scanId); }
+      });
+    };
+  }
+
+  function consume(event) {
+    var next = stageFor(event.type);
+    if (next > state.stage) {
+      state.stage = next;
+      renderStepper();
+      setProgress((state.stage + 1) / STAGES.length * 100);
+    }
+    if (event.type === "started") {
+      state.kind = event.kind || state.kind;
+      state.target = event.target || state.target;
+      setTargetLabels();
+    }
+    if (event.type === "precheck" && event.target) {
+      if (!state.buckets[event.target]) { state.targetsSeen += 1; }
+      state.buckets[event.target] = event.hard_signal ? "claimable" : "checking";
+      renderFound();
+      renderPips();
+    }
+    if (event.type === "plan" || event.type === "act" || event.type === "observe") {
+      handleAgentEvent(event);
+    }
+    if (event.type === "ranked" && event.target) {
+      state.buckets[event.target] = bucketFor(event);
+      applyRanked(event);
+      renderFound();
+    }
+    if (event.type === "error") {
+      closeSource();
+      showError(event.message || "The scan failed.", function () {
+        if (state.demo) { startDemo(); } else { startScan(state.target); }
+      });
+    }
+    if (event.type === "done") {
+      closeSource();
+      state.elapsedMs = Date.now() - state.startedAt;
+      loadReport();
+    }
+  }
+
+  function loadReport() {
+    var url = state.demo ? "/api/scan/demo" : "/api/scan/" + encodeURIComponent(state.scanId);
+    fetch(url)
+      .then(function (res) {
+        if (!res.ok) { throw new Error("report " + res.status); }
+        return res.json();
+      })
+      .then(function (report) {
+        state.report = report;
+        el.skip.disabled = false;
+        showResults(report);
+      })
+      .catch(function () {
+        showError("The scan finished but the report could not be loaded.", loadReport);
+      });
+  }
+
+  /* ---------- starting scans ---------- */
+
+  function httpMessage(status, body) {
+    var message = (body && (body.error || body.message || body.detail)) || "";
+    if (status === 503) { return message || "Live scans aren't configured; try the demo"; }
+    if (status === 429) { return message || "Too many scans right now; try the demo"; }
+    if (status === 400) { return message || "That target can't be scanned"; }
+    return message || "The scan could not be started.";
+  }
+
+  function startScan(raw) {
+    var target = normalize(raw);
+    if (!detectKind(target)) {
+      showError("Paste a GitHub repository or website URL.");
+      return;
+    }
+    clearErrors();
     fetch("/api/scan", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ target: target })
     })
       .then(function (res) {
-        return res.json().then(function (body) {
-          return { res: res, body: body };
+        return res.json().catch(function () { return {}; }).then(function (body) {
+          return { status: res.status, ok: res.ok, body: body };
         });
       })
       .then(function (out) {
-        if (!out.res.ok) {
-          showError(mapHttpError(out.res.status, out.body), function () {
-            startScan(target);
-          });
+        if (!out.ok) {
+          showError(httpMessage(out.status, out.body), function () { startScan(raw); });
           return;
         }
-        var id = out.body.scan_id;
+        var id = String(out.body.scan_id);
         history.replaceState({}, "", "?scan=" + encodeURIComponent(id));
         beginStream("/api/scan/" + encodeURIComponent(id) + "/events", {
-          kind: out.body.kind === "website" ? "Website" : "GitHub repo",
+          kind: out.body.kind,
           target: out.body.target,
           scanId: id,
           demo: false
         });
       })
       .catch(function () {
-        showError("Scan failed or the connection dropped", function () {
-          startScan(target);
-        });
+        showError("The scan could not be started.", function () { startScan(raw); });
       });
   }
 
   function startDemo() {
-    showError("");
     history.replaceState({}, "", "?demo=1");
     beginStream("/api/scan/demo/events", {
-      kind: "GitHub repo",
-      target: "tests/fixtures/demo_repo",
+      kind: "",
+      target: "",
       scanId: "demo",
       demo: true
     });
+    // The demo report is a checked-in fixture, so "Skip to report" can work at once.
+    fetch("/api/scan/demo")
+      .then(function (res) { return res.json(); })
+      .then(function (report) {
+        state.report = report;
+        el.skip.disabled = false;
+      })
+      .catch(function () {});
   }
 
-  function setSkipEnabled(on) {
-    state.ready = !!on;
-    el.skip.disabled = !on;
-  }
-
-  function resetScanUi(meta) {
-    state.events = [];
-    state.report = null;
-    state.calls = 0;
-    state.found = 0;
-    state.stage = 0;
-    state.kind = meta.kind;
-    state.target = meta.target;
-    state.scanId = meta.scanId;
-    state.demo = meta.demo;
-    state.buckets = {};
-    state.startedAt = Date.now();
-    text(el.scanLabel, meta.target);
-    setChip(el.scanChip, meta.kind);
-    tickTimer();
-    el.feed.replaceChildren();
-    text(el.foundCount, "0");
-    renderStepper(0);
-    setProgress(8);
-    renderPips(0);
-    renderLegend();
-    setSkipEnabled(false);
-    if (meta.demo) {
-      setSkipEnabled(true);
-      fetch("/api/scan/demo")
-        .then(function (res) { return res.json(); })
-        .then(function (report) {
-          state.report = report;
-          setSkipEnabled(true);
-        })
-        .catch(function () {});
-    }
-    page("scan");
-    if (state.timer) {
-      clearInterval(state.timer);
-    }
-    state.timer = setInterval(tickTimer, 250);
-  }
-
-  function renderStepper(stage) {
-    el.stepper.replaceChildren();
-    STAGES.forEach(function (name, index) {
-      var li = document.createElement("li");
-      if (index < stage) {
-        li.className = "done";
-      }
-      if (index === stage) {
-        li.className = "active";
-      }
-      var mark = document.createElement("span");
-      text(mark, index < stage ? "✓" : String(index + 1));
-      var label = document.createElement("b");
-      label.style.fontWeight = "500";
-      text(label, name);
-      li.appendChild(mark);
-      li.appendChild(label);
-      el.stepper.appendChild(li);
+  function reattach(id) {
+    beginStream("/api/scan/" + encodeURIComponent(id) + "/events", {
+      kind: state.kind,
+      target: state.target,
+      scanId: id,
+      demo: false
     });
   }
 
-  function setProgress(pct) {
-    el.bar.style.width = Math.max(0, Math.min(100, pct)) + "%";
-    el.bar.parentNode.setAttribute("aria-valuenow", String(Math.round(pct)));
-  }
-
-  function renderPips(used) {
-    text(el.callsUsed, String(used));
-    el.pips.replaceChildren();
-    for (var i = 0; i < MAX_CALLS; i += 1) {
-      var pip = document.createElement("i");
-      if (i < used) {
-        pip.className = "on";
-      }
-      el.pips.appendChild(pip);
-    }
-  }
-
-  function countBuckets() {
-    var counts = { claimable: 0, compromised: 0, checking: 0, safe: 0 };
-    Object.keys(state.buckets).forEach(function (k) {
-      var b = state.buckets[k];
-      if (counts[b] != null) {
-        counts[b] += 1;
-      }
-    });
-    return counts;
-  }
-
-  function renderLegend() {
-    var counts = countBuckets();
-    var total = state.found || Object.keys(state.buckets).length;
-    text(el.foundCount, String(total));
-    el.legendBar.replaceChildren();
-    el.legend.replaceChildren();
-    LEGEND.forEach(function (item) {
-      var n = counts[item.key] || 0;
-      var seg = document.createElement("i");
-      seg.style.background = item.color;
-      seg.style.flex = String(Math.max(n, 0));
-      el.legendBar.appendChild(seg);
-      var row = document.createElement("div");
-      var left = document.createElement("span");
-      var sw = document.createElement("span");
-      sw.className = "sw";
-      sw.style.background = item.color;
-      left.appendChild(sw);
-      left.appendChild(document.createTextNode(item.label));
-      var right = document.createElement("span");
-      text(right, String(n));
-      row.appendChild(left);
-      row.appendChild(right);
-      el.legend.appendChild(row);
-    });
-  }
-
-  function stageFrom(type) {
-    if (type === "extracted") {
-      return 0;
-    }
-    if (type === "precheck") {
-      return 1;
-    }
-    if (type === "plan" || type === "act" || type === "observe") {
-      return 2;
-    }
-    if (type === "ranked") {
-      return 3;
-    }
-    if (type === "done") {
-      return 4;
-    }
-    return state.stage;
-  }
-
-  function resultPill(summary) {
-    var s = String(summary || "");
-    var pill = document.createElement("span");
-    var label = "Checking";
-    var cls = "sev-checking";
-    if (/NoSuchBucket|unregistered|nxdomain|not found|404|claimable/i.test(s)) {
-      label = "Critical";
-      cls = "sev-critical";
-    } else if (/compromised/i.test(s)) {
-      label = "High";
-      cls = "sev-high";
-    } else if (/ok|exists|registered|safe|tranco/i.test(s)) {
-      label = "Safe";
-      cls = "sev-info";
-    }
-    pill.className = "sev " + cls;
-    text(pill, label);
-    return pill;
-  }
-
-  function appendFeed(event) {
-    if (event.type !== "plan" && event.type !== "act" && event.type !== "observe") {
-      return;
-    }
-    if (event.tool === "done") {
-      return;
-    }
-    var row = el.feed.lastElementChild;
-    if (!row || row.getAttribute("data-target") !== String(event.target || "")) {
-      row = document.createElement("div");
-      row.className = "feed-item";
-      row.setAttribute("data-target", event.target || "");
-      var n = document.createElement("span");
-      n.className = "feed-n";
-      text(n, String(el.feed.children.length + 1).padStart(2, "0"));
-      var body = document.createElement("div");
-      row.appendChild(n);
-      row.appendChild(body);
-      el.feed.appendChild(row);
-    }
-    var body = row.lastElementChild;
-    var line = document.createElement("div");
-    line.className = "feed-line";
-    var label = document.createElement("span");
-    label.className = "feed-k";
-    if (event.type === "plan") {
-      text(label, "Plan");
-      var value = document.createElement("span");
-      text(value, event.tool ? "pick " + event.tool : "plan");
-      line.appendChild(label);
-      line.appendChild(value);
-    } else if (event.type === "act") {
-      text(label, "Call");
-      var code = document.createElement("code");
-      var args = event.args ? JSON.stringify(event.args) : "";
-      text(code, (event.tool || "") + "(" + args.replace(/^\{|\}$/g, "") + ")");
-      line.appendChild(label);
-      line.appendChild(code);
-    } else {
-      text(label, "Result");
-      var wrap = document.createElement("span");
-      wrap.appendChild(resultPill(event.result_summary));
-      wrap.appendChild(document.createTextNode(" "));
-      var rest = document.createElement("span");
-      text(rest, event.result_summary || "");
-      wrap.appendChild(rest);
-      line.appendChild(label);
-      line.appendChild(wrap);
-    }
-    body.appendChild(line);
-  }
-
-  function bumpFound(event) {
-    if (event.type === "extracted" && typeof event.actionable === "number") {
-      state.found = event.actionable;
-    }
-    if (event.type === "precheck" && event.target) {
-      state.buckets[event.target] = event.hard_signal ? "claimable" : "checking";
-      state.found = Math.max(state.found, Object.keys(state.buckets).length);
-    }
-    if (event.type === "ranked" && event.target) {
-      var sev = String(event.severity || "");
-      var line = String(event.evidence_line || event.risk || "");
-      if (/compromised/i.test(line) || event.target === "polyfill.io") {
-        state.buckets[event.target] = "compromised";
-      } else if (sev === "info") {
-        state.buckets[event.target] = "safe";
-      } else if (sev === "critical" || sev === "high") {
-        if (state.buckets[event.target] !== "compromised") {
-          state.buckets[event.target] = "claimable";
-        }
-      }
-    }
-    renderLegend();
-  }
-
-  function beginStream(url, meta) {
-    closeSource();
-    resetScanUi(meta);
-    var source = new EventSource(url);
-    state.source = source;
-    source.onmessage = function (msg) {
-      var event;
-      try {
-        event = JSON.parse(msg.data);
-      } catch (err) {
-        return;
-      }
-      state.events.push(event);
-      var next = stageFrom(event.type);
-      if (next > state.stage) {
-        state.stage = next;
-        renderStepper(state.stage);
-        setProgress((state.stage + 1) / STAGES.length * 100);
-      }
-      if (event.type === "plan" && event.tool !== "done") {
-        state.calls = Math.min(MAX_CALLS, state.calls + 1);
-        renderPips(state.calls);
-      }
-      appendFeed(event);
-      bumpFound(event);
-      if (event.type === "error") {
-        source.close();
-        showError(event.message || "Scan failed", function () {
-          if (state.demo) {
-            startDemo();
-          } else {
-            startScan(state.target);
-          }
-        });
-      }
-      if (event.type === "done") {
-        source.close();
-        finish();
-      }
-    };
-    source.onerror = function () {
-      source.close();
-      if (!state.report) {
-        showError("Scan failed or the connection dropped", function () {
-          if (state.demo) {
-            startDemo();
-          } else if (state.scanId && state.scanId !== "demo") {
-            loadFinished(state.scanId);
-          } else {
-            startScan(state.target);
-          }
-        });
-      }
-    };
-  }
-
-  function finish() {
-    renderStepper(4);
-    setProgress(100);
-    var url = state.demo ? "/api/scan/demo" : "/api/scan/" + encodeURIComponent(state.scanId);
-    fetch(url)
+  function openScanId(id) {
+    fetch("/api/scan/" + encodeURIComponent(id))
       .then(function (res) {
         if (res.status === 409) {
-          throw new Error("running");
+          reattach(id);
+          return null;
         }
+        if (!res.ok) { throw new Error("scan " + res.status); }
         return res.json();
       })
       .then(function (report) {
+        if (!report) { return; }
+        state.scanId = id;
+        state.demo = false;
+        state.elapsedMs = 0;
         state.report = report;
-        setSkipEnabled(true);
         showResults(report);
       })
       .catch(function () {
-        showError("Scan finished but the report could not be loaded", function () {
-          if (state.demo) {
-            startDemo();
-          } else {
-            loadFinished(state.scanId);
-          }
-        });
+        show("home");
+        showError("That scan is no longer available. Run it again.");
       });
   }
 
-  function loadFinished(id) {
-    fetch("/api/scan/" + encodeURIComponent(id))
-      .then(function (res) {
-        if (res.status === 404) {
-          throw new Error("missing");
-        }
-        if (res.status === 409) {
-          beginStream("/api/scan/" + encodeURIComponent(id) + "/events", {
-            kind: "GitHub repo",
-            target: id,
-            scanId: id,
-            demo: false
-          });
-          return null;
-        }
-        return res.json();
-      })
-      .then(function (report) {
-        if (report) {
-          showResults(report);
-        }
-      })
-      .catch(function () {
-        showError("That scan is no longer in memory. Run it again.");
-        page("home");
-      });
-  }
-
-  function ownerStatus(item) {
-    var ev = item.evidence || {};
-    var owner = ev.github_owner || {};
-    var repo = ev.github_repo || {};
-    var rdap = ev.rdap || {};
-    var bucket = ev.bucket_probe || {};
-    if (String(owner.status || "").toLowerCase() === "missing") {
-      return "owner missing";
-    }
-    if (String(repo.status || "").toLowerCase() === "missing") {
-      return "repo missing";
-    }
-    if (String(rdap.status || "").toLowerCase() === "unregistered") {
-      return "unregistered";
-    }
-    if (bucket.status === "NoSuchBucket") {
-      return "bucket missing";
-    }
-    if (String(rdap.status || "").toLowerCase() === "registered") {
-      return "registered";
-    }
-    if (owner.exists) {
-      return "owner exists";
-    }
-    return "—";
-  }
+  /* ---------- report helpers (all code-derived) ---------- */
 
   function whereUsed(item) {
     var refs = item.references || [];
-    if (!refs.length) {
+    return refs.map(function (ref) {
+      if (typeof ref === "string") { return ref; }
+      if (!ref || typeof ref !== "object") { return ""; }
+      if (ref.page_url) { return ref.page_url + (ref.line ? ":" + ref.line : ""); }
+      if (ref.file_line) { return ref.file_line; }
+      if (ref.file) { return ref.file + (ref.line ? ":" + ref.line : ""); }
       return "";
-    }
-    if (typeof refs[0] === "string") {
-      return refs.join(", ");
-    }
-    return refs
-      .map(function (ref) {
-        if (ref.page_url) {
-          return ref.page_url + " <" + (ref.tag || "") + ">:" + ref.line;
-        }
-        if (ref.file_line) {
-          return ref.file_line;
-        }
-        if (ref.file) {
-          return ref.file + ":" + ref.line;
-        }
-        return "";
-      })
-      .filter(Boolean)
-      .join(", ");
+    }).filter(Boolean).join(", ");
+  }
+
+  function evidenceText(item) {
+    return String(item.evidence_line || "").replace(/^Evidence:\s*/, "");
+  }
+
+  function ownerStatus(item) {
+    var evidence = item.evidence || {};
+    var rdap = evidence.rdap || {};
+    var dns = evidence.dns || {};
+    var bucket = evidence.bucket_probe || {};
+    var owner = evidence.github_owner || {};
+    var repo = evidence.github_repo || {};
+    if (bucket.status) { return String(bucket.status); }
+    if (String(owner.status || "") === "missing" || owner.exists === false) { return "owner 404"; }
+    if (String(repo.status || "") === "missing" || repo.exists === false) { return "repo 404"; }
+    if (rdap.status) { return String(rdap.status); }
+    if (dns.status) { return String(dns.status); }
+    if (owner.exists === true) { return "owner exists"; }
+    return "—";
   }
 
   function sortFindings(list) {
     return list.slice().sort(function (a, b) {
-      var da = SEV_ORDER[a.severity] || 9;
-      var db = SEV_ORDER[b.severity] || 9;
-      if (da !== db) {
-        return da - db;
-      }
+      var left = SEV_ORDER[a.severity];
+      var right = SEV_ORDER[b.severity];
+      left = left == null ? 9 : left;
+      right = right == null ? 9 : right;
+      if (left !== right) { return left - right; }
       return String(a.target).localeCompare(String(b.target));
     });
   }
 
-  function addDetail(grid, label, value) {
-    if (!value) {
-      return;
-    }
-    var k = document.createElement("span");
-    k.className = "k";
-    text(k, label);
-    var v = document.createElement("code");
-    text(v, value);
-    grid.appendChild(k);
-    grid.appendChild(v);
-  }
+  /* ---------- results rendering ---------- */
 
   function findingCard(item) {
-    var art = document.createElement("article");
-    art.className = "finding is-" + (item.severity || "info");
-    var top = document.createElement("div");
-    top.className = "finding-top";
-    var sev = document.createElement("span");
-    sev.className = "sev sev-" + (item.severity || "info");
-    text(sev, item.severity || "info");
-    var tgt = document.createElement("span");
-    tgt.className = "mono";
-    text(tgt, item.target);
-    var typ = document.createElement("span");
-    typ.className = "tag tag-neutral";
-    text(typ, item.kind || "");
-    var where = document.createElement("span");
-    where.className = "where";
-    text(where, whereUsed(item));
+    var key = SEV_KEY[item.severity] || "low";
+    var article = make("article", "finding ring-" + key);
+    var main = make("div", "finding-main");
+
+    var top = make("div", "finding-top");
+    var sev = make("span", "finding-sev sev-" + key);
+    sev.appendChild(make("span", "sev-dot"));
+    sev.appendChild(make("span", null, SEV_LABEL[item.severity] || item.severity));
     top.appendChild(sev);
-    top.appendChild(tgt);
-    top.appendChild(typ);
-    top.appendChild(where);
-    var risk = document.createElement("p");
-    risk.className = "risk";
-    text(risk, item.risk || "");
-    var fixRow = document.createElement("div");
-    fixRow.className = "fix-row";
-    var fixK = document.createElement("span");
-    fixK.className = "fix-k";
-    text(fixK, "Fix");
-    var fixT = document.createElement("span");
-    fixT.className = "fix-t";
-    text(fixT, item.fix || "");
-    var copy = document.createElement("button");
+    top.appendChild(make("span", "finding-target", item.target));
+    if (item.kind) { top.appendChild(make("span", "finding-type", item.kind)); }
+    var where = whereUsed(item);
+    if (where) { top.appendChild(make("span", "finding-where", where)); }
+    main.appendChild(top);
+
+    if (item.risk) { main.appendChild(make("p", "finding-risk", item.risk)); }
+
+    var fixRow = make("div", "fix-row");
+    fixRow.appendChild(make("span", "fix-k", "Fix"));
+    fixRow.appendChild(make("span", "fix-text", item.fix || ""));
+    var copy = make("button", "btn btn-secondary copy-btn");
     copy.type = "button";
-    copy.className = "btn btn-secondary";
-    text(copy, "Copy");
+    var copyLabel = make("span", null, "Copy");
+    copy.appendChild(copyIcon());
+    copy.appendChild(copyLabel);
     copy.addEventListener("click", function () {
+      var value = item.fix || "";
       if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(item.fix || "").then(function () {
-          text(copy, "Copied");
-        });
+        navigator.clipboard.writeText(value).catch(function () {});
       }
+      copyLabel.textContent = "Copied";
+      setTimeout(function () { copyLabel.textContent = "Copy"; }, 1500);
     });
-    fixRow.appendChild(fixK);
-    fixRow.appendChild(fixT);
     fixRow.appendChild(copy);
-    var detailsBtn = document.createElement("button");
-    detailsBtn.type = "button";
-    detailsBtn.className = "details-btn";
-    text(detailsBtn, "▾ Details");
-    var details = document.createElement("div");
-    details.className = "details";
-    addDetail(details, "Evidence", item.evidence_line);
-    addDetail(details, "Found in", whereUsed(item));
-    addDetail(details, "Rule note", item.floor_reason);
-    if (item.tranco_rank != null) {
-      addDetail(details, "Tranco", "rank " + item.tranco_rank);
-    }
-    if (item.parked || item.for_sale) {
-      addDetail(
-        details,
-        "Live fetch",
-        (item.for_sale ? "for sale" : "parked") +
-          (item.live_signal ? " · " + item.live_signal : "")
-      );
+    main.appendChild(fixRow);
+
+    var details = make("div", "finding-details");
+    details.hidden = true;
+    addDetail(details, "Evidence", evidenceText(item), false);
+    addDetail(details, "Found in", where, false);
+    if (item.floor_reason) { addDetail(details, "Rule note", item.floor_reason, true); }
+    if (item.tranco_rank != null) { addDetail(details, "Tranco", "rank " + item.tranco_rank, false); }
+    if (item.for_sale || item.parked) {
+      addDetail(details, "Live fetch", item.for_sale ? "listed for sale" : "parked", false);
     }
     if (item.action_ref) {
-      addDetail(
-        details,
-        "Action ref",
-        item.action_ref +
-          (item.action_sha_pinned ? " (SHA-pinned)" : " (not SHA-pinned)")
-      );
+      addDetail(details, "Action ref",
+        item.action_ref + (item.action_sha_pinned ? " (SHA-pinned)" : " (not SHA-pinned)"), false);
     }
-    detailsBtn.addEventListener("click", function () {
-      art.classList.toggle("open");
+
+    var toggle = make("button", "details-btn");
+    toggle.type = "button";
+    toggle.setAttribute("aria-expanded", "false");
+    toggle.appendChild(caretIcon());
+    toggle.appendChild(make("span", null, "Details"));
+    toggle.addEventListener("click", function () {
+      var open = toggle.getAttribute("aria-expanded") === "true";
+      toggle.setAttribute("aria-expanded", open ? "false" : "true");
+      details.hidden = open;
     });
-    art.appendChild(top);
-    art.appendChild(risk);
-    art.appendChild(fixRow);
-    art.appendChild(detailsBtn);
-    art.appendChild(details);
-    return art;
+    main.appendChild(toggle);
+
+    article.appendChild(main);
+    article.appendChild(details);
+    return article;
   }
 
-  function collapsedGroup(title, tag, items, cls) {
-    var wrap = document.createElement("div");
-    wrap.className = "group";
-    var btn = document.createElement("button");
+  function addDetail(grid, label, value, isRule) {
+    if (!value) { return; }
+    grid.appendChild(make("span", "detail-k" + (isRule ? " is-rule" : ""), label));
+    grid.appendChild(make("span", "detail-v" + (isRule ? " is-prose" : ""), value));
+  }
+
+  function collapsedGroup(tag, sevKey, title, items) {
+    var wrap = make("div", "group");
+    var btn = make("button", "group-btn");
     btn.type = "button";
-    btn.className = "group-btn";
-    var label = document.createElement("span");
-    label.className = "sev " + cls;
-    text(label, tag);
-    var rest = document.createElement("span");
-    text(rest, title);
-    btn.appendChild(label);
-    btn.appendChild(rest);
-    var inner = document.createElement("div");
-    inner.className = "group-inner";
-    inner.hidden = true;
+    btn.setAttribute("aria-expanded", "false");
+    btn.appendChild(caretIcon());
+    btn.appendChild(make("span", "group-tag sev-" + sevKey, tag));
+    btn.appendChild(make("span", null, title));
+
+    var rows = make("div", "group-rows");
+    rows.hidden = true;
     items.forEach(function (item) {
-      inner.appendChild(findingCard(item));
+      var row = make("div", "group-row");
+      row.appendChild(make("span", "group-row-target", item.target));
+      row.appendChild(make("span", "group-row-note", evidenceText(item) || whereUsed(item)));
+      rows.appendChild(row);
     });
+
     btn.addEventListener("click", function () {
-      inner.hidden = !inner.hidden;
+      var open = btn.getAttribute("aria-expanded") === "true";
+      btn.setAttribute("aria-expanded", open ? "false" : "true");
+      rows.hidden = open;
     });
     wrap.appendChild(btn);
-    wrap.appendChild(inner);
+    wrap.appendChild(rows);
     return wrap;
   }
 
-  function metaPair(label, value) {
-    var span = document.createElement("span");
-    span.appendChild(document.createTextNode(label + " "));
-    var b = document.createElement("b");
-    text(b, value);
-    span.appendChild(b);
+  function renderChips(findings) {
+    el.resChips.replaceChildren();
+    ["critical", "high", "medium", "low", "info"].forEach(function (severity) {
+      var n = findings.filter(function (f) { return f.severity === severity; }).length;
+      if (!n) { return; }
+      var chip = make("span", "res-chip res-chip-" + SEV_KEY[severity]);
+      chip.appendChild(make("span", "res-chip-n", String(n)));
+      chip.appendChild(make("span", null, SEV_LABEL[severity]));
+      el.resChips.appendChild(chip);
+    });
+  }
+
+  function metaItem(label, value, mono) {
+    var span = make("span", null, label + " ");
+    span.appendChild(make("b", mono ? "mono" : null, value));
     return span;
   }
 
-  function showResults(report) {
-    state.report = report;
-    setSkipEnabled(true);
-    closeSource();
-    page("results");
-    text(el.resTarget, report.target || state.target);
-    setChip(el.resChip, state.kind || (report.kind === "website" ? "Website" : "GitHub repo"));
-    var findings = sortFindings(report.findings || []);
-    findings.sort(function (a, b) {
-      return (SEV_ORDER[a.severity] || 9) - (SEV_ORDER[b.severity] || 9);
-    });
-    var fix = findings.filter(function (f) {
-      return f.severity === "critical" || f.severity === "high";
-    });
-    var later = findings.filter(function (f) {
-      return f.severity === "low" || f.severity === "medium";
-    });
-    var safe = findings.filter(function (f) {
-      return f.severity === "info";
-    });
-    text(el.headline, fix.length + " things to fix today");
-    el.chips.replaceChildren();
-    [
-      ["critical", "Critical"],
-      ["high", "High"],
-      ["medium", "Medium"],
-      ["low", "Low"],
-      ["info", "Safe"]
-    ].forEach(function (pair) {
-      var sev = pair[0];
-      var n = findings.filter(function (f) { return f.severity === sev; }).length;
-      if (!n) {
-        return;
-      }
-      var chip = document.createElement("span");
-      chip.className = "chip sev-" + (sev === "info" ? "info" : sev);
-      var count = document.createElement("span");
-      count.className = "n";
-      text(count, String(n));
-      chip.appendChild(count);
-      chip.appendChild(document.createTextNode(" " + pair[1]));
-      el.chips.appendChild(chip);
-    });
-    var cov = report.coverage || {};
-    var elapsed = formatClock(Date.now() - (state.startedAt || Date.now()));
+  function renderMeta(report) {
+    var coverage = report.coverage || {};
     el.resMeta.replaceChildren();
-    el.resMeta.appendChild(metaPair("Scan time", elapsed));
-    el.resMeta.appendChild(metaPair("Agent calls", String(state.calls || "—")));
-    el.resMeta.appendChild(
-      metaPair(
-        "Coverage:",
-        cov.truncated
-          ? "partial (" + (cov.reason || "truncated") + ")"
-          : "all files scanned"
-      )
-    );
-    text(el.tabNFix, String(fix.length));
-    text(el.tabNAll, String(findings.length));
-    var traceN = state.events.filter(function (e) {
-      return e.type === "plan" || e.type === "act" || e.type === "observe";
-    }).length;
-    text(el.tabNTrace, String(Math.min(state.calls, MAX_CALLS) || traceN));
-    el.tabFix.replaceChildren();
-    fix.forEach(function (item) {
-      el.tabFix.appendChild(findingCard(item));
-    });
-    if (later.length) {
-      el.tabFix.appendChild(
-        collapsedGroup(later.length + " to review later", "Low", later, "sev-low")
-      );
+    if (state.elapsedMs > 0) {
+      el.resMeta.appendChild(metaItem("Scan time", longClock(state.elapsedMs), true));
     }
-    if (safe.length) {
-      el.tabFix.appendChild(
-        collapsedGroup(safe.length + " references checked and safe", "Safe", safe, "sev-info")
-      );
+    if (state.calls > 0) {
+      el.resMeta.appendChild(metaItem("Agent calls", String(state.calls), true));
     }
-    var table = document.createElement("table");
-    table.className = "table";
-    var head = document.createElement("thead");
-    var hr = document.createElement("tr");
-    ["Target", "Type", "Owner status", "Severity", "Where used"].forEach(function (h) {
-      var th = document.createElement("th");
-      text(th, h);
-      hr.appendChild(th);
+    var coverageText = coverage.truncated
+      ? coverage.files_scanned + " of " + coverage.files_total + " files scanned"
+      : "all files scanned";
+    el.resMeta.appendChild(metaItem("Coverage:", coverageText, false));
+  }
+
+  function renderAllTargets(findings) {
+    var wrap = make("div", "table-wrap");
+    var table = make("table", "table");
+    var thead = make("thead");
+    var headRow = make("tr");
+    ["Target", "Type", "Owner status", "Severity", "Where used"].forEach(function (name) {
+      headRow.appendChild(make("th", null, name));
     });
-    head.appendChild(hr);
-    var body = document.createElement("tbody");
+    thead.appendChild(headRow);
+    var tbody = make("tbody");
     findings.forEach(function (item) {
-      var tr = document.createElement("tr");
-      [item.target, item.kind, ownerStatus(item), item.severity, whereUsed(item)].forEach(function (val) {
-        var td = document.createElement("td");
-        text(td, val);
-        tr.appendChild(td);
-      });
-      body.appendChild(tr);
+      var tr = make("tr");
+      tr.appendChild(make("td", "col-target", item.target));
+      tr.appendChild(make("td", "col-type", item.kind || ""));
+      tr.appendChild(make("td", "col-owner", ownerStatus(item)));
+      var sevCell = make("td");
+      sevCell.appendChild(make("span", "sev-badge sev-" + (SEV_KEY[item.severity] || "low"),
+        SEV_LABEL[item.severity] || item.severity));
+      tr.appendChild(sevCell);
+      tr.appendChild(make("td", "col-where", whereUsed(item)));
+      tbody.appendChild(tr);
     });
-    table.appendChild(head);
-    table.appendChild(body);
-    var wrap = document.createElement("div");
-    wrap.className = "table-wrap";
+    table.appendChild(thead);
+    table.appendChild(tbody);
     wrap.appendChild(table);
     el.tabAll.replaceChildren(wrap);
+  }
+
+  function renderTrace() {
     el.tabTrace.replaceChildren();
-    state.events
-      .filter(function (e) {
-        return e.type === "plan" || e.type === "act" || e.type === "observe";
-      })
-      .forEach(function (event, index) {
-        var row = document.createElement("div");
-        row.className = "feed-item";
-        var n = document.createElement("span");
-        n.className = "feed-n";
-        text(n, String(index + 1).padStart(2, "0"));
-        var col = document.createElement("div");
-        var p = document.createElement("div");
-        text(p, (event.type || "") + " " + (event.tool || "") + " " + (event.target || ""));
-        var r = document.createElement("code");
-        text(r, event.result_summary || JSON.stringify(event.args || {}));
-        col.appendChild(p);
-        col.appendChild(r);
-        row.appendChild(n);
-        row.appendChild(col);
-        el.tabTrace.appendChild(row);
-      });
-    text(el.tabRaw, JSON.stringify(report, null, 2));
+    if (!state.turns.length) {
+      el.tabTrace.appendChild(make("div", "empty-note",
+        "The agent trace is only available while a scan is streaming."));
+      return;
+    }
+    var card = make("div", "trace-card");
+    state.turns.forEach(function (turn, index) {
+      var row = make("div", "trace-row");
+      row.appendChild(make("span", "feed-n", String(index + 1).padStart(2, "0")));
+      var body = make("div", "trace-body");
+      body.appendChild(make("span", "trace-plan", turn.plan));
+      var line = make("div", "trace-call-line");
+      var call = make("span", "trace-call");
+      call.appendChild(make("span", "accent", turn.tool));
+      call.appendChild(document.createTextNode('("' + turn.arg + '")'));
+      line.appendChild(call);
+      line.appendChild(make("span", "dim", "→"));
+      line.appendChild(make("span", "sev-fg-" + turn.sev, turn.result));
+      body.appendChild(line);
+      row.appendChild(body);
+      card.appendChild(row);
+    });
+    el.tabTrace.appendChild(card);
+  }
+
+  function showResults(report) {
+    closeSource();
+    state.report = report;
+    state.finished = true;
+    show("results");
+
+    el.resTarget.textContent = report.target || state.target;
+    var kind = report.kind || state.kind;
+    el.resKind.hidden = !kind;
+    if (kind) { el.resKind.textContent = KIND_LABEL[kind] || kind; }
+
+    var findings = sortFindings(report.findings || []);
+    var fix = findings.filter(function (f) { return f.severity === "critical" || f.severity === "high"; });
+    var later = findings.filter(function (f) { return f.severity === "medium" || f.severity === "low"; });
+    var safe = findings.filter(function (f) { return f.severity === "info"; });
+
+    el.headline.textContent = fix.length === 0
+      ? "Nothing to fix today"
+      : fix.length + (fix.length === 1 ? " thing to fix today" : " things to fix today");
+    renderChips(findings);
+    renderMeta(report);
+
+    el.tabNFix.textContent = String(fix.length);
+    el.tabNAll.textContent = String(findings.length);
+    el.tabNTrace.textContent = String(state.turns.length);
+
+    el.tabFix.replaceChildren();
+    fix.forEach(function (item) { el.tabFix.appendChild(findingCard(item)); });
+    if (!fix.length) {
+      el.tabFix.appendChild(make("div", "empty-note", "No critical or high findings in this scan."));
+    }
+    if (later.length) {
+      el.tabFix.appendChild(collapsedGroup("Low", "low",
+        later.length + " to review later", later));
+    }
+    if (safe.length) {
+      el.tabFix.appendChild(collapsedGroup("Safe", "safe",
+        safe.length + (safe.length === 1 ? " reference checked and safe" : " references checked and safe"), safe));
+    }
+
+    renderAllTargets(findings);
+    renderTrace();
+    el.tabRaw.replaceChildren();
+    var pre = make("pre", "raw-json", JSON.stringify(report, null, 2));
+    el.tabRaw.appendChild(pre);
     selectTab("fix");
   }
 
   function selectTab(name) {
-    document.querySelectorAll(".tab").forEach(function (btn) {
+    var panels = { fix: el.tabFix, all: el.tabAll, trace: el.tabTrace, raw: el.tabRaw };
+    Array.prototype.forEach.call(document.querySelectorAll(".tab"), function (btn) {
       btn.setAttribute("aria-selected", btn.getAttribute("data-tab") === name ? "true" : "false");
     });
-    el.tabFix.hidden = name !== "fix";
-    el.tabAll.hidden = name !== "all";
-    el.tabTrace.hidden = name !== "trace";
-    el.tabRaw.hidden = name !== "raw";
+    Object.keys(panels).forEach(function (key) { panels[key].hidden = key !== name; });
   }
 
-  el.target.addEventListener("input", function () {
-    setChip(el.chip, detectKind(el.target.value));
-  });
+  /* ---------- home: nav tint, hero clearance, layer picker ---------- */
+
+  function onScroll() {
+    if (el.home.hidden) { return; }
+    var y = window.scrollY || 0;
+    el.glow.style.transform = "translateY(" + (-Math.min(y * 0.32, 150)) + "px)";
+    el.haze.style.opacity = String(0.7 + Math.min(y / 500, 0.3));
+    var bottom = el.hero.getBoundingClientRect().bottom;
+    el.nav.classList.toggle("is-light", bottom > 0 && bottom < 140);
+  }
+
+  // The nav is fixed, so the hero has to start below whatever height it wraps to.
+  function syncHeroClearance() {
+    var navHeight = el.nav.offsetHeight;
+    el.heroInner.style.setProperty("--hero-top",
+      "max(clamp(130px, 14vw, 180px), " + (navHeight + 24) + "px)");
+  }
+
+  function selectLayer(index) {
+    Array.prototype.forEach.call(document.querySelectorAll(".layer-label"), function (btn) {
+      btn.classList.toggle("is-on", Number(btn.getAttribute("data-layer")) === index);
+    });
+    Array.prototype.forEach.call(document.querySelectorAll(".layer-solid"), function (group) {
+      group.classList.toggle("is-on", Number(group.getAttribute("data-solid")) === index);
+    });
+    Array.prototype.forEach.call(document.querySelectorAll(".l-line"), function (line) {
+      line.classList.toggle("is-on", Number(line.getAttribute("data-line")) === index);
+    });
+    Array.prototype.forEach.call(document.querySelectorAll(".how-panel"), function (panel) {
+      panel.hidden = Number(panel.getAttribute("data-panel")) !== index;
+    });
+    el.howTool.textContent = [
+      "files → targets",
+      "dns · rdap · bucket_probe · github_api",
+      "plan → tool call → observation",
+      "model judgment + code rules",
+      "web · PR comment · MCP"
+    ][index];
+  }
+
+  /* ---------- wiring ---------- */
+
+  el.target.addEventListener("input", syncInput);
   el.form.addEventListener("submit", function (event) {
     event.preventDefault();
-    var value = el.target.value.trim();
-    if (!value) {
-      showError("Paste a GitHub repo or website URL");
-      return;
-    }
-    startScan(value);
+    startScan(el.target.value);
   });
-  function bindDemo(node) {
-    if (node) {
-      node.addEventListener("click", startDemo);
-    }
-  }
-  bindDemo(el.demo);
-  bindDemo(document.getElementById("demo-report"));
-  document.querySelectorAll("[data-demo]").forEach(bindDemo);
-  document.querySelectorAll("[data-home]").forEach(function (btn) {
-    btn.addEventListener("click", function () {
-      closeSource();
-      history.replaceState({}, "", "/");
-      showError("");
-      page("home");
-    });
+  Array.prototype.forEach.call(document.querySelectorAll("[data-demo]"), function (btn) {
+    btn.addEventListener("click", startDemo);
   });
-  document.querySelectorAll(".tab").forEach(function (btn) {
+  Array.prototype.forEach.call(document.querySelectorAll("[data-home]"), function (btn) {
+    btn.addEventListener("click", goHome);
+  });
+  Array.prototype.forEach.call(document.querySelectorAll(".tab"), function (btn) {
+    btn.addEventListener("click", function () { selectTab(btn.getAttribute("data-tab")); });
+  });
+  Array.prototype.forEach.call(document.querySelectorAll(".layer-label"), function (btn) {
     btn.addEventListener("click", function () {
-      selectTab(btn.getAttribute("data-tab"));
+      selectLayer(Number(btn.getAttribute("data-layer")));
     });
   });
   el.skip.addEventListener("click", function () {
-    if (state.report) {
-      showResults(state.report);
-    }
-  });
-  document.querySelectorAll(".layer-label").forEach(function (btn) {
-    btn.addEventListener("click", function () {
-      document.querySelectorAll(".layer-label").forEach(function (other) {
-        other.classList.toggle("on", other === btn);
-      });
-    });
+    if (state.report) { showResults(state.report); }
   });
 
+  window.addEventListener("scroll", onScroll, { passive: true });
+  window.addEventListener("resize", syncHeroClearance);
+
+  syncInput();
+  syncHeroClearance();
+  selectLayer(2);
+  onScroll();
+
   var params = new URLSearchParams(window.location.search);
+  var scanParam = params.get("scan");
   if (params.get("demo") === "1") {
     startDemo();
-  } else if (params.get("scan")) {
-    var id = params.get("scan");
-    if (/^[a-zA-Z0-9]+$/.test(id)) {
-      loadFinished(id);
-    }
+  } else if (scanParam && /^[A-Za-z0-9_-]+$/.test(scanParam)) {
+    openScanId(scanParam);
   }
 })();

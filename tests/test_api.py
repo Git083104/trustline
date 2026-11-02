@@ -1,4 +1,5 @@
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -246,3 +247,59 @@ def test_demo_report_and_events_offline():
 def test_demo_gap_default_matches_config():
     assert demo_gap_ms("") == DEMO_EVENT_GAP_MS
     assert SCAN_COST_CAP_USD == 1.00
+
+
+STATIC = Path(__file__).resolve().parents[1] / "api" / "static"
+
+
+def test_frontend_has_the_three_screens_and_no_design_switcher():
+    markup = (STATIC / "index.html").read_text()
+    for anchor in ('id="page-home"', 'id="screen-scanning"', 'id="screen-results"'):
+        assert anchor in markup
+    # the floating Home/Scanning/Results control is a design-tool affordance
+    assert "showSwitcher" not in markup
+    assert "Trustmap" not in markup
+    assert markup.count("Trustline") > 1
+    assert "Inter" in markup and "JetBrains+Mono" in markup
+
+
+def test_report_panels_ship_empty_so_only_api_data_renders():
+    markup = (STATIC / "index.html").read_text()
+    for panel in ("tab-fix", "tab-all", "tab-trace", "tab-raw"):
+        assert re.search(rf'id="{panel}"[^>]*>\s*</div>', markup), panel
+    script = (STATIC / "app.js").read_text()
+    for mock in ("paperplane", "trustline-demo-", "polyfill.io"):
+        assert mock not in script, mock
+
+
+def test_frontend_never_writes_report_text_as_html():
+    script = (STATIC / "app.js").read_text()
+    assert "innerHTML" not in script
+    assert "outerHTML" not in script
+    assert "insertAdjacentHTML" not in script
+    assert "alert(" not in script
+    # report targets must not become links
+    assert 'createElement("a")' not in script
+
+
+def test_frontend_keeps_only_the_scan_id_in_the_url():
+    script = (STATIC / "app.js").read_text()
+    assert '"?scan=" + encodeURIComponent(id)' in script
+    assert '"?demo=1"' in script
+
+
+def test_frontend_handles_every_documented_sse_event():
+    script = (STATIC / "app.js").read_text()
+    for event_type in ("started", "extracted", "precheck", "plan", "act",
+                       "observe", "ranked", "done", "error"):
+        assert f'"{event_type}"' in script, event_type
+
+
+def test_static_assets_are_served_and_packaged():
+    app = create_app(model_client=FakeModelClient(handler=lambda r: {}))
+    with TestClient(app) as client:
+        for path in ("/static/app.css", "/static/app.js"):
+            assert client.get(path).status_code == 200
+    packaging = (Path(__file__).resolve().parents[1] / "pyproject.toml").read_text()
+    for name in ("index.html", "app.css", "app.js"):
+        assert f'"api/static/{name}"' in packaging
