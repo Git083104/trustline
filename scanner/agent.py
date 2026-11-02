@@ -10,6 +10,7 @@ from scanner.config import (
     EXPIRY_INVESTIGATE_DAYS,
     MAX_AGENT_TOOL_CALLS,
     MAX_INVESTIGATION_CONCURRENCY,
+    PRECHECK_CONCURRENCY,
     SCAN_COST_CAP_USD,
 )
 from scanner.llm import CallLog, ModelClient, ToolTurn, cost_usd
@@ -163,6 +164,42 @@ def should_investigate(ref: Reference, cl: Classification, evidence: dict[str, A
     return has_hard_signal(evidence) or cl.blast_radius >= 1
 
 
+def _precheck_key(ref: Reference, cl: Classification) -> tuple:
+    """Everything precheck() reads. Two references sharing this get one lookup."""
+    is_bucket = cl.type == "bucket" or _is_bucket_ref(ref)
+    return (
+        cl.type,
+        ref.host_or_bucket,
+        ref.domain or "",
+        ref.action_owner or "",
+        ref.action_repo or "",
+        _bucket_provider(ref.raw) if is_bucket else "",
+        is_github_action_ref(ref),
+        is_github_owner_ref(ref),
+    )
+
+
+def _target_key(ref: Reference, cl: Classification) -> tuple:
+    """A takeover is a property of the target, not of each line that names it."""
+    return (ref.host_or_bucket, cl.type, cl.runs_in, cl.blast_radius)
+
+
+async def _precheck_all(
+    actionable: list[tuple[Reference, Classification]], ctx: ToolContext
+) -> dict[tuple, dict[str, Any]]:
+    leads: dict[tuple, tuple[Reference, Classification]] = {}
+    for ref, cl in actionable:
+        leads.setdefault(_precheck_key(ref, cl), (ref, cl))
+    sem = asyncio.Semaphore(PRECHECK_CONCURRENCY)
+
+    async def one(key: tuple) -> tuple[tuple, dict[str, Any]]:
+        ref, cl = leads[key]
+        async with sem:
+            return key, await precheck(ref, cl, ctx)
+
+    return dict(await asyncio.gather(*(one(key) for key in leads)))
+
+
 async def investigate(
     pairs: list[tuple[Reference, Classification]],
     *,
@@ -173,9 +210,10 @@ async def investigate(
     on_event: OnEvent | None = None,
 ) -> list[Investigation]:
     actionable = [(ref, cl) for ref, cl in pairs if ref.filter_reason is None]
+    evidence_by_key = await _precheck_all(actionable, ctx)
     checked: list[tuple[Reference, Classification, dict[str, Any]]] = []
     for ref, cl in actionable:
-        evidence = await precheck(ref, cl, ctx)
+        evidence = dict(evidence_by_key[_precheck_key(ref, cl)])
         checked.append((ref, cl, evidence))
         emit(
             on_event,
@@ -212,15 +250,29 @@ async def investigate(
     lock = asyncio.Lock()
     sem = asyncio.Semaphore(max_concurrent)
 
-    async def worker(
-        index: int, item: tuple[Reference, Classification, dict[str, Any]]
-    ) -> None:
+    # One agent run per target, not per line that names it. A repo that
+    # references the same host from forty places asked the same question forty
+    # times; the answer is about the host, so it is asked once and shared.
+    groups: dict[tuple, list[int]] = {}
+    for index, (ref, cl, _) in enumerate(eligible):
+        groups.setdefault(_target_key(ref, cl), []).append(index)
+
+    def share(inv: Investigation, index: int) -> Investigation:
+        ref, cl, _ = eligible[index]
+        return inv.model_copy(
+            update={"file": ref.file, "line": ref.line, "cost_usd": 0.0}
+        )
+
+    async def worker(members: list[int]) -> None:
         nonlocal spent
-        ref, cl, evidence = item
+        lead = members[0]
+        ref, cl, evidence = eligible[lead]
         async with sem:
             async with lock:
                 if spent >= cost_cap:
-                    results[index] = _budget_skip(ref, cl)
+                    for index in members:
+                        other_ref, other_cl, _ = eligible[index]
+                        results[index] = _budget_skip(other_ref, other_cl)
                     return
             inv = await investigate_one(
                 ref,
@@ -232,9 +284,11 @@ async def investigate(
             )
             async with lock:
                 spent += inv.cost_usd
-            results[index] = inv
+            results[lead] = inv
+            for index in members[1:]:
+                results[index] = share(inv, index)
 
-    await asyncio.gather(*(worker(i, item) for i, item in enumerate(eligible)))
+    await asyncio.gather(*(worker(members) for members in groups.values()))
     return skipped + [item for item in results if item is not None]
 
 

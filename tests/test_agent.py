@@ -364,3 +364,62 @@ async def test_trace_is_plan_act_observe(tmp_path):
     assert "rdap" in {event.tool for event in results[0].trace}
     assert kinds[-3:] == ["plan", "act", "observe"]
     assert results[0].trace[-1].tool == "done"
+
+
+@pytest.mark.asyncio
+async def test_one_agent_run_per_target_not_per_reference(tmp_path):
+    # the same host named from many lines is one takeover question, so the
+    # agent should be asked once and the answer shared
+    refs = [
+        Reference(
+            file=f"src/page{index}.html",
+            line=index + 1,
+            raw="https://cdn-assets-trustmap-7f3k2.com/lib.js",
+            host_or_bucket="cdn-assets-trustmap-7f3k2.com",
+            domain="cdn-assets-trustmap-7f3k2.com",
+        )
+        for index in range(12)
+    ]
+    pairs = [(ref, _classification(ref)) for ref in refs]
+
+    calls: list[str] = []
+    scripted = _scripted_client()
+    inner = scripted.tool_handler
+
+    def counting(request):
+        first = json.loads(request["messages"][0]["content"])
+        calls.append(first["reference"]["file"])
+        return inner(request)
+
+    client = FakeModelClient(tool_handler=counting)
+    found = await investigate(pairs, client=client, ctx=_ctx(tmp_path))
+
+    assert len(found) == len(refs)
+    # every reference keeps its own location
+    assert {(item.file, item.line) for item in found} == {
+        (ref.file, ref.line) for ref in refs
+    }
+    # but only one of them was actually investigated
+    assert len(set(calls)) == 1
+    assert sum(1 for item in found if item.cost_usd > 0) == 1
+    assert all(item.summary == found[0].summary for item in found)
+
+
+@pytest.mark.asyncio
+async def test_targets_with_different_context_are_investigated_apart(tmp_path):
+    # same host, different blast radius: a genuinely different question
+    first = Reference(
+        file="index.html",
+        line=1,
+        raw="https://cdn-assets-trustmap-7f3k2.com/lib.js",
+        host_or_bucket="cdn-assets-trustmap-7f3k2.com",
+        domain="cdn-assets-trustmap-7f3k2.com",
+    )
+    second = first.model_copy(update={"file": "docs/page.html", "line": 9})
+    pairs = [
+        (first, _classification(first, blast_radius=2)),
+        (second, _classification(second, blast_radius=1)),
+    ]
+    found = await investigate(pairs, client=_scripted_client(), ctx=_ctx(tmp_path))
+    assert len(found) == 2
+    assert sum(1 for item in found if item.cost_usd > 0) == 2
