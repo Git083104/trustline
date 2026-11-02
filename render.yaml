@@ -1,12 +1,12 @@
 services:
   - type: web
-    name: trustmap
+    name: trustline
     runtime: docker
     plan: starter
     dockerfilePath: ./Dockerfile
     healthCheckPath: /api/health
     disk:
-      name: trustmap-data
+      name: trustline-data
       mountPath: /var/data
       sizeGB: 1
     envVars:
