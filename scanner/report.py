@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import re
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 from scanner.agent import investigate, should_investigate, tranco_checked_safe
@@ -12,6 +13,7 @@ from dataclasses import dataclass, field
 from scanner.config import (
     EXPIRY_INVESTIGATE_DAYS,
     LLM_MAX_RETRIES,
+    RANK_CONCURRENCY,
     RANK_MODEL,
     RANK_REASONING_EFFORT,
     SCAN_COST_CAP_USD,
@@ -785,15 +787,33 @@ def rank(
     logs: list[CallLog] | None = None,
     on_event: OnEvent | None = None,
 ) -> list[Finding]:
-    findings = sort_findings(
-        [
-            _rank_group(group, client=client, cache=cache, logs=logs)
-            for group in group_by_target(rows)
-        ]
-    )
-    for item in findings:
-        emit(on_event, {"type": "ranked", **finding_public(item)})
-    return findings
+    groups = group_by_target(rows)
+    if not groups:
+        return []
+    results: list[Finding | None] = [None] * len(groups)
+    # One list per group, merged in group order afterwards, so the cost log
+    # does not depend on which worker finished first.
+    group_logs: list[list[CallLog]] = [[] for _ in groups]
+
+    def rank_one(index: int) -> None:
+        finding = _rank_group(
+            groups[index], client=client, cache=cache, logs=group_logs[index]
+        )
+        results[index] = finding
+        # Tell the page as each target is ranked, not after all of them.
+        emit(on_event, {"type": "ranked", **finding_public(finding)})
+
+    if len(groups) == 1:
+        rank_one(0)
+    else:
+        workers = min(RANK_CONCURRENCY, len(groups))
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            for future in [pool.submit(rank_one, i) for i in range(len(groups))]:
+                future.result()
+    if logs is not None:
+        for bundle in group_logs:
+            logs.extend(bundle)
+    return sort_findings([item for item in results if item is not None])
 
 
 def _rank_group(

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import threading
 import time
 import uuid
 from typing import Any, AsyncIterator
@@ -27,6 +28,7 @@ class Job:
         self.report: dict[str, Any] | None = None
         self.error: str | None = None
         self._loop = _running_loop()
+        self._lock = threading.Lock()
 
     def emit(self, payload: dict[str, Any]) -> None:
         event = {
@@ -34,8 +36,10 @@ class Job:
             "scan_id": self.scan_id,
             "ts": time.time(),
         }
-        self.events.append(event)
-        waiters, self._waiters = self._waiters, []
+        # rank emits from a pool of threads, so the swap below must not race
+        with self._lock:
+            self.events.append(event)
+            waiters, self._waiters = self._waiters, []
         if not waiters:
             return
         # The blocking scan stages run in a worker thread, so waking an
@@ -91,7 +95,10 @@ class Job:
                     return
             self._loop = _running_loop()
             waiter = asyncio.Event()
-            self._waiters.append(waiter)
+            with self._lock:
+                if len(self.events) > index:
+                    continue
+                self._waiters.append(waiter)
             await waiter.wait()
 
 

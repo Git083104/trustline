@@ -763,3 +763,84 @@ async def test_fixture_scan_groups_and_ranks_claimable_first(tmp_path):
 def test_filtered_hosts_are_not_extracted_as_ranked_targets():
     refs = extract(str(FIXTURE_ROOT))
     assert any(ref.filter_reason == "reserved_tld" for ref in refs)
+
+
+def test_rank_runs_targets_in_parallel_and_streams_each_one(tmp_path):
+    # rank was a serial loop that emitted only after every target was done:
+    # 79% of a real scan's wall time with nothing on screen
+    import time
+    from scanner.config import RANK_CONCURRENCY
+
+    targets = 8
+    rows = []
+    for index in range(targets):
+        ref = Reference(
+            file="deploy/infra.yaml",
+            line=index + 1,
+            raw=f"s3://missing-bucket-{index}",
+            host_or_bucket=f"missing-bucket-{index}",
+        )
+        rows.append(
+            (
+                ref,
+                _cl(ref),
+                _inv(ref, {"bucket_probe": {"status": "NoSuchBucket", "http_status": 404}}),
+            )
+        )
+
+    delay = 0.2
+
+    def slow(request):
+        time.sleep(delay)
+        return _rank_ok()
+
+    seen: list[str] = []
+    started = time.perf_counter()
+    findings = rank(
+        rows,
+        client=FakeModelClient(handler=slow),
+        cache=LookupCache(tmp_path / "rank.db"),
+        on_event=lambda event: seen.append(event["type"]),
+    )
+    elapsed = time.perf_counter() - started
+
+    assert len(findings) == targets
+    assert seen == ["ranked"] * targets
+    serial = delay * targets
+    assert elapsed < serial / 2, f"{elapsed:.2f}s is not faster than serial {serial:.2f}s"
+    assert RANK_CONCURRENCY > 1
+
+
+def test_rank_returns_findings_sorted_whatever_order_they_finish(tmp_path):
+    order = ["info", "critical", "low", "high"]
+    rows = []
+    for index, severity in enumerate(order):
+        ref = Reference(
+            file="deploy/infra.yaml",
+            line=index + 1,
+            raw=f"s3://bucket-{severity}",
+            host_or_bucket=f"bucket-{severity}",
+        )
+        rows.append(
+            (
+                ref,
+                _cl(ref),
+                _inv(ref, {"bucket_probe": {"status": "exists", "http_status": 403}}),
+            )
+        )
+
+    def by_target(request):
+        for severity in order:
+            if f"bucket-{severity}" in request["user"]:
+                return _rank_ok(severity=severity, risk="Checked.", override="")
+        return _rank_ok()
+
+    findings = rank(
+        rows,
+        client=FakeModelClient(handler=by_target),
+        cache=LookupCache(tmp_path / "sorted.db"),
+    )
+    severities = [item.severity for item in findings]
+    from scanner.report import SEVERITY_ORDER
+
+    assert severities == sorted(severities, key=lambda s: SEVERITY_ORDER[s])
