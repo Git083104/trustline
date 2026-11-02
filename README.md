@@ -19,10 +19,40 @@ uv run pytest -q -m 'not slow'
 uv run uvicorn api.main:app --factory --host 127.0.0.1 --port 8000
 ```
 
-Open http://127.0.0.1:8000/ — **Watch the demo scan** streams `/api/scan/demo/events` (no model key).
-Live scans need `MODEL_API_KEY` in a local `.env` or the environment. Keep `TRUSTMAP_ALLOW_LOCAL_SCAN` unset or `0`.
+Open http://127.0.0.1:8000/ — **Watch the demo scan** streams `/api/scan/demo/events` (no
+model key). Live scans need `MODEL_API_KEY` in a local `.env` or the environment. Keep
+`TRUSTMAP_ALLOW_LOCAL_SCAN` unset or `0`.
+
+Scanning a repository shallow-clones it, so `git` has to be on the host.
 
 ## Deploy
 
-See the Phase F notes in chat for Render (Starter plan, disk at `/var/data`, secret
-`MODEL_API_KEY`). Blueprint file: `render.yaml`.
+The app is a long-lived server, not a set of functions: a scan runs as a background task
+in the process that accepted it, streams Server-Sent Events while it works, and caches
+lookups in SQLite on disk. It needs a host that keeps a process running and gives it a
+writable volume — Render, Fly, Railway, a VM. It does not fit a serverless platform
+(Vercel, Netlify Functions, Lambda) without moving job state and the cache out of the
+process.
+
+### Render (the checked-in blueprint)
+
+`render.yaml` describes the whole service: Docker runtime, Starter plan, a 1 GB disk at
+`/var/data`, and a health check on `/api/health`.
+
+1. Push this repository to GitHub.
+2. In Render: **New → Blueprint**, pick the repository, apply `render.yaml`.
+3. Set the two secrets it leaves blank: `MODEL_API_KEY` and `GITHUB_TOKEN`.
+
+Everything else — the spend and rate caps, `TRUSTMAP_TRUSTED_PROXY_HOPS=1`, the cache
+path — is already in the blueprint. Check the build locally first with:
+
+```bash
+docker build -t trustline . && docker run --rm -p 8000:8000 trustline
+```
+
+### What does not survive a restart
+
+Jobs live in process memory. `GET /api/scan/{id}` and the `?scan=<id>` share link work
+until the process restarts; after that the id is gone (404) and the scan has to be run
+again. The demo is a checked-in fixture and always works. Plan for restarts on deploy
+and on idle.

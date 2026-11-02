@@ -1,8 +1,17 @@
 import json
+import subprocess
 from pathlib import Path
 
-from scanner.config import ALLOWLIST_DOMAINS
-from scanner.extract import actionable, extract, extract_scan, _clone_github
+import pytest
+
+from scanner.config import ALLOWLIST_DOMAINS, GITHUB_CLONE_TIMEOUT_S
+from scanner.extract import (
+    CloneError,
+    actionable,
+    extract,
+    extract_scan,
+    _clone_github,
+)
 
 FIXTURE_ROOT = Path(__file__).parent / "fixtures" / "demo_repo"
 EXPECTED_PATH = Path(__file__).parent / "fixtures" / "expected.json"
@@ -234,3 +243,34 @@ def test_github_url_uses_shallow_clone(tmp_path: Path):
 
     found = extract("https://github.com/acme/widgets", clone_github=fake_clone)
     assert found[0].host_or_bucket == "api.cloned.example.com"
+
+
+def test_clone_failure_reports_a_readable_reason(monkeypatch, tmp_path: Path):
+    def boom(*args, **kwargs):
+        raise subprocess.CalledProcessError(128, args[0] if args else "git")
+
+    monkeypatch.setattr(subprocess, "run", boom)
+    with pytest.raises(CloneError) as caught:
+        _clone_github("https://github.com/acme/widgets", tmp_path)
+    message = str(caught.value)
+    assert "acme/widgets" in message
+    assert "private or renamed" in message
+    assert "git clone" not in message
+
+
+def test_missing_git_binary_is_named_plainly(monkeypatch, tmp_path: Path):
+    def missing(*args, **kwargs):
+        raise FileNotFoundError("git")
+
+    monkeypatch.setattr(subprocess, "run", missing)
+    with pytest.raises(CloneError, match="git is not installed"):
+        _clone_github("https://github.com/acme/widgets", tmp_path)
+
+
+def test_clone_timeout_names_the_limit(monkeypatch, tmp_path: Path):
+    def slow(*args, **kwargs):
+        raise subprocess.TimeoutExpired("git", GITHUB_CLONE_TIMEOUT_S)
+
+    monkeypatch.setattr(subprocess, "run", slow)
+    with pytest.raises(CloneError, match=str(GITHUB_CLONE_TIMEOUT_S)):
+        _clone_github("https://github.com/acme/widgets", tmp_path)

@@ -9,6 +9,13 @@ from scanner.events import finding_public
 from scanner.report import ScanOutcome
 
 
+def _running_loop() -> asyncio.AbstractEventLoop | None:
+    try:
+        return asyncio.get_running_loop()
+    except RuntimeError:
+        return None
+
+
 class Job:
     def __init__(self, *, kind: str, target: str) -> None:
         self.scan_id = uuid.uuid4().hex[:8]
@@ -19,6 +26,7 @@ class Job:
         self._waiters: list[asyncio.Event] = []
         self.report: dict[str, Any] | None = None
         self.error: str | None = None
+        self._loop = _running_loop()
 
     def emit(self, payload: dict[str, Any]) -> None:
         event = {
@@ -28,8 +36,17 @@ class Job:
         }
         self.events.append(event)
         waiters, self._waiters = self._waiters, []
+        if not waiters:
+            return
+        # The blocking scan stages run in a worker thread, so waking an
+        # asyncio.Event has to hop back to the loop it belongs to.
+        loop = self._loop
+        same_thread = loop is None or _running_loop() is loop
         for waiter in waiters:
-            waiter.set()
+            if same_thread:
+                waiter.set()
+            else:
+                loop.call_soon_threadsafe(waiter.set)
 
     def finish(self, outcome: ScanOutcome) -> None:
         self.report = {
@@ -72,6 +89,7 @@ class Job:
                 yield event
                 if event["type"] in {"done", "error"}:
                     return
+            self._loop = _running_loop()
             waiter = asyncio.Event()
             self._waiters.append(waiter)
             await waiter.wait()

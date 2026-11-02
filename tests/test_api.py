@@ -1,5 +1,8 @@
+import asyncio
 import json
 import re
+import shutil
+import threading
 from pathlib import Path
 
 import pytest
@@ -8,6 +11,7 @@ from fastapi.testclient import TestClient
 from api.classify_target import classify_target, infer_kind
 from api.demo import demo_gap_ms, demo_report, load_demo
 from api.jobs import Job
+from scanner.extract import CloneError
 from api.main import LIVE_UNCONFIGURED, create_app
 from scanner.config import DEMO_EVENT_GAP_MS, SCAN_COST_CAP_USD
 from scanner.llm import FakeModelClient
@@ -303,3 +307,69 @@ def test_static_assets_are_served_and_packaged():
     packaging = (Path(__file__).resolve().parents[1] / "pyproject.toml").read_text()
     for name in ("index.html", "app.css", "app.js"):
         assert f'"api/static/{name}"' in packaging
+
+
+async def test_events_emitted_from_a_worker_thread_reach_the_stream():
+    # the blocking scan stages run via asyncio.to_thread, so emit() must wake a
+    # stream waiter while the event loop is parked with nothing else to do
+    job = Job(kind="repo", target="https://github.com/acme/widgets")
+    received: list[dict] = []
+
+    async def drain() -> None:
+        async for event in job.stream():
+            received.append(event)
+
+    task = asyncio.create_task(drain())
+    await asyncio.sleep(0.05)
+
+    def emit_from_thread() -> None:
+        job.emit({"type": "precheck", "target": "acme.test"})
+        job.emit({"type": "done", "finding_count": 0})
+
+    threading.Thread(target=emit_from_thread).start()
+    await asyncio.wait_for(task, timeout=5)
+    assert [item["type"] for item in received] == ["precheck", "done"]
+
+
+def test_pasted_github_url_scans_end_to_end(tmp_path, monkeypatch):
+    # the whole repo path: GitHub URL -> shallow clone -> extract -> report,
+    # with the clone stubbed to the checked-in fixture repo
+    def fake_clone(url: str, dest_parent: Path) -> Path:
+        dest = dest_parent / "widgets"
+        shutil.copytree(FIXTURE_ROOT, dest)
+        return dest
+
+    monkeypatch.setattr("scanner.extract._clone_github", fake_clone)
+    app = _fixture_app(tmp_path=tmp_path)
+    with TestClient(app) as client:
+        posted = client.post(
+            "/api/scan", json={"target": "https://github.com/acme/widgets"}
+        )
+        assert posted.status_code == 200
+        assert posted.json()["kind"] == "repo"
+        scan_id = posted.json()["scan_id"]
+        events = _parse_sse(client.get(f"/api/scan/{scan_id}/events").text)
+        types = [item["type"] for item in events]
+        assert types[0] == "started" and types[-1] == "done"
+        assert "ranked" in types
+        report = client.get(f"/api/scan/{scan_id}").json()
+        assert report["kind"] == "repo"
+        assert report["target"] == "https://github.com/acme/widgets"
+        assert report["findings"]
+
+
+def test_clone_failure_is_reported_as_a_scan_error(tmp_path, monkeypatch):
+    def refuse(url: str, dest_parent: Path) -> Path:
+        raise CloneError("acme/widgets could not be downloaded; it may be private or renamed")
+
+    monkeypatch.setattr("scanner.extract._clone_github", refuse)
+    app = _fixture_app(tmp_path=tmp_path)
+    with TestClient(app) as client:
+        scan_id = client.post(
+            "/api/scan", json={"target": "https://github.com/acme/widgets"}
+        ).json()["scan_id"]
+        events = _parse_sse(client.get(f"/api/scan/{scan_id}/events").text)
+        failure = events[-1]
+        assert failure["type"] == "error"
+        assert "private or renamed" in failure["message"]
+        assert client.get(f"/api/scan/{scan_id}").status_code == 500

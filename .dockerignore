@@ -1,0 +1,6 @@
+.env
+.env.*
+eval/labels.jsonl
+.git
+*.db
+Untitled

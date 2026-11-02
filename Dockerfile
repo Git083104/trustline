@@ -4,6 +4,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     TRUSTMAP_ALLOW_LOCAL_SCAN=0 \
     TRUSTMAP_CACHE_DB=/var/data/trustmap.db
+# git is how a repository target is fetched (shallow clone) at scan time.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 RUN mkdir -p /var/data
 COPY pyproject.toml README.md ./
 COPY scanner ./scanner

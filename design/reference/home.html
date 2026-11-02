@@ -1,0 +1,1016 @@
+<!DOCTYPE html><html><head><style>
+    .sc-placeholder{background:color-mix(in srgb,currentColor 8%,transparent);
+      border:1px solid color-mix(in srgb,currentColor 50%,transparent);
+      border-radius:2px;box-sizing:border-box;overflow:hidden}
+    @keyframes sc-shine{0%{background-position:100% 50%}100%{background-position:0% 50%}}
+    html.sc-dc-streaming .sc-placeholder,
+    html.sc-dc-streaming .sc-interp.sc-missing{position:relative;
+      background:color-mix(in srgb,currentColor 5%,transparent);
+      border-color:transparent}
+    html.sc-dc-streaming .sc-placeholder::before,
+    html.sc-dc-streaming .sc-interp.sc-missing::before{content:'';
+      position:absolute;inset:0;pointer-events:none;
+      background:linear-gradient(90deg,rgba(217,119,87,0) 25%,rgba(247,225,211,.95) 37%,rgba(217,119,87,0) 63%);
+      background-size:400% 100%;animation:sc-shine 1.4s ease infinite}
+    html.sc-dc-streaming .sc-placeholder:nth-child(n+9 of .sc-placeholder)::before,
+    html.sc-dc-streaming .sc-interp.sc-missing:nth-child(n+9 of .sc-interp.sc-missing)::before{animation:none;
+      background:color-mix(in srgb,currentColor 8%,transparent)}
+    .sc-placeholder-error{padding:4px 8px;font:11px/1.4 ui-monospace,monospace;
+      color:color-mix(in srgb,currentColor 70%,transparent);word-break:break-word}
+    .sc-interp.sc-missing{display:inline-block;width:2em;height:1em;overflow:hidden;
+      vertical-align:text-bottom;background:rgba(255,255,255,.3);border:1px solid rgba(0,0,0,.5);
+      border-radius:2px;box-sizing:border-box;color:transparent;
+      user-select:none}
+    .sc-interp.sc-unresolved{font-family:ui-monospace,monospace;font-size:.85em;
+      color:color-mix(in srgb,currentColor 50%,transparent);
+      background:color-mix(in srgb,currentColor 10%,transparent);border-radius:3px;
+      padding:0 3px}
+    .sc-host.sc-has-error{position:relative}
+    .sc-logic-error{position:absolute;top:8px;left:8px;z-index:2147483647;max-width:60ch;
+      padding:6px 10px;background:#b00020;color:#fff;font:12px/1.4 ui-monospace,monospace;
+      border-radius:4px;white-space:pre-wrap;pointer-events:none}
+    /* Mirrors PRINT_BASELINE_CSS in apps/web deck-stage-export.ts — keep both
+       in sync until dc-runtime regains a build step. */
+    @media print {
+      @page { margin: 0.5cm; }
+      figure, table { break-inside: avoid; }
+      #dc-root, #dc-root > .sc-host { height: auto; }
+      *, *::before, *::after {
+        print-color-adjust: exact; -webkit-print-color-adjust: exact;
+        backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
+        animation-delay: -99s !important; animation-duration: .001s !important;
+        animation-iteration-count: 1 !important; animation-fill-mode: both !important;
+        animation-play-state: running !important; transition-duration: 0s !important;
+      }
+    }
+  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<style>x-dc{display:none!important}</style><style></style><style>html,body{height:100%;margin:0}#dc-root,#dc-root>.sc-host{height:100%}</style><style data-dc-tpl="1">/* Nocturne — design-system tokens and component classes. This file is the source of truth for the system's look; retune it here and see readme.md. */
+/* cyrillic-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(FONT) format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(FONT) format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(FONT) format('woff2');
+  unicode-range: U+1F00-1FFF;
+}
+/* greek */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(FONT) format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(FONT) format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(FONT) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(FONT) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(FONT) format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(FONT) format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(FONT) format('woff2');
+  unicode-range: U+1F00-1FFF;
+}
+/* greek */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(FONT) format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(FONT) format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(FONT) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(FONT) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(FONT) format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(FONT) format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(FONT) format('woff2');
+  unicode-range: U+1F00-1FFF;
+}
+/* greek */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(FONT) format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(FONT) format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(FONT) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(FONT) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url(FONT) format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url(FONT) format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url(FONT) format('woff2');
+  unicode-range: U+1F00-1FFF;
+}
+/* greek */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url(FONT) format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url(FONT) format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url(FONT) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url(FONT) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+
+:root {
+  --color-bg: #161826;
+  --color-surface: #232532;
+  --color-text: #e9e9ed;
+  --color-accent: #9184d9; /* review round 7 (Barron): the accent moves to
+     the product's blurple — OKLCH hue 289.2, the hue of the app's own Pro
+     accent (#9a8fe0, --om-accent-pro) — at the same lightness the steel
+     accent held (L 0.660, so the documented ratios survive) and chroma
+     in the product blurple's own range (its token sits at C 0.118; the
+     accent takes 0.125, from the old steel's 0.030):
+     the accent now reads as an accent rather than another neutral. */
+  --color-accent-2: #a7a1db; /* the machine-derived stand-in follows: same
+     hue, same L 0.734, chroma at the same 2:3 proportion it held */
+  --color-divider: color-mix(in srgb, #e9e9ed 16%, transparent);
+
+  /* Tonal ramps — generated in OKLCH on one shared lightness scale, so the
+     same step of any role matches the others in visual value. */
+  --color-neutral-100: #f3f5fe;
+  --color-neutral-200: #e4e7f5;
+  --color-neutral-300: #cfd3e5;
+  --color-neutral-400: #b2b6ca;
+  --color-neutral-500: #9397ab;
+  --color-neutral-600: #75798c;
+  --color-neutral-700: #595d6c;
+  --color-neutral-800: #3f424d;
+  --color-neutral-900: #292b31;
+
+  --color-accent-100: #f5f4ff;
+  --color-accent-200: #e7e5fe;
+  --color-accent-300: #d2cefd;
+  --color-accent-400: #b5abfc;
+  --color-accent-500: #968ae0;
+  --color-accent-600: #796cbf;
+  --color-accent-700: #5d5294;
+  --color-accent-800: #423a6a;
+  --color-accent-900: #2b2741;
+
+  --color-accent-2-100: #f5f4ff;
+  --color-accent-2-200: #e7e5fe;
+  --color-accent-2-300: #d2cefd;
+  --color-accent-2-400: #b5afe8;
+  --color-accent-2-500: #9690c9;
+  --color-accent-2-600: #7972a9;
+  --color-accent-2-700: #5c5783;
+  --color-accent-2-800: #423e5d;
+  --color-accent-2-900: #2b293a;
+
+  /* Deck section-divider ground — review round 3: saturation as presence.
+     Dividers take a saturated deep indigo (hue 277, the neutral ramp's own
+     family; C 0.094 — written when the accent held C 0.030, before the
+     round-7 blurple raised it past the ground's) with a lighter bloom and
+     a ghost tint of the same hue, while the slide grounds stay
+     desaturated. Deck-scale fills only — not interface colors. */
+  --color-section: #262a60;
+  --color-section-glow: #353b80;
+  --color-section-ghost: #4c5397;
+
+  --font-heading: "Inter", system-ui, sans-serif;
+  --font-heading-weight: 500;
+  --font-body: "Inter", system-ui, sans-serif;
+
+  --space-1: 2.8px;
+  --space-2: 5.6px;
+  --space-3: 8.4px;
+  --space-4: 11.2px;
+  --space-6: 16.8px;
+  --space-8: 22.4px;
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 14px;
+
+  /* Elevation — derived from the ground: soft ink-tinted shadows on a
+     light theme, a hairline edge + ambient darkness on a dark one. */
+  --shadow-sm: 0 0 0 1px #3f424d;
+  --shadow-md: 0 0 0 1px #595d6c, 0 6px 18px rgba(0,0,0,0.55);
+  --shadow-lg: 0 0 0 1px #9397ab, 0 16px 40px rgba(0,0,0,0.65);
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-body);
+}
+h1, h2, h3, h4 { font-family: var(--font-heading); font-weight: var(--font-heading-weight); }
+
+.lighten{mix-blend-mode:lighten;background-color:transparent}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Components — built with the tokens above. Plain CSS
+   on plain HTML: no JavaScript, no build step. Each class is documented in
+   readme.md and demonstrated in foundations/ and components/.
+   ══════════════════════════════════════════════════════════════════════ */
+
+*, *::before, *::after { box-sizing: border-box; }
+body { margin: 0; font-size: 15px; line-height: 1.55; font-weight: 400; }
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+  line-height: 1.12; letter-spacing: -0.015em; margin: 0 0 var(--space-2);
+}
+h1 { font-size: 42px; }
+h2 { font-size: 32px; }
+h3 { font-size: 25px; }
+h4 { font-size: 20px; }
+h5 { font-size: 16px; }
+h6 { font-size: 13px; }
+h6 { letter-spacing: 0.08em; text-transform: uppercase; }
+p { margin: 0 0 var(--space-3); }
+a { color: var(--color-accent); text-underline-offset: 3px; }
+img { display: block; max-width: 100%; }
+figure { margin: 0; }
+figcaption {
+  font-size: 11px; margin-top: var(--space-1);
+  color: color-mix(in srgb, var(--color-text) 55%, transparent);
+}
+.text-muted { color: color-mix(in srgb, var(--color-text) 55%, transparent); }
+:focus { outline: none; }
+:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+::selection { background: color-mix(in srgb, var(--color-accent) 30%, transparent); }
+
+/* — rules — */
+/* Rules fade to transparent at both ends instead of stopping cleanly — a
+   Nocturne signature. The ramp is 48px an end (one deck baseline unit),
+   painted from the same divider token. Freestanding rules fade; box
+   outlines, in-control separators, and short accent marks stay solid. */
+.hr {
+  height: 1px; border: 0; margin: var(--space-4) 0;
+  background: linear-gradient(to right,
+    transparent, var(--color-divider) 48px,
+    var(--color-divider) calc(100% - 48px), transparent);
+}
+
+/* — buttons — */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  cursor: pointer; text-decoration: none;
+  font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+  font-size: 14px; line-height: 1.2; color: var(--color-text); /* matches the .input's 14px —
+     the pair sits side by side in sign-up rows */
+  background: transparent; border: 1px solid transparent;
+  padding: var(--space-2) calc(var(--space-3) * 1.2);
+  border-radius: var(--radius-md);
+}
+.btn svg { display: block; }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn-primary { color: var(--color-accent); border-color: var(--color-accent); }
+.btn-primary:hover { background: color-mix(in srgb, var(--color-accent) 12%, transparent); }
+.btn-primary:active { background: color-mix(in srgb, var(--color-accent) 22%, transparent); }
+.btn-secondary { border-color: var(--color-divider); }
+.btn-secondary:hover { background: color-mix(in srgb, var(--color-text) 7%, transparent); }
+.btn-secondary:active { background: color-mix(in srgb, var(--color-text) 14%, transparent); }
+.btn-ghost { color: var(--color-accent); padding-inline: var(--space-1); }
+.btn-ghost:hover { background: color-mix(in srgb, var(--color-accent) 10%, transparent); }
+.btn-ghost:active { background: color-mix(in srgb, var(--color-accent) 18%, transparent); }
+.btn-icon { width: 36px; height: 36px; padding: 0; }
+.btn-block { width: 100%; margin-top: var(--space-2); }
+
+/* — forms — */
+.field > label {
+  display: block; font-size: 12px; margin-bottom: 5px;
+  color: color-mix(in srgb, var(--color-text) 70%, transparent);
+}
+.input {
+  width: 100%; min-height: 36px; padding: 6px 10px; font: inherit;
+  font-size: 14px; color: var(--color-text); caret-color: var(--color-accent);
+  background: var(--color-surface);
+  border: 1px solid var(--color-divider); border-radius: var(--radius-md);
+}
+.input:hover { border-color: color-mix(in srgb, var(--color-text) 45%, transparent); }
+.input:focus-visible { border-color: var(--color-accent); outline-offset: 0; }
+textarea.input { min-height: 90px; resize: vertical; }
+.radio { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; }
+.radio input, .seg-opt input {
+  position: absolute; opacity: 0; width: 0; height: 0; pointer-events: none;
+}
+.radio .dot {
+  width: 16px; height: 16px; flex: none; border-radius: 50%;
+  border: 1.5px solid var(--color-divider);
+}
+.radio:hover .dot { border-color: var(--color-accent); }
+.radio input:checked + .dot {
+  border-color: var(--color-accent); background: var(--color-accent);
+  box-shadow: inset 0 0 0 4px var(--color-bg);
+}
+.radio input:focus-visible + .dot { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+.seg {
+  display: inline-flex; overflow: hidden;
+  border: 1px solid var(--color-divider); border-radius: var(--radius-md);
+}
+.seg-opt {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 12px; font-size: 13px; cursor: pointer;
+}
+.seg-opt + .seg-opt { border-left: 1px solid var(--color-divider); }
+.seg-opt:has(input:checked) { color: var(--color-accent); box-shadow: inset 0 0 0 1px var(--color-accent); }
+.seg-opt:not(:has(input:checked)):hover { background: color-mix(in srgb, var(--color-text) 7%, transparent); }
+.seg-opt:has(input:focus-visible) { outline: 2px solid var(--color-accent); outline-offset: -2px; }
+
+/* — cards — */
+.card {
+  display: flex; flex-direction: column; gap: var(--space-2);
+  padding: var(--space-3); border-radius: var(--radius-md); background: var(--color-surface);
+}
+.card-kicker { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-accent); }
+.card-title {
+  font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+  font-size: 17px; line-height: 1.2;
+}
+.card-body { margin: 0; font-size: 13px; opacity: 0.8; flex: 1; }
+.card-meta {
+  display: flex; align-items: center; gap: 6px; font-size: 11px;
+  color: color-mix(in srgb, var(--color-text) 50%, transparent);
+}
+.elev-sm { box-shadow: var(--shadow-sm); }
+.elev-md { box-shadow: var(--shadow-md); }
+.elev-lg { box-shadow: var(--shadow-lg); }
+
+/* — tags — */
+.tag {
+  display: inline-flex; align-items: center; font-size: 11px;
+  letter-spacing: 0.02em; padding: 3px 10px;
+  border-radius: calc(var(--radius-md) * 0.75);
+}
+.tag-accent { background: var(--color-accent-800); color: var(--color-accent-100); }
+.tag-accent-2 { background: var(--color-accent-2-800); color: var(--color-accent-2-100); }
+.tag-neutral { background: var(--color-neutral-800); color: var(--color-neutral-100); }
+.tag-outline { border: 1px solid var(--color-accent); color: var(--color-accent); }
+
+/* — navigation — */
+.nav {
+  display: flex; align-items: center; gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: none;
+}
+.nav-brand {
+  font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+  font-size: 18px; margin-right: auto;
+}
+.nav a { color: inherit; text-decoration: none; font-size: 14px; }
+.nav a:hover, .nav a[aria-current='page'] { color: var(--color-accent); }
+
+/* — tables — */
+.table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.table th {
+  text-align: left; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase;
+  color: color-mix(in srgb, var(--color-text) 60%, transparent);
+  padding: var(--space-2); border-bottom: 1px solid transparent; /* keeps layout; the row paints the fading rule */
+}
+.table td {
+  padding: var(--space-2);
+  border-bottom: 1px solid transparent;
+}
+/* Row rules as row-level strips so the end-fade spans the row, not each cell. */
+.table thead tr {
+  background: linear-gradient(to right,
+    transparent, var(--color-divider) 48px,
+    var(--color-divider) calc(100% - 48px), transparent) no-repeat bottom / 100% 1px;
+}
+.table tbody tr {
+  background: linear-gradient(to right,
+    transparent, color-mix(in srgb, var(--color-text) 8%, transparent) 48px,
+    color-mix(in srgb, var(--color-text) 8%, transparent) calc(100% - 48px), transparent) no-repeat bottom / 100% 1px;
+}
+.table tbody tr:hover {
+  /* the hover tint layers over the row rule, which keeps painting */
+  background:
+    linear-gradient(color-mix(in srgb, var(--color-text) 4%, transparent),
+                    color-mix(in srgb, var(--color-text) 4%, transparent)) no-repeat 0 0 / 100% 100%,
+    linear-gradient(to right,
+      transparent, color-mix(in srgb, var(--color-text) 8%, transparent) 48px,
+      color-mix(in srgb, var(--color-text) 8%, transparent) calc(100% - 48px), transparent) no-repeat bottom / 100% 1px;
+}
+
+/* — dialog — */
+.dialog-backdrop {
+  position: fixed; inset: 0; display: grid; place-items: center;
+  padding: var(--space-4);
+  background: color-mix(in srgb, var(--color-neutral-900) 50%, transparent);
+}
+.dialog {
+  width: min(440px, 100%); display: flex; flex-direction: column; gap: var(--space-3);
+  padding: var(--space-4); border-radius: var(--radius-lg);
+  background: var(--color-surface); box-shadow: var(--shadow-lg);
+}
+.dialog-title {
+  font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+  font-size: 20px;
+}
+.dialog-body { font-size: 14px; opacity: 0.85; }
+.dialog-actions { display: flex; justify-content: flex-end; gap: var(--space-2); margin-top: var(--space-2); }
+
+</style><style data-dc-tpl="3">/* cyrillic-ext */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(FONT) format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(FONT) format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(FONT) format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(FONT) format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(FONT) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(FONT) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(FONT) format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(FONT) format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(FONT) format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(FONT) format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(FONT) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(FONT) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+</style><style data-dc-tpl="4">
+html{scroll-behavior:smooth}
+body{margin:0;background:#f8f9fe;color:var(--color-text);-webkit-font-smoothing:antialiased}
+a{color:#5d5294}a:hover{color:#423a6a}
+@keyframes tl-spin{to{transform:rotate(360deg)}}
+@keyframes tl-pulse{0%,100%{opacity:1}50%{opacity:.35}}
+</style></head>
+<body>
+
+<div id="dc-root"><div class="sc-host" data-sc-name="4bfbea1d-Trustline_copy"><div data-dc-tpl="5" style="min-height: 100vh; background: rgb(248, 249, 254); font-family: var(--font-body); padding-bottom: 0px;"><div data-dc-tpl="7" data-screen-label="01 Home">
+  <nav data-dc-tpl="8" style="position: fixed; top: 0px; left: 0px; right: 0px; z-index: 40; background: rgba(12, 13, 21, 0.35); box-shadow: none; backdrop-filter: blur(14px); transition: background 0.35s, box-shadow 0.35s, color 0.35s; --color-text: #e9e9ed; --color-divider: rgba(233,233,237,.2); color: var(--color-text);">
+    <div data-dc-tpl="9" style="max-width: 1200px; margin: 0px auto; padding: 10px clamp(20px, 4vw, 40px); display: flex; align-items: center; flex-wrap: wrap; gap: 8px 28px;">
+      <a data-dc-tpl="10" href="#top" style="display: flex; align-items: center; gap: 10px; text-decoration: none; color: inherit; margin-right: auto; min-height: 44px;"><svg data-dc-tpl="11" width="20" height="20" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"><path data-dc-tpl="12" d="M24 4 40 10v12c0 11-7 19-16 22C15 41 8 33 8 22V10Z"></path><rect data-dc-tpl="13" x="14" y="20" width="12" height="8" rx="4"></rect><rect data-dc-tpl="14" x="22" y="20" width="12" height="8" rx="4"></rect></svg><span data-dc-tpl="15" style="font-size: 17px; font-weight: 500; letter-spacing: -0.01em;">Trustline</span></a>
+      <div data-dc-tpl="16" style="display: flex; flex-wrap: wrap; align-items: center; gap: 0px 24px; font-size: 14px;">
+        <a data-dc-tpl="17" href="#how" class="scp0" style="color: rgb(207, 211, 229); text-decoration: none; min-height: 44px; display: flex; align-items: center; transition: color 0.35s;">How it works</a>
+        <a data-dc-tpl="18" href="#proof" class="scp0" style="color: rgb(207, 211, 229); text-decoration: none; min-height: 44px; display: flex; align-items: center; transition: color 0.35s;">Results</a>
+        <a data-dc-tpl="19" href="#where" class="scp0" style="color: rgb(207, 211, 229); text-decoration: none; min-height: 44px; display: flex; align-items: center; transition: color 0.35s;">CI &amp; Muse Code</a>
+        <a data-dc-tpl="20" class="btn btn-secondary" href="#top" style="min-height: 40px; padding: 0px 14px; color: var(--color-text);">GitHub</a>
+      </div>
+    </div>
+  </nav>
+
+  <header data-dc-tpl="21" style="position: relative; overflow: hidden; background: rgb(12, 13, 21);">
+    <div data-dc-tpl="22" style="position: absolute; inset: 0px; pointer-events: none; max-width: 1200px; margin: 0px auto; border-left: 1px solid rgba(233, 233, 237, 0.06); border-right: 1px solid rgba(233, 233, 237, 0.06);"></div>
+    <div data-dc-tpl="23" style="position: absolute; left: 50%; top: calc(100% - 150px); width: 0px; height: 0px; pointer-events: none; will-change: transform; transform: translateY(0px);">
+      <div data-dc-tpl="24" style="position: absolute; left: -560px; top: -300px; width: 1120px; height: 360px; background: radial-gradient(50% 60% at 50% 100%, rgba(145, 132, 217, 0.45), rgba(93, 82, 148, 0.18) 55%, transparent 75%); opacity: 0.7;"></div>
+      <div data-dc-tpl="25" style="position: absolute; left: -1500px; top: 0px; width: 3000px; height: 1400px; border-radius: 50%; background: rgb(248, 249, 254); filter: blur(22px); box-shadow: rgba(210, 206, 253, 0.75) 0px -10px 40px 8px, rgba(145, 132, 217, 0.5) 0px -40px 120px 30px, rgba(93, 82, 148, 0.3) 0px -100px 240px 70px;"></div>
+    </div>
+    <div data-dc-tpl="26" id="top" style="position: relative; max-width: 900px; margin: 0px auto; padding: clamp(130px, 14vw, 180px) clamp(20px, 4vw, 40px) clamp(230px, 22vw, 290px); display: flex; flex-direction: column; align-items: center; text-align: center; gap: 26px;">
+      <div data-dc-tpl="27" style="color: rgb(210, 206, 253);"><svg data-dc-tpl="28" width="36" height="36" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"><path data-dc-tpl="29" d="M24 4 40 10v12c0 11-7 19-16 22C15 41 8 33 8 22V10Z"></path><rect data-dc-tpl="30" x="14" y="20" width="12" height="8" rx="4"></rect><rect data-dc-tpl="31" x="22" y="20" width="12" height="8" rx="4"></rect></svg></div>
+      <h1 data-dc-tpl="32" style="font-size: clamp(38px, 6vw, 74px); line-height: 1.04; letter-spacing: -0.04em; margin: 0px; text-wrap: balance; color: rgb(233, 233, 237);">Find the parts of your code a stranger could take over.</h1>
+      <p data-dc-tpl="33" style="font-size: clamp(16px, 1.5vw, 18px); line-height: 1.55; color: rgb(178, 182, 202); max-width: 600px; margin: 0px; text-wrap: pretty;">Trustline scans a repo or website for expired domains, deleted buckets and abandoned accounts, then tells you what to fix first.</p>
+      <div data-dc-tpl="34" style="width: 100%; max-width: 620px; display: flex; flex-direction: column; gap: 14px; margin-top: 6px;">
+        <div data-dc-tpl="35" style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px; background: rgba(35, 37, 50, 0.72); backdrop-filter: blur(10px); border-radius: 12px; box-shadow: rgba(233, 233, 237, 0.14) 0px 0px 0px 1px;">
+          <input data-dc-tpl="36" class="input" aria-label="Paste a GitHub repo or website URL" placeholder="Paste a GitHub repo or website URL" value="github.com/demo/paperplane-shop" style="flex: 1 1 220px; min-height: 48px; border: 0px; background: transparent; font-family: &quot;JetBrains Mono&quot;, ui-monospace, monospace; font-size: 14px;">
+          <span data-dc-tpl="38" class="tag tag-accent" style="font-family: &quot;JetBrains Mono&quot;, ui-monospace, monospace; font-size: 11px; padding: 5px 10px;"><span class="sc-interp">GitHub repo</span></span>
+          <button data-dc-tpl="39" class="btn btn-primary scp1" style="min-height: 48px; min-width: 96px; padding: 0px 22px; font-size: 15px; color: rgb(231, 229, 254); border-color: rgb(181, 171, 252); background: rgba(145, 132, 217, 0.22);">Scan</button>
+        </div>
+        <div data-dc-tpl="40" style="display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 12px 20px;">
+          <button data-dc-tpl="41" class="btn btn-secondary" style="min-height: 44px; padding: 0px 18px; gap: 10px; color: rgb(233, 233, 237); background: rgba(233, 233, 237, 0.06);"><svg data-dc-tpl="42" width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path data-dc-tpl="43" d="M7 4v16l13-8z"></path></svg>Watch the demo scan</button>
+          <span data-dc-tpl="44" style="font-family: &quot;JetBrains Mono&quot;, ui-monospace, monospace; font-size: 12px; color: rgb(147, 151, 171);">demo/paperplane-shop</span>
+        </div>
+      </div>
+    </div>
+  </header><div data-dc-tpl="45" style="--color-text: #161826; --color-surface: #fdfdff; --color-divider: #d5d9ea; --color-accent: #5d5294; --color-bg: #f8f9fe; background: rgb(248, 249, 254); color: rgb(22, 24, 38);">
+ <div data-dc-tpl="46" style="max-width: 1200px; margin: 0px auto; border-left: 1px solid var(--color-neutral-200); border-right: 1px solid var(--color-neutral-200);">
+
+  <section data-dc-tpl="47" id="problem" style="padding: clamp(64px, 8vw, 112px) clamp(20px, 4vw, 56px);">
+    <div data-dc-tpl="48" style="display: flex; flex-direction: column; align-items: center; text-align: center; gap: 16px; margin-bottom: clamp(40px, 5vw, 64px);"><div data-dc-tpl="49" style="font-family: &quot;JetBrains Mono&quot;, ui-monospace, monospace; font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-neutral-700);">The problem</div><h2 data-dc-tpl="50" style="font-size: clamp(30px, 3.8vw, 46px); line-height: 1.1; letter-spacing: -0.03em; max-width: 780px; margin: 0px; text-wrap: balance;">In 2024, polyfill.io pushed malware to 100,000+ sites. <span data-dc-tpl="51" style="color: var(--color-accent-700);">None of them changed a line of code.</span></h2></div>
+    <div data-dc-tpl="52" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 1px; background: var(--color-neutral-200); border: 1px solid var(--color-neutral-200); border-radius: 8px; overflow: hidden;">
+      <div data-dc-tpl="53" style="background: var(--color-surface); padding: 28px; display: flex; flex-direction: column; gap: 14px; min-width: 0px;">
+        <span data-dc-tpl="54" style="font-family: &quot;JetBrains Mono&quot;, ui-monospace, monospace; font-size: 12px; color: var(--color-neutral-700);">01</span>
+        <div data-dc-tpl="55" style="font-size: 18px; font-weight: 500;">A trusted script</div>
+        <code data-dc-tpl="56" style="font-family: &quot;JetBrains Mono&quot;, ui-monospace, monospace; font-size: 12px; line-height: 1.6; color: var(--color-neutral-800); background: var(--color-neutral-100); padding: 10px 12px; border-radius: 6px; overflow-wrap: anywhere;">&lt;script src="https://cdn.polyfill.io/v3/polyfill.min.js"&gt;</code>
+        <p data-dc-tpl="57" style="margin: 0px; font-size: 14px; color: var(--color-neutral-700);">Pasted into templates years ago. Loaded on every page view.</p>
+      </div>
+      <div data-dc-tpl="58" style="background: var(--color-surface); padding: 28px; display: flex; flex-direction: column; gap: 14px; min-width: 0px;">
+        <span data-dc-tpl="59" style="font-family: &quot;JetBrains Mono&quot;, ui-monospace, monospace; font-size: 12px; color: var(--color-neutral-700);">02</span>
+        <div data-dc-tpl="60" style="font-size: 18px; font-weight: 500;">Its domain changes hands</div>
+        <div data-dc-tpl="61" style="display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; font-family: &quot;JetBrains Mono&quot;, ui-monospace, monospace; font-size: 12px; padding: 10px 12px; background: var(--color-neutral-100); border-radius: 6px;">
+          <span data-dc-tpl="62" style="color: var(--color-neutral-700);">before</span><span data-dc-tpl="63" style="color: var(--color-neutral-700); text-decoration: line-through;">original maintainer</span>
+          <span data-dc-tpl="64" style="color: var(--color-neutral-700);">after</span><span data-dc-tpl="65">new, unknown owner</span>
+        </div>
+        <p data-dc-tpl="66" style="margin: 0px; font-size: 14px; color: var(--color-neutral-700);">Same name, same URL. Nobody downstream notices.</p>
+      </div>
+      <div data-dc-tpl="67" style="background: var(--color-surface); padding: 28px; display: flex; flex-direction: column; gap: 14px; min-width: 0px;">
+        <span data-dc-tpl="68" style="font-family: &quot;JetBrains Mono&quot;, ui-monospace, monospace; font-size: 12px; color: oklch(0.5 0.18 25);">03</span>
+        <div data-dc-tpl="69" style="font-size: 18px; font-weight: 500;">Malware ships to every site that loads it</div>
+        <div data-dc-tpl="70" style="display: flex; align-items: baseline; gap: 10px;"><span data-dc-tpl="71" style="font-size: 34px; letter-spacing: -0.03em; color: oklch(0.5 0.18 25);">100,000+</span><span data-dc-tpl="72" style="font-size: 14px; color: var(--color-neutral-700);">sites</span></div>
+        <p data-dc-tpl="73" style="margin: 0px; font-size: 14px; color: var(--color-neutral-700);">The script was still trusted. Only the owner had changed.</p>
+      </div>
+    </div>
+    <p data-dc-tpl="74" style="margin: 48px auto 0px; text-align: center; font-size: clamp(20px, 2.4vw, 28px); line-height: 1.3; letter-spacing: -0.02em; max-width: 720px; text-wrap: balance;">Nobody re-checks who owns what their code trusts. <span data-dc-tpl="75" style="color: var(--color-accent-700);">Trustline does.</span></p>
+  </section>
+
+  <section data-dc-tpl="76" id="how" style="padding: clamp(64px, 8vw, 112px) clamp(20px, 4vw, 56px); background: linear-gradient(to right,transparent,var(--color-neutral-200) 48px,var(--color-neutral-200) calc(100% - 48px),transparent) no-repeat top / 100% 1px;">
+    <div data-dc-tpl="77" style="display: flex; flex-direction: column; align-items: center; text-align: center; gap: 16px; margin-bottom: clamp(40px, 5vw, 64px);"><div data-dc-tpl="78" style="font-family: &quot;JetBrains Mono&quot;, ui-monospace, monospace; font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-neutral-700);">How it works</div><h2 data-dc-tpl="79" style="font-size: clamp(30px, 3.8vw, 46px); line-height: 1.1; letter-spacing: -0.03em; max-width: 780px; margin: 0px; text-wrap: balance;">Five layers, from raw files <span data-dc-tpl="80" style="color: var(--color-accent-700);">to a ranked fix list.</span></h2></div>
+    <div data-dc-tpl="81" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 440px), 1fr)); gap: 48px; align-items: center;">
+      <div data-dc-tpl="82" style="position: relative; height: 376px; max-width: 520px; width: 100%; justify-self: center;">
+        <svg data-dc-tpl="83" width="200" height="376" viewBox="0 0 200 376" style="position: absolute; left: 0px; top: 0px; overflow: visible;">
+          
+            <g data-dc-tpl="85" style="cursor: pointer; transform: translateY(0px); transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);">
+              <polygon data-dc-tpl="86" points="8,322 90,366 90,375 8,331" fill="#e4e7f5" stroke="#161826" stroke-width="1.2" stroke-linejoin="round"></polygon>
+              <polygon data-dc-tpl="87" points="90,366 172,322 172,331 90,375" fill="#cfd3e5" stroke="#161826" stroke-width="1.2" stroke-linejoin="round"></polygon>
+              <polygon data-dc-tpl="88" points="90,278 172,322 90,366 8,322" fill="#fdfdff" stroke="#161826" stroke-width="1.3" stroke-dasharray="none" stroke-linejoin="round"></polygon>
+            </g>
+          
+            <g data-dc-tpl="85" style="cursor: pointer; transform: translateY(0px); transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);">
+              <polygon data-dc-tpl="86" points="8,256 90,300 90,309 8,265" fill="#e4e7f5" stroke="#161826" stroke-width="1.2" stroke-linejoin="round"></polygon>
+              <polygon data-dc-tpl="87" points="90,300 172,256 172,265 90,309" fill="#cfd3e5" stroke="#161826" stroke-width="1.2" stroke-linejoin="round"></polygon>
+              <polygon data-dc-tpl="88" points="90,212 172,256 90,300 8,256" fill="#fdfdff" stroke="#161826" stroke-width="1.3" stroke-dasharray="none" stroke-linejoin="round"></polygon>
+            </g>
+          
+            <g data-dc-tpl="85" style="cursor: pointer; transform: translateY(-12px); transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);">
+              <polygon data-dc-tpl="86" points="8,190 90,234 90,243 8,199" fill="#e4e7f5" stroke="#161826" stroke-width="1.2" stroke-linejoin="round"></polygon>
+              <polygon data-dc-tpl="87" points="90,234 172,190 172,199 90,243" fill="#cfd3e5" stroke="#161826" stroke-width="1.2" stroke-linejoin="round"></polygon>
+              <polygon data-dc-tpl="88" points="90,146 172,190 90,234 8,190" fill="#f5f4ff" stroke="#796cbf" stroke-width="1.3" stroke-dasharray="4 4" stroke-linejoin="round"></polygon>
+            </g>
+          
+            <g data-dc-tpl="85" style="cursor: pointer; transform: translateY(0px); transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);">
+              <polygon data-dc-tpl="86" points="8,124 90,168 90,177 8,133" fill="#e4e7f5" stroke="#161826" stroke-width="1.2" stroke-linejoin="round"></polygon>
+              <polygon data-dc-tpl="87" points="90,168 172,124 172,133 90,177" fill="#cfd3e5" stroke="#161826" stroke-width="1.2" stroke-linejoin="round"></polygon>
+              <polygon data-dc-tpl="88" points="90,80 172,124 90,168 8,124" fill="#fdfdff" stroke="#161826" stroke-width="1.3" stroke-dasharray="none" stroke-linejoin="round"></polygon>
+            </g>
+          
+            <g data-dc-tpl="85" style="cursor: pointer; transform: translateY(0px); transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);">
+              <polygon data-dc-tpl="86" points="8,58 90,102 90,111 8,67" fill="#e4e7f5" stroke="#161826" stroke-width="1.2" stroke-linejoin="round"></polygon>
+              <polygon data-dc-tpl="87" points="90,102 172,58 172,67 90,111" fill="#cfd3e5" stroke="#161826" stroke-width="1.2" stroke-linejoin="round"></polygon>
+              <polygon data-dc-tpl="88" points="90,14 172,58 90,102 8,58" fill="#fdfdff" stroke="#161826" stroke-width="1.3" stroke-dasharray="none" stroke-linejoin="round"></polygon>
+            </g>
+          
+          
+            <line data-dc-tpl="90" x1="182" y1="58" x2="208" y2="58" stroke="#161826" stroke-width="1.2"></line>
+          
+            <line data-dc-tpl="90" x1="182" y1="124" x2="208" y2="124" stroke="#161826" stroke-width="1.2"></line>
+          
+            <line data-dc-tpl="90" x1="182" y1="190" x2="208" y2="190" stroke="#796cbf" stroke-width="1.2"></line>
+          
+            <line data-dc-tpl="90" x1="182" y1="256" x2="208" y2="256" stroke="#161826" stroke-width="1.2"></line>
+          
+            <line data-dc-tpl="90" x1="182" y1="322" x2="208" y2="322" stroke="#161826" stroke-width="1.2"></line>
+          
+        </svg>
+        
+          <button data-dc-tpl="92" class="scp2" style="color-scheme: unset; forced-color-adjust: unset; math-depth: unset; position-anchor: unset; text-size-adjust: unset; appearance: unset; color: unset; font: unset; font-palette: unset; font-synthesis: unset; position-area: unset; text-orientation: unset; text-rendering: unset; text-spacing-trim: unset; -webkit-font-smoothing: unset; -webkit-locale: unset; -webkit-text-orientation: unset; -webkit-writing-mode: unset; writing-mode: unset; zoom: unset; accent-color: unset; place-content: unset; place-items: unset; place-self: unset; alignment-baseline: unset; anchor-name: unset; anchor-scope: unset; animation-composition: unset; animation: unset; animation-trigger: unset; app-region: unset; aspect-ratio: unset; backdrop-filter: unset; backface-visibility: unset; background: unset; background-blend-mode: unset; baseline-shift: unset; baseline-source: unset; block-size: unset; border-block: unset; border: unset; border-radius: unset; border-collapse: unset; border-end-end-radius: unset; border-end-start-radius: unset; border-inline: unset; border-shape: unset; border-start-end-radius: unset; border-start-start-radius: unset; bottom: unset; box-decoration-break: unset; box-shadow: unset; box-sizing: unset; break-after: unset; break-before: unset; break-inside: unset; buffered-rendering: unset; caption-side: unset; caret-animation: unset; caret-color: unset; caret-shape: unset; clear: unset; clip: unset; clip-path: unset; clip-rule: unset; color-interpolation: unset; color-interpolation-filters: unset; color-rendering: unset; columns: unset; column-fill: unset; rule-break: unset; rule: unset; rule-inset: unset; rule-visibility-items: unset; column-span: unset; contain: unset; contain-intrinsic-block-size: unset; contain-intrinsic-size: unset; contain-intrinsic-inline-size: unset; container: unset; content: unset; content-visibility: unset; corner-shape: unset; corner-block-end-shape: unset; corner-block-start-shape: unset; counter-increment: unset; counter-reset: unset; counter-set: unset; cx: unset; cy: unset; d: unset; dominant-baseline: unset; dynamic-range-limit: unset; empty-cells: unset; field-sizing: unset; fill: unset; fill-opacity: unset; fill-rule: unset; filter: unset; flex: unset; flex-flow: unset; flex-line-count: unset; float: unset; flood-color: unset; flood-opacity: unset; grid-auto-columns: unset; grid-auto-flow: unset; grid-auto-rows: unset; grid-area: unset; grid-template-areas: unset; grid-template-rows: unset; height: unset; hyphenate-character: unset; hyphenate-limit-chars: unset; hyphens: unset; image-orientation: unset; image-rendering: unset; initial-letter: unset; inline-size: unset; inset-block: unset; inset-inline: unset; interactivity: unset; interest-delay: unset; interpolate-size: unset; isolation: unset; letter-spacing: unset; lighting-color: unset; line-break: unset; list-style: unset; margin-block: unset; margin: unset; margin-inline: unset; marker: unset; mask: unset; mask-type: unset; math-shift: unset; math-style: unset; max-block-size: unset; max-height: unset; max-inline-size: unset; max-width: unset; min-block-size: unset; min-inline-size: unset; min-width: unset; mix-blend-mode: unset; object-fit: unset; object-position: unset; object-view-box: unset; offset: unset; opacity: unset; order: unset; orphans: unset; outline: unset; outline-offset: unset; overflow-anchor: unset; overflow-block: unset; overflow-clip-margin: unset; overflow-inline: unset; overflow-wrap: unset; overflow: unset; overlay: unset; overscroll-behavior-block: unset; overscroll-behavior-inline: unset; overscroll-behavior: unset; padding-block: unset; padding: unset; padding-inline: unset; page: unset; page-margin-safety: unset; page-orientation: unset; paint-order: unset; perspective: unset; perspective-origin: unset; pointer-events: unset; position-try: unset; position-visibility: unset; print-color-adjust: unset; quotes: unset; r: unset; reading-flow: unset; reading-order: unset; resize: unset; rotate: unset; row-gap: unset; ruby-align: unset; ruby-overhang: unset; ruby-position: unset; rule-overlap: unset; rx: unset; ry: unset; scale: unset; scroll-axis-lock: unset; scroll-behavior: unset; scroll-initial-target: unset; scroll-margin-block: unset; scroll-margin: unset; scroll-margin-inline: unset; scroll-marker-group: unset; scroll-padding-block: unset; scroll-padding: unset; scroll-padding-inline: unset; scroll-snap-align: unset; scroll-snap-stop: unset; scroll-snap-type: unset; scroll-target-group: unset; scroll-timeline: unset; scrollbar-color: unset; scrollbar-gutter: unset; scrollbar-width: unset; shape-image-threshold: unset; shape-margin: unset; shape-outside: unset; shape-rendering: unset; size: unset; speak: unset; stop-color: unset; stop-opacity: unset; stroke: unset; stroke-dasharray: unset; stroke-dashoffset: unset; stroke-linecap: unset; stroke-linejoin: unset; stroke-miterlimit: unset; stroke-opacity: unset; stroke-width: unset; tab-size: unset; table-layout: unset; text-align: unset; text-align-last: unset; text-anchor: unset; text-autospace: unset; text-box: unset; text-combine-upright: unset; text-decoration: unset; text-decoration-skip-ink: unset; text-emphasis: unset; text-emphasis-position: unset; text-fit: unset; text-indent: unset; text-justify: unset; text-overflow: unset; text-shadow: unset; text-transform: unset; text-underline-offset: unset; text-underline-position: unset; text-wrap: unset; timeline-scope: unset; timeline-trigger: unset; touch-action: unset; transform: unset; transform-box: unset; transform-origin: unset; transform-style: unset; transition: unset; translate: unset; trigger-scope: unset; user-select: unset; vector-effect: unset; vertical-align: unset; view-timeline: unset; view-transition-class: unset; view-transition-group: unset; view-transition-name: unset; view-transition-scope: unset; visibility: unset; border-spacing: unset; -webkit-box-align: unset; -webkit-box-decoration-break: unset; -webkit-box-direction: unset; -webkit-box-flex: unset; -webkit-box-ordinal-group: unset; -webkit-box-orient: unset; -webkit-box-pack: unset; -webkit-box-reflect: unset; -webkit-line-break: unset; -webkit-line-clamp: unset; -webkit-mask-box-image: unset; -webkit-rtl-ordering: unset; -webkit-ruby-position: unset; -webkit-tap-highlight-color: unset; -webkit-text-combine: unset; -webkit-text-decorations-in-effect: unset; -webkit-text-fill-color: unset; -webkit-text-security: unset; -webkit-text-stroke: unset; -webkit-user-drag: unset; white-space-collapse: unset; widows: unset; width: unset; will-change: unset; window-drag: unset; word-break: unset; word-spacing: unset; x: unset; y: unset; z-index: unset; cursor: pointer; position: absolute; left: 220px; right: 0px; top: 44px; display: grid; grid-template-columns: 26px minmax(0px, 1fr); column-gap: 8px; min-height: 44px;">
+            <span data-dc-tpl="93" style="font-family: &quot;JetBrains Mono&quot;, ui-monospace, monospace; font-size: 12px; color: var(--color-neutral-700); padding-top: 4px;"><span class="sc-interp">01</span></span>
+            <span data-dc-tpl="94" style="display: flex; flex-direction: column; gap: 1px; min-width: 0px;">
+              <span data-dc-tpl="95" style="font-size: 19px; line-height: 1.2; font-weight: 500; letter-spacing: -0.015em; color: var(--color-text); transition: color 0.3s;"><span class="sc-interp">Find</span></span>
+              <span data-dc-tpl="96" style="font-size: 13px; line-height: 1.35; color: var(--color-neutral-700); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"><span class="sc-interp">Every outside reference</span></span>
+            </span>
+          </button>
+        
+          <button data-dc-tpl="92" class="scp2" style="color-scheme: unset; forced-color-adjust: unset; math-depth: unset; position-anchor: unset; text-size-adjust: unset; appearance: unset; color: unset; font: unset; font-palette: unset; font-synthesis: unset; position-area: unset; text-orientation: unset; text-rendering: unset; text-spacing-trim: unset; -webkit-font-smoothing: unset; -webkit-locale: unset; -webkit-text-orientation: unset; -webkit-writing-mode: unset; writing-mode: unset; zoom: unset; accent-color: unset; place-content: unset; place-items: unset; place-self: unset; alignment-baseline: unset; anchor-name: unset; anchor-scope: unset; animation-composition: unset; animation: unset; animation-trigger: unset; app-region: unset; aspect-ratio: unset; backdrop-filter: unset; backface-visibility: unset; background: unset; background-blend-mode: unset; baseline-shift: unset; baseline-source: unset; block-size: unset; border-block: unset; border: unset; border-radius: unset; border-collapse: unset; border-end-end-radius: unset; border-end-start-radius: unset; border-inline: unset; border-shape: unset; border-start-end-radius: unset; border-start-start-radius: unset; bottom: unset; box-decoration-break: unset; box-shadow: unset; box-sizing: unset; break-after: unset; break-before: unset; break-inside: unset; buffered-rendering: unset; caption-side: unset; caret-animation: unset; caret-color: unset; caret-shape: unset; clear: unset; clip: unset; clip-path: unset; clip-rule: unset; color-interpolation: unset; color-interpolation-filters: unset; color-rendering: unset; columns: unset; column-fill: unset; rule-break: unset; rule: unset; rule-inset: unset; rule-visibility-items: unset; column-span: unset; contain: unset; contain-intrinsic-block-size: unset; contain-intrinsic-size: unset; contain-intrinsic-inline-size: unset; container: unset; content: unset; content-visibility: unset; corner-shape: unset; corner-block-end-shape: unset; corner-block-start-shape: unset; counter-increment: unset; counter-reset: unset; counter-set: unset; cx: unset; cy: unset; d: unset; dominant-baseline: unset; dynamic-range-limit: unset; empty-cells: unset; field-sizing: unset; fill: unset; fill-opacity: unset; fill-rule: unset; filter: unset; flex: unset; flex-flow: unset; flex-line-count: unset; float: unset; flood-color: unset; flood-opacity: unset; grid-auto-columns: unset; grid-auto-flow: unset; grid-auto-rows: unset; grid-area: unset; grid-template-areas: unset; grid-template-rows: unset; height: unset; hyphenate-character: unset; hyphenate-limit-chars: unset; hyphens: unset; image-orientation: unset; image-rendering: unset; initial-letter: unset; inline-size: unset; inset-block: unset; inset-inline: unset; interactivity: unset; interest-delay: unset; interpolate-size: unset; isolation: unset; letter-spacing: unset; lighting-color: unset; line-break: unset; list-style: unset; margin-block: unset; margin: unset; margin-inline: unset; marker: unset; mask: unset; mask-type: unset; math-shift: unset; math-style: unset; max-block-size: unset; max-height: unset; max-inline-size: unset; max-width: unset; min-block-size: unset; min-inline-size: unset; min-width: unset; mix-blend-mode: unset; object-fit: unset; object-position: unset; object-view-box: unset; offset: unset; opacity: unset; order: unset; orphans: unset; outline: unset; outline-offset: unset; overflow-anchor: unset; overflow-block: unset; overflow-clip-margin: unset; overflow-inline: unset; overflow-wrap: unset; overflow: unset; overlay: unset; overscroll-behavior-block: unset; overscroll-behavior-inline: unset; overscroll-behavior: unset; padding-block: unset; padding: unset; padding-inline: unset; page: unset; page-margin-safety: unset; page-orientation: unset; paint-order: unset; perspective: unset; perspective-origin: unset; pointer-events: unset; position-try: unset; position-visibility: unset; print-color-adjust: unset; quotes: unset; r: unset; reading-flow: unset; reading-order: unset; resize: unset; rotate: unset; row-gap: unset; ruby-align: unset; ruby-overhang: unset; ruby-position: unset; rule-overlap: unset; rx: unset; ry: unset; scale: unset; scroll-axis-lock: unset; scroll-behavior: unset; scroll-initial-target: unset; scroll-margin-block: unset; scroll-margin: unset; scroll-margin-inline: unset; scroll-marker-group: unset; scroll-padding-block: unset; scroll-padding: unset; scroll-padding-inline: unset; scroll-snap-align: unset; scroll-snap-stop: unset; scroll-snap-type: unset; scroll-target-group: unset; scroll-timeline: unset; scrollbar-color: unset; scrollbar-gutter: unset; scrollbar-width: unset; shape-image-threshold: unset; shape-margin: unset; shape-outside: unset; shape-rendering: unset; size: unset; speak: unset; stop-color: unset; stop-opacity: unset; stroke: unset; stroke-dasharray: unset; stroke-dashoffset: unset; stroke-linecap: unset; stroke-linejoin: unset; stroke-miterlimit: unset; stroke-opacity: unset; stroke-width: unset; tab-size: unset; table-layout: unset; text-align: unset; text-align-last: unset; text-anchor: unset; text-autospace: unset; text-box: unset; text-combine-upright: unset; text-decoration: unset; text-decoration-skip-ink: unset; text-emphasis: unset; text-emphasis-position: unset; text-fit: unset; text-indent: unset; text-justify: unset; text-overflow: unset; text-shadow: unset; text-transform: unset; text-underline-offset: unset; text-underline-position: unset; text-wrap: unset; timeline-scope: unset; timeline-trigger: unset; touch-action: unset; transform: unset; transform-box: unset; transform-origin: unset; transform-style: unset; transition: unset; translate: unset; trigger-scope: unset; user-select: unset; vector-effect: unset; vertical-align: unset; view-timeline: unset; view-transition-class: unset; view-transition-group: unset; view-transition-name: unset; view-transition-scope: unset; visibility: unset; border-spacing: unset; -webkit-box-align: unset; -webkit-box-decoration-break: unset; -webkit-box-direction: unset; -webkit-box-flex: unset; -webkit-box-ordinal-group: unset; -webkit-box-orient: unset; -webkit-box-pack: unset; -webkit-box-reflect: unset; -webkit-line-break: unset; -webkit-line-clamp: unset; -webkit-mask-box-image: unset; -webkit-rtl-ordering: unset; -webkit-ruby-position: unset; -webkit-tap-highlight-color: unset; -webkit-text-combine: unset; -webkit-text-decorations-in-effect: unset; -webkit-text-fill-color: unset; -webkit-text-security: unset; -webkit-text-stroke: unset; -webkit-user-drag: unset; white-space-collapse: unset; widows: unset; width: unset; will-change: unset; window-drag: unset; word-break: unset; word-spacing: unset; x: unset; y: unset; z-index: unset; cursor: pointer; position: absolute; left: 220px; right: 0px; top: 110px; display: grid; grid-template-columns: 26px minmax(0px, 1fr); column-gap: 8px; min-height: 44px;">
+            <span data-dc-tpl="93" style="font-family: &quot;JetBrains Mono&quot;, ui-monospace, monospace; font-size: 12px; color: var(--color-neutral-700); padding-top: 4px;"><span class="sc-interp">02</span></span>
+            <span data-dc-tpl="94" style="display: flex; flex-direction: column; gap: 1px; min-width: 0px;">
+              <span data-dc-tpl="95" style="font-size: 19px; line-height: 1.2; font-weight: 500; letter-spacing: -0.015em; color: var(--color-text); transition: color 0.3s;"><span class="sc-interp">Check</span></span>
+              <span data-dc-tpl="96" style="font-size: 13px; line-height: 1.35; color: var(--color-neutral-700); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"><span class="sc-interp">Who owns each one now</span></span>
+            </span>
+          </button>
+        
+          <button data-dc-tpl="92" class="scp2" style="color-scheme: unset; forced-color-adjust: unset; math-depth: unset; position-anchor: unset; text-size-adjust: unset; appearance: unset; color: unset; font: unset; font-palette: unset; font-synthesis: unset; position-area: unset; text-orientation: unset; text-rendering: unset; text-spacing-trim: unset; -webkit-font-smoothing: unset; -webkit-locale: unset; -webkit-text-orientation: unset; -webkit-writing-mode: unset; writing-mode: unset; zoom: unset; accent-color: unset; place-content: unset; place-items: unset; place-self: unset; alignment-baseline: unset; anchor-name: unset; anchor-scope: unset; animation-composition: unset; animation: unset; animation-trigger: unset; app-region: unset; aspect-ratio: unset; backdrop-filter: unset; backface-visibility: unset; background: unset; background-blend-mode: unset; baseline-shift: unset; baseline-source: unset; block-size: unset; border-block: unset; border: unset; border-radius: unset; border-collapse: unset; border-end-end-radius: unset; border-end-start-radius: unset; border-inline: unset; border-shape: unset; border-start-end-radius: unset; border-start-start-radius: unset; bottom: unset; box-decoration-break: unset; box-shadow: unset; box-sizing: unset; break-after: unset; break-before: unset; break-inside: unset; buffered-rendering: unset; caption-side: unset; caret-animation: unset; caret-color: unset; caret-shape: unset; clear: unset; clip: unset; clip-path: unset; clip-rule: unset; color-interpolation: unset; color-interpolation-filters: unset; color-rendering: unset; columns: unset; column-fill: unset; rule-break: unset; rule: unset; rule-inset: unset; rule-visibility-items: unset; column-span: unset; contain: unset; contain-intrinsic-block-size: unset; contain-intrinsic-size: unset; contain-intrinsic-inline-size: unset; container: unset; content: unset; content-visibility: unset; corner-shape: unset; corner-block-end-shape: unset; corner-block-start-shape: unset; counter-increment: unset; counter-reset: unset; counter-set: unset; cx: unset; cy: unset; d: unset; dominant-baseline: unset; dynamic-range-limit: unset; empty-cells: unset; field-sizing: unset; fill: unset; fill-opacity: unset; fill-rule: unset; filter: unset; flex: unset; flex-flow: unset; flex-line-count: unset; float: unset; flood-color: unset; flood-opacity: unset; grid-auto-columns: unset; grid-auto-flow: unset; grid-auto-rows: unset; grid-area: unset; grid-template-areas: unset; grid-template-rows: unset; height: unset; hyphenate-character: unset; hyphenate-limit-chars: unset; hyphens: unset; image-orientation: unset; image-rendering: unset; initial-letter: unset; inline-size: unset; inset-block: unset; inset-inline: unset; interactivity: unset; interest-delay: unset; interpolate-size: unset; isolation: unset; letter-spacing: unset; lighting-color: unset; line-break: unset; list-style: unset; margin-block: unset; margin: unset; margin-inline: unset; marker: unset; mask: unset; mask-type: unset; math-shift: unset; math-style: unset; max-block-size: unset; max-height: unset; max-inline-size: unset; max-width: unset; min-block-size: unset; min-inline-size: unset; min-width: unset; mix-blend-mode: unset; object-fit: unset; object-position: unset; object-view-box: unset; offset: unset; opacity: unset; order: unset; orphans: unset; outline: unset; outline-offset: unset; overflow-anchor: unset; overflow-block: unset; overflow-clip-margin: unset; overflow-inline: unset; overflow-wrap: unset; overflow: unset; overlay: unset; overscroll-behavior-block: unset; overscroll-behavior-inline: unset; overscroll-behavior: unset; padding-block: unset; padding: unset; padding-inline: unset; page: unset; page-margin-safety: unset; page-orientation: unset; paint-order: unset; perspective: unset; perspective-origin: unset; pointer-events: unset; position-try: unset; position-visibility: unset; print-color-adjust: unset; quotes: unset; r: unset; reading-flow: unset; reading-order: unset; resize: unset; rotate: unset; row-gap: unset; ruby-align: unset; ruby-overhang: unset; ruby-position: unset; rule-overlap: unset; rx: unset; ry: unset; scale: unset; scroll-axis-lock: unset; scroll-behavior: unset; scroll-initial-target: unset; scroll-margin-block: unset; scroll-margin: unset; scroll-margin-inline: unset; scroll-marker-group: unset; scroll-padding-block: unset; scroll-padding: unset; scroll-padding-inline: unset; scroll-snap-align: unset; scroll-snap-stop: unset; scroll-snap-type: unset; scroll-target-group: unset; scroll-timeline: unset; scrollbar-color: unset; scrollbar-gutter: unset; scrollbar-width: unset; shape-image-threshold: unset; shape-margin: unset; shape-outside: unset; shape-rendering: unset; size: unset; speak: unset; stop-color: unset; stop-opacity: unset; stroke: unset; stroke-dasharray: unset; stroke-dashoffset: unset; stroke-linecap: unset; stroke-linejoin: unset; stroke-miterlimit: unset; stroke-opacity: unset; stroke-width: unset; tab-size: unset; table-layout: unset; text-align: unset; text-align-last: unset; text-anchor: unset; text-autospace: unset; text-box: unset; text-combine-upright: unset; text-decoration: unset; text-decoration-skip-ink: unset; text-emphasis: unset; text-emphasis-position: unset; text-fit: unset; text-indent: unset; text-justify: unset; text-overflow: unset; text-shadow: unset; text-transform: unset; text-underline-offset: unset; text-underline-position: unset; text-wrap: unset; timeline-scope: unset; timeline-trigger: unset; touch-action: unset; transform: unset; transform-box: unset; transform-origin: unset; transform-style: unset; transition: unset; translate: unset; trigger-scope: unset; user-select: unset; vector-effect: unset; vertical-align: unset; view-timeline: unset; view-transition-class: unset; view-transition-group: unset; view-transition-name: unset; view-transition-scope: unset; visibility: unset; border-spacing: unset; -webkit-box-align: unset; -webkit-box-decoration-break: unset; -webkit-box-direction: unset; -webkit-box-flex: unset; -webkit-box-ordinal-group: unset; -webkit-box-orient: unset; -webkit-box-pack: unset; -webkit-box-reflect: unset; -webkit-line-break: unset; -webkit-line-clamp: unset; -webkit-mask-box-image: unset; -webkit-rtl-ordering: unset; -webkit-ruby-position: unset; -webkit-tap-highlight-color: unset; -webkit-text-combine: unset; -webkit-text-decorations-in-effect: unset; -webkit-text-fill-color: unset; -webkit-text-security: unset; -webkit-text-stroke: unset; -webkit-user-drag: unset; white-space-collapse: unset; widows: unset; width: unset; will-change: unset; window-drag: unset; word-break: unset; word-spacing: unset; x: unset; y: unset; z-index: unset; cursor: pointer; position: absolute; left: 220px; right: 0px; top: 176px; display: grid; grid-template-columns: 26px minmax(0px, 1fr); column-gap: 8px; min-height: 44px;">
+            <span data-dc-tpl="93" style="font-family: &quot;JetBrains Mono&quot;, ui-monospace, monospace; font-size: 12px; color: var(--color-neutral-700); padding-top: 4px;"><span class="sc-interp">03</span></span>
+            <span data-dc-tpl="94" style="display: flex; flex-direction: column; gap: 1px; min-width: 0px;">
+              <span data-dc-tpl="95" style="font-size: 19px; line-height: 1.2; font-weight: 500; letter-spacing: -0.015em; color: var(--color-accent-700); transition: color 0.3s;"><span class="sc-interp">Investigate</span></span>
+              <span data-dc-tpl="96" style="font-size: 13px; line-height: 1.35; color: var(--color-neutral-700); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"><span class="sc-interp">Muse Spark follows the evidence</span></span>
+            </span>
+          </button>
+        
+          <button data-dc-tpl="92" class="scp2" style="color-scheme: unset; forced-color-adjust: unset; math-depth: unset; position-anchor: unset; text-size-adjust: unset; appearance: unset; color: unset; font: unset; font-palette: unset; font-synthesis: unset; position-area: unset; text-orientation: unset; text-rendering: unset; text-spacing-trim: unset; -webkit-font-smoothing: unset; -webkit-locale: unset; -webkit-text-orientation: unset; -webkit-writing-mode: unset; writing-mode: unset; zoom: unset; accent-color: unset; place-content: unset; place-items: unset; place-self: unset; alignment-baseline: unset; anchor-name: unset; anchor-scope: unset; animation-composition: unset; animation: unset; animation-trigger: unset; app-region: unset; aspect-ratio: unset; backdrop-filter: unset; backface-visibility: unset; background: unset; background-blend-mode: unset; baseline-shift: unset; baseline-source: unset; block-size: unset; border-block: unset; border: unset; border-radius: unset; border-collapse: unset; border-end-end-radius: unset; border-end-start-radius: unset; border-inline: unset; border-shape: unset; border-start-end-radius: unset; border-start-start-radius: unset; bottom: unset; box-decoration-break: unset; box-shadow: unset; box-sizing: unset; break-after: unset; break-before: unset; break-inside: unset; buffered-rendering: unset; caption-side: unset; caret-animation: unset; caret-color: unset; caret-shape: unset; clear: unset; clip: unset; clip-path: unset; clip-rule: unset; color-interpolation: unset; color-interpolation-filters: unset; color-rendering: unset; columns: unset; column-fill: unset; rule-break: unset; rule: unset; rule-inset: unset; rule-visibility-items: unset; column-span: unset; contain: unset; contain-intrinsic-block-size: unset; contain-intrinsic-size: unset; contain-intrinsic-inline-size: unset; container: unset; content: unset; content-visibility: unset; corner-shape: unset; corner-block-end-shape: unset; corner-block-start-shape: unset; counter-increment: unset; counter-reset: unset; counter-set: unset; cx: unset; cy: unset; d: unset; dominant-baseline: unset; dynamic-range-limit: unset; empty-cells: unset; field-sizing: unset; fill: unset; fill-opacity: unset; fill-rule: unset; filter: unset; flex: unset; flex-flow: unset; flex-line-count: unset; float: unset; flood-color: unset; flood-opacity: unset; grid-auto-columns: unset; grid-auto-flow: unset; grid-auto-rows: unset; grid-area: unset; grid-template-areas: unset; grid-template-rows: unset; height: unset; hyphenate-character: unset; hyphenate-limit-chars: unset; hyphens: unset; image-orientation: unset; image-rendering: unset; initial-letter: unset; inline-size: unset; inset-block: unset; inset-inline: unset; interactivity: unset; interest-delay: unset; interpolate-size: unset; isolation: unset; letter-spacing: unset; lighting-color: unset; line-break: unset; list-style: unset; margin-block: unset; margin: unset; margin-inline: unset; marker: unset; mask: unset; mask-type: unset; math-shift: unset; math-style: unset; max-block-size: unset; max-height: unset; max-inline-size: unset; max-width: unset; min-block-size: unset; min-inline-size: unset; min-width: unset; mix-blend-mode: unset; object-fit: unset; object-position: unset; object-view-box: unset; offset: unset; opacity: unset; order: unset; orphans: unset; outline: unset; outline-offset: unset; overflow-anchor: unset; overflow-block: unset; overflow-clip-margin: unset; overflow-inline: unset; overflow-wrap: unset; overflow: unset; overlay: unset; overscroll-behavior-block: unset; overscroll-behavior-inline: unset; overscroll-behavior: unset; padding-block: unset; padding: unset; padding-inline: unset; page: unset; page-margin-safety: unset; page-orientation: unset; paint-order: unset; perspective: unset; perspective-origin: unset; pointer-events: unset; position-try: unset; position-visibility: unset; print-color-adjust: unset; quotes: unset; r: unset; reading-flow: unset; reading-order: unset; resize: unset; rotate: unset; row-gap: unset; ruby-align: unset; ruby-overhang: unset; ruby-position: unset; rule-overlap: unset; rx: unset; ry: unset; scale: unset; scroll-axis-lock: unset; scroll-behavior: unset; scroll-initial-target: unset; scroll-margin-block: unset; scroll-margin: unset; scroll-margin-inline: unset; scroll-marker-group: unset; scroll-padding-block: unset; scroll-padding: unset; scroll-padding-inline: unset; scroll-snap-align: unset; scroll-snap-stop: unset; scroll-snap-type: unset; scroll-target-group: unset; scroll-timeline: unset; scrollbar-color: unset; scrollbar-gutter: unset; scrollbar-width: unset; shape-image-threshold: unset; shape-margin: unset; shape-outside: unset; shape-rendering: unset; size: unset; speak: unset; stop-color: unset; stop-opacity: unset; stroke: unset; stroke-dasharray: unset; stroke-dashoffset: unset; stroke-linecap: unset; stroke-linejoin: unset; stroke-miterlimit: unset; stroke-opacity: unset; stroke-width: unset; tab-size: unset; table-layout: unset; text-align: unset; text-align-last: unset; text-anchor: unset; text-autospace: unset; text-box: unset; text-combine-upright: unset; text-decoration: unset; text-decoration-skip-ink: unset; text-emphasis: unset; text-emphasis-position: unset; text-fit: unset; text-indent: unset; text-justify: unset; text-overflow: unset; text-shadow: unset; text-transform: unset; text-underline-offset: unset; text-underline-position: unset; text-wrap: unset; timeline-scope: unset; timeline-trigger: unset; touch-action: unset; transform: unset; transform-box: unset; transform-origin: unset; transform-style: unset; transition: unset; translate: unset; trigger-scope: unset; user-select: unset; vector-effect: unset; vertical-align: unset; view-timeline: unset; view-transition-class: unset; view-transition-group: unset; view-transition-name: unset; view-transition-scope: unset; visibility: unset; border-spacing: unset; -webkit-box-align: unset; -webkit-box-decoration-break: unset; -webkit-box-direction: unset; -webkit-box-flex: unset; -webkit-box-ordinal-group: unset; -webkit-box-orient: unset; -webkit-box-pack: unset; -webkit-box-reflect: unset; -webkit-line-break: unset; -webkit-line-clamp: unset; -webkit-mask-box-image: unset; -webkit-rtl-ordering: unset; -webkit-ruby-position: unset; -webkit-tap-highlight-color: unset; -webkit-text-combine: unset; -webkit-text-decorations-in-effect: unset; -webkit-text-fill-color: unset; -webkit-text-security: unset; -webkit-text-stroke: unset; -webkit-user-drag: unset; white-space-collapse: unset; widows: unset; width: unset; will-change: unset; window-drag: unset; word-break: unset; word-spacing: unset; x: unset; y: unset; z-index: unset; cursor: pointer; position: absolute; left: 220px; right: 0px; top: 242px; display: grid; grid-template-columns: 26px minmax(0px, 1fr); column-gap: 8px; min-height: 44px;">
+            <span data-dc-tpl="93" style="font-family: &quot;JetBrains Mono&quot;, ui-monospace, monospace; font-size: 12px; color: var(--color-neutral-700); padding-top: 4px;"><span class="sc-interp">04</span></span>
+            <span data-dc-tpl="94" style="display: flex; flex-direction: column; gap: 1px; min-width: 0px;">
+              <span data-dc-tpl="95" style="font-size: 19px; line-height: 1.2; font-weight: 500; letter-spacing: -0.015em; color: var(--color-text); transition: color 0.3s;"><span class="sc-interp">Rank</span></span>
+              <span data-dc-tpl="96" style="font-size: 13px; line-height: 1.35; color: var(--color-neutral-700); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"><span class="sc-interp">Rules keep real dangers on top</span></span>
+            </span>
+          </button>
+        
+          <button data-dc-tpl="92" class="scp2" style="color-scheme: unset; forced-color-adjust: unset; math-depth: unset; position-anchor: unset; text-size-adjust: unset; appearance: unset; color: unset; font: unset; font-palette: unset; font-synthesis: unset; position-area: unset; text-orientation: unset; text-rendering: unset; text-spacing-trim: unset; -webkit-font-smoothing: unset; -webkit-locale: unset; -webkit-text-orientation: unset; -webkit-writing-mode: unset; writing-mode: unset; zoom: unset; accent-color: unset; place-content: unset; place-items: unset; place-self: unset; alignment-baseline: unset; anchor-name: unset; anchor-scope: unset; animation-composition: unset; animation: unset; animation-trigger: unset; app-region: unset; aspect-ratio: unset; backdrop-filter: unset; backface-visibility: unset; background: unset; background-blend-mode: unset; baseline-shift: unset; baseline-source: unset; block-size: unset; border-block: unset; border: unset; border-radius: unset; border-collapse: unset; border-end-end-radius: unset; border-end-start-radius: unset; border-inline: unset; border-shape: unset; border-start-end-radius: unset; border-start-start-radius: unset; bottom: unset; box-decoration-break: unset; box-shadow: unset; box-sizing: unset; break-after: unset; break-before: unset; break-inside: unset; buffered-rendering: unset; caption-side: unset; caret-animation: unset; caret-color: unset; caret-shape: unset; clear: unset; clip: unset; clip-path: unset; clip-rule: unset; color-interpolation: unset; color-interpolation-filters: unset; color-rendering: unset; columns: unset; column-fill: unset; rule-break: unset; rule: unset; rule-inset: unset; rule-visibility-items: unset; column-span: unset; contain: unset; contain-intrinsic-block-size: unset; contain-intrinsic-size: unset; contain-intrinsic-inline-size: unset; container: unset; content: unset; content-visibility: unset; corner-shape: unset; corner-block-end-shape: unset; corner-block-start-shape: unset; counter-increment: unset; counter-reset: unset; counter-set: unset; cx: unset; cy: unset; d: unset; dominant-baseline: unset; dynamic-range-limit: unset; empty-cells: unset; field-sizing: unset; fill: unset; fill-opacity: unset; fill-rule: unset; filter: unset; flex: unset; flex-flow: unset; flex-line-count: unset; float: unset; flood-color: unset; flood-opacity: unset; grid-auto-columns: unset; grid-auto-flow: unset; grid-auto-rows: unset; grid-area: unset; grid-template-areas: unset; grid-template-rows: unset; height: unset; hyphenate-character: unset; hyphenate-limit-chars: unset; hyphens: unset; image-orientation: unset; image-rendering: unset; initial-letter: unset; inline-size: unset; inset-block: unset; inset-inline: unset; interactivity: unset; interest-delay: unset; interpolate-size: unset; isolation: unset; letter-spacing: unset; lighting-color: unset; line-break: unset; list-style: unset; margin-block: unset; margin: unset; margin-inline: unset; marker: unset; mask: unset; mask-type: unset; math-shift: unset; math-style: unset; max-block-size: unset; max-height: unset; max-inline-size: unset; max-width: unset; min-block-size: unset; min-inline-size: unset; min-width: unset; mix-blend-mode: unset; object-fit: unset; object-position: unset; object-view-box: unset; offset: unset; opacity: unset; order: unset; orphans: unset; outline: unset; outline-offset: unset; overflow-anchor: unset; overflow-block: unset; overflow-clip-margin: unset; overflow-inline: unset; overflow-wrap: unset; overflow: unset; overlay: unset; overscroll-behavior-block: unset; overscroll-behavior-inline: unset; overscroll-behavior: unset; padding-block: unset; padding: unset; padding-inline: unset; page: unset; page-margin-safety: unset; page-orientation: unset; paint-order: unset; perspective: unset; perspective-origin: unset; pointer-events: unset; position-try: unset; position-visibility: unset; print-color-adjust: unset; quotes: unset; r: unset; reading-flow: unset; reading-order: unset; resize: unset; rotate: unset; row-gap: unset; ruby-align: unset; ruby-overhang: unset; ruby-position: unset; rule-overlap: unset; rx: unset; ry: unset; scale: unset; scroll-axis-lock: unset; scroll-behavior: unset; scroll-initial-target: unset; scroll-margin-block: unset; scroll-margin: unset; scroll-margin-inline: unset; scroll-marker-group: unset; scroll-padding-block: unset; scroll-padding: unset; scroll-padding-inline: unset; scroll-snap-align: unset; scroll-snap-stop: unset; scroll-snap-type: unset; scroll-target-group: unset; scroll-timeline: unset; scrollbar-color: unset; scrollbar-gutter: unset; scrollbar-width: unset; shape-image-threshold: unset; shape-margin: unset; shape-outside: unset; shape-rendering: unset; size: unset; speak: unset; stop-color: unset; stop-opacity: unset; stroke: unset; stroke-dasharray: unset; stroke-dashoffset: unset; stroke-linecap: unset; stroke-linejoin: unset; stroke-miterlimit: unset; stroke-opacity: unset; stroke-width: unset; tab-size: unset; table-layout: unset; text-align: unset; text-align-last: unset; text-anchor: unset; text-autospace: unset; text-box: unset; text-combine-upright: unset; text-decoration: unset; text-decoration-skip-ink: unset; text-emphasis: unset; text-emphasis-position: unset; text-fit: unset; text-indent: unset; text-justify: unset; text-overflow: unset; text-shadow: unset; text-transform: unset; text-underline-offset: unset; text-underline-position: unset; text-wrap: unset; timeline-scope: unset; timeline-trigger: unset; touch-action: unset; transform: unset; transform-box: unset; transform-origin: unset; transform-style: unset; transition: unset; translate: unset; trigger-scope: unset; user-select: unset; vector-effect: unset; vertical-align: unset; view-timeline: unset; view-transition-class: unset; view-transition-group: unset; view-transition-name: unset; view-transition-scope: unset; visibility: unset; border-spacing: unset; -webkit-box-align: unset; -webkit-box-decoration-break: unset; -webkit-box-direction: unset; -webkit-box-flex: unset; -webkit-box-ordinal-group: unset; -webkit-box-orient: unset; -webkit-box-pack: unset; -webkit-box-reflect: unset; -webkit-line-break: unset; -webkit-line-clamp: unset; -webkit-mask-box-image: unset; -webkit-rtl-ordering: unset; -webkit-ruby-position: unset; -webkit-tap-highlight-color: unset; -webkit-text-combine: unset; -webkit-text-decorations-in-effect: unset; -webkit-text-fill-color: unset; -webkit-text-security: unset; -webkit-text-stroke: unset; -webkit-user-drag: unset; white-space-collapse: unset; widows: unset; width: unset; will-change: unset; window-drag: unset; word-break: unset; word-spacing: unset; x: unset; y: unset; z-index: unset; cursor: pointer; position: absolute; left: 220px; right: 0px; top: 308px; display: grid; grid-template-columns: 26px minmax(0px, 1fr); column-gap: 8px; min-height: 44px;">
+            <span data-dc-tpl="93" style="font-family: &quot;JetBrains Mono&quot;, ui-monospace, monospace; font-size: 12px; color: var(--color-neutral-700); padding-top: 4px;"><span class="sc-interp">05</span></span>
+            <span data-dc-tpl="94" style="display: flex; flex-direction: column; gap: 1px; min-width: 0px;">
+              <span data-dc-tpl="95" style="font-size: 19px; line-height: 1.2; font-weight: 500; letter-spacing: -0.015em; color: var(--color-text); transition: color 0.3s;"><span class="sc-interp">Report</span></span>
+              <span data-dc-tpl="96" style="font-size: 13px; line-height: 1.35; color: var(--color-neutral-700); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"><span class="sc-interp">Fix today, review, safe</span></span>
+            </span>
+          </button>
+        
+      </div>
+      <div data-dc-tpl="97" style="background: var(--color-surface); border-radius: 10px; box-shadow: rgb(228, 231, 245) 0px 0px 0px 1px, rgba(22, 24, 38, 0.28) 0px 24px 48px -28px; overflow: hidden; min-width: 0px;">
+        <div data-dc-tpl="98" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 16px; font-family: &quot;JetBrains Mono&quot;, ui-monospace, monospace; font-size: 12px; color: var(--color-neutral-700); background: linear-gradient(to right,transparent,var(--color-neutral-200) 48px,var(--color-neutral-200) calc(100% - 48px),transparent) no-repeat bottom / 100% 1px;">
+          <span data-dc-tpl="99">demo/paperplane-shop</span><span data-dc-tpl="100" style="color: var(--color-accent-700);"><span class="sc-interp">plan → tool call → observation</span></span>
+        </div>
+        <div data-dc-tpl="101" style="padding: 20px; display: flex; flex-direction: column; gap: 8px; font-family: &quot;JetBrains Mono&quot;, ui-monospace, monospace; font-size: 12.5px; min-height: 296px;">
+          
+          
+          
+            <div data-dc-tpl="115" style="display: grid; grid-template-columns: 96px minmax(0px, 1fr); gap: 14px; padding: 4px 2px;">
+              <span data-dc-tpl="116" style="color: var(--color-neutral-700); text-transform: uppercase; font-size: 11px; letter-spacing: 0.1em; padding-top: 2px;">Plan</span>
+              <span data-dc-tpl="117" style="font-family: var(--font-body); font-size: 14px;">S3 bucket used by deploy workflows. Does it exist?</span>
+              <span data-dc-tpl="118" style="color: var(--color-neutral-700); text-transform: uppercase; font-size: 11px; letter-spacing: 0.1em; padding-top: 2px;">Tool call</span>
+              <span data-dc-tpl="119" style="color: var(--color-neutral-800); overflow-wrap: anywhere;"><span data-dc-tpl="120" style="color: var(--color-accent-700);">bucket_probe</span>("trustline-demo-release-artifacts")</span>
+              <span data-dc-tpl="121" style="color: var(--color-neutral-700); text-transform: uppercase; font-size: 11px; letter-spacing: 0.1em; padding-top: 2px;">Observation</span>
+              <span data-dc-tpl="122" style="color: oklch(0.5 0.18 25);">NoSuchBucket · anyone can create it</span>
+              <span data-dc-tpl="123" style="color: var(--color-neutral-700); text-transform: uppercase; font-size: 11px; letter-spacing: 0.1em; padding-top: 2px;">Next</span>
+              <span data-dc-tpl="124" style="font-family: var(--font-body); font-size: 14px; color: var(--color-neutral-800);">Check release.yml for the same bucket.</span>
+            </div>
+          
+          
+          
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section data-dc-tpl="149" style="padding: clamp(64px, 8vw, 112px) clamp(20px, 4vw, 56px); background: linear-gradient(to right,transparent,var(--color-neutral-200) 48px,var(--color-neutral-200) calc(100% - 48px),transparent) no-repeat top / 100% 1px;">
+    <div data-dc-tpl="150" style="display: flex; flex-direction: column; align-items: center; text-align: center; gap: 16px; margin-bottom: clamp(40px, 5vw, 64px);"><div data-dc-tpl="151" style="font-family: &quot;JetBrains Mono&quot;, ui-monospace, monospace; font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-neutral-700);">What it catches</div><h2 data-dc-tpl="152" style="font-size: clamp(30px, 3.8vw, 46px); line-height: 1.1; letter-spacing: -0.03em; max-width: 780px; margin: 0px; text-wrap: balance;">Six ways a stranger gets in.</h2></div>
+    <div data-dc-tpl="153" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 1px; background: var(--color-neutral-200); border: 1px solid var(--color-neutral-200); border-radius: 8px; overflow: hidden;">
+      
+        <div data-dc-tpl="155" style="background: var(--color-surface); padding: 28px; display: flex; flex-direction: column; gap: 10px; min-width: 0px;">
+          <span data-dc-tpl="156" style="font-family: &quot;JetBrains Mono&quot;, ui-monospace, monospace; font-size: 12px; color: var(--color-neutral-700);"><span class="sc-interp">01</span></span>
+          <div data-dc-tpl="157" style="font-size: 18px; font-weight: 500; letter-spacing: -0.01em;"><span class="sc-interp">Unregistered domains</span></div>
+          <code data-dc-tpl="158" style="font-family: &quot;JetBrains Mono&quot;, ui-monospace, monospace; font-size: 12px; color: var(--color-neutral-700); overflow-wrap: anywhere;"><span class="sc-interp">trustline-demo-agent.net → no RDAP record</span></code>
+        </div>
+      
+        <div data-dc-tpl="155" style="background: var(--color-surface); padding: 28px; display: flex; flex-direction: column; gap: 10px; min-width: 0px;">
+          <span data-dc-tpl="156" style="font-family: &quot;JetBrains Mono&quot;, ui-monospace, monospace; font-size: 12px; color: var(--color-neutral-700);"><span class="sc-interp">02</span></span>
+          <div data-dc-tpl="157" style="font-size: 18px; font-weight: 500; letter-spacing: -0.01em;"><span class="sc-interp">Deleted S3 / GCS / Azure buckets</span></div>
+          <code data-dc-tpl="158" style="font-family: &quot;JetBrains Mono&quot;, ui-monospace, monospace; font-size: 12px; color: var(--color-neutral-700); overflow-wrap: anywhere;"><span class="sc-interp">s3://… → NoSuchBucket</span></code>
+        </div>
+      
+        <div data-dc-tpl="155" style="background: var(--color-surface); padding: 28px; display: flex; flex-direction: column; gap: 10px; min-width: 0px;">
+          <span data-dc-tpl="156" style="font-family: &quot;JetBrains Mono&quot;, ui-monospace, monospace; font-size: 12px; color: var(--color-neutral-700);"><span class="sc-interp">03</span></span>
+          <div data-dc-tpl="157" style="font-size: 18px; font-weight: 500; letter-spacing: -0.01em;"><span class="sc-interp">Deleted GitHub accounts &amp; Pages</span></div>
+          <code data-dc-tpl="158" style="font-family: &quot;JetBrains Mono&quot;, ui-monospace, monospace; font-size: 12px; color: var(--color-neutral-700); overflow-wrap: anywhere;"><span class="sc-interp">github.com/… → 404</span></code>
+        </div>
+      
+        <div data-dc-tpl="155" style="background: var(--color-surface); padding: 28px; display: flex; flex-direction: column; gap: 10px; min-width: 0px;">
+          <span data-dc-tpl="156" style="font-family: &quot;JetBrains Mono&quot;, ui-monospace, monospace; font-size: 12px; color: var(--color-neutral-700);"><span class="sc-interp">04</span></span>
+          <div data-dc-tpl="157" style="font-size: 18px; font-weight: 500; letter-spacing: -0.01em;"><span class="sc-interp">Dangling cloud subdomains</span></div>
+          <code data-dc-tpl="158" style="font-family: &quot;JetBrains Mono&quot;, ui-monospace, monospace; font-size: 12px; color: var(--color-neutral-700); overflow-wrap: anywhere;"><span class="sc-interp">CNAME → unclaimed cloud resource</span></code>
+        </div>
+      
+        <div data-dc-tpl="155" style="background: var(--color-surface); padding: 28px; display: flex; flex-direction: column; gap: 10px; min-width: 0px;">
+          <span data-dc-tpl="156" style="font-family: &quot;JetBrains Mono&quot;, ui-monospace, monospace; font-size: 12px; color: var(--color-neutral-700);"><span class="sc-interp">05</span></span>
+          <div data-dc-tpl="157" style="font-size: 18px; font-weight: 500; letter-spacing: -0.01em;"><span class="sc-interp">Known compromised CDNs</span></div>
+          <code data-dc-tpl="158" style="font-family: &quot;JetBrains Mono&quot;, ui-monospace, monospace; font-size: 12px; color: var(--color-neutral-700); overflow-wrap: anywhere;"><span class="sc-interp">polyfill.io</span></code>
+        </div>
+      
+        <div data-dc-tpl="155" style="background: var(--color-surface); padding: 28px; display: flex; flex-direction: column; gap: 10px; min-width: 0px;">
+          <span data-dc-tpl="156" style="font-family: &quot;JetBrains Mono&quot;, ui-monospace, monospace; font-size: 12px; color: var(--color-neutral-700);"><span class="sc-interp">06</span></span>
+          <div data-dc-tpl="157" style="font-size: 18px; font-weight: 500; letter-spacing: -0.01em;"><span class="sc-interp">Scripts without integrity hashes</span></div>
+          <code data-dc-tpl="158" style="font-family: &quot;JetBrains Mono&quot;, ui-monospace, monospace; font-size: 12px; color: var(--color-neutral-700); overflow-wrap: anywhere;"><span class="sc-interp">script tag with no integrity attribute</span></code>
+        </div>
+      
+    </div>
+  </section>
+
+  <section data-dc-tpl="159" id="proof" style="padding: clamp(64px, 8vw, 112px) clamp(20px, 4vw, 56px); background: linear-gradient(to right,transparent,var(--color-neutral-200) 48px,var(--color-neutral-200) calc(100% - 48px),transparent) no-repeat top / 100% 1px;">
+    <div data-dc-tpl="160" style="display: flex; flex-direction: column; align-items: center; text-align: center; gap: 16px; margin-bottom: clamp(40px, 5vw, 64px);"><div data-dc-tpl="161" style="font-family: &quot;JetBrains Mono&quot;, ui-monospace, monospace; font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-neutral-700);">Proof</div><h2 data-dc-tpl="162" style="font-size: clamp(30px, 3.8vw, 46px); line-height: 1.1; letter-spacing: -0.03em; max-width: 780px; margin: 0px; text-wrap: balance;">Evaluated on 9 real open-source repos.</h2></div>
+    <div data-dc-tpl="163" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 1px; background: var(--color-neutral-200); border: 1px solid var(--color-neutral-200); border-radius: 8px; overflow: hidden;">
+      <div data-dc-tpl="164" style="background: var(--color-surface); padding: 36px 28px; display: flex; flex-direction: column; gap: 14px; min-width: 0px;"><span data-dc-tpl="165" style="font-size: clamp(56px, 7vw, 92px); line-height: 1; letter-spacing: -0.05em; color: var(--color-accent-700);">4/4</span><span data-dc-tpl="166" style="font-size: 16px; color: var(--color-neutral-800);">real threats caught</span></div>
+      <div data-dc-tpl="167" style="background: var(--color-surface); padding: 36px 28px; display: flex; flex-direction: column; gap: 14px; min-width: 0px;"><span data-dc-tpl="168" style="font-size: clamp(56px, 7vw, 92px); line-height: 1; letter-spacing: -0.05em;">1</span><span data-dc-tpl="169" style="font-size: 16px; color: var(--color-neutral-800);">false alarm</span></div>
+      <div data-dc-tpl="170" style="background: var(--color-surface); padding: 36px 28px; display: flex; flex-direction: column; gap: 14px; min-width: 0px;"><span data-dc-tpl="171" style="font-size: clamp(56px, 7vw, 92px); line-height: 1; letter-spacing: -0.05em; color: var(--color-neutral-700);">vs 45</span><span data-dc-tpl="172" style="font-size: 16px; color: var(--color-neutral-800);">for a regex baseline</span></div>
+    </div>
+  </section>
+
+  <section data-dc-tpl="173" id="where" style="padding: clamp(64px, 8vw, 112px) clamp(20px, 4vw, 56px); background: linear-gradient(to right,transparent,var(--color-neutral-200) 48px,var(--color-neutral-200) calc(100% - 48px),transparent) no-repeat top / 100% 1px;">
+    <div data-dc-tpl="174" style="display: flex; flex-direction: column; align-items: center; text-align: center; gap: 16px; margin-bottom: clamp(40px, 5vw, 64px);"><div data-dc-tpl="175" style="font-family: &quot;JetBrains Mono&quot;, ui-monospace, monospace; font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-neutral-700);">Works where you work</div><h2 data-dc-tpl="176" style="font-size: clamp(30px, 3.8vw, 46px); line-height: 1.1; letter-spacing: -0.03em; max-width: 780px; margin: 0px; text-wrap: balance;">On every pull request, inside your agent, <span data-dc-tpl="177" style="color: var(--color-accent-700);">or in the browser.</span></h2></div>
+    <div data-dc-tpl="178" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 1px; background: var(--color-neutral-200); border: 1px solid var(--color-neutral-200); border-radius: 8px; overflow: hidden;">
+      <div data-dc-tpl="179" style="background: var(--color-surface); padding: 28px; display: flex; flex-direction: column; gap: 14px; min-width: 0px;">
+        <div data-dc-tpl="180" style="display: flex; align-items: baseline; justify-content: space-between; gap: 12px;"><span data-dc-tpl="181" style="font-size: 17px; font-weight: 500;">GitHub Action</span><span data-dc-tpl="182" style="font-family: &quot;JetBrains Mono&quot;, ui-monospace, monospace; font-size: 12px; color: var(--color-neutral-700);">CI</span></div>
+        <div data-dc-tpl="183" style="border-radius: 8px; box-shadow: rgb(228, 231, 245) 0px 0px 0px 1px; overflow: hidden; background: var(--color-surface);">
+          <div data-dc-tpl="184" style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; font-size: 13px; background: var(--color-neutral-100);">
+            <span data-dc-tpl="185" style="width: 22px; height: 22px; border-radius: 50%; background: var(--color-accent-200); display: grid; place-items: center; font-size: 11px; color: var(--color-accent-800);">T</span>
+            <span data-dc-tpl="186"><b data-dc-tpl="187" style="font-weight: 500;">trustline</b> <span data-dc-tpl="188" style="color: var(--color-neutral-700);">commented on #42</span></span>
+          </div>
+          <div data-dc-tpl="189" style="padding: 12px; display: flex; flex-direction: column; gap: 9px; font-size: 13px;">
+            <div data-dc-tpl="190">2 new references a stranger could take over.</div>
+            <div data-dc-tpl="191" style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-family: &quot;JetBrains Mono&quot;, ui-monospace, monospace; font-size: 12px;"><span data-dc-tpl="192" style="font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; padding: 3px 8px; border-radius: 5px; color: oklch(0.5 0.18 25); background: oklch(0.95 0.03 25);">Critical</span><span data-dc-tpl="193" style="overflow-wrap: anywhere;">trustline-demo-cartkit.com</span></div>
+            <div data-dc-tpl="194" style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-family: &quot;JetBrains Mono&quot;, ui-monospace, monospace; font-size: 12px;"><span data-dc-tpl="195" style="font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; padding: 3px 8px; border-radius: 5px; color: oklch(0.5 0.13 55); background: oklch(0.95 0.04 70);">High</span><span data-dc-tpl="196" style="overflow-wrap: anywhere;">trustline-demo-metrics.io</span></div>
+          </div>
+        </div>
+      </div>
+      <div data-dc-tpl="197" style="background: var(--color-surface); padding: 28px; display: flex; flex-direction: column; gap: 14px; min-width: 0px;">
+        <div data-dc-tpl="198" style="display: flex; align-items: baseline; justify-content: space-between; gap: 12px;"><span data-dc-tpl="199" style="font-size: 17px; font-weight: 500;">Muse Code</span><span data-dc-tpl="200" style="font-family: &quot;JetBrains Mono&quot;, ui-monospace, monospace; font-size: 12px; color: var(--color-neutral-700);">MCP server</span></div>
+        <div data-dc-tpl="201" style="background: rgb(15, 16, 25); border-radius: 8px; padding: 14px; font-family: &quot;JetBrains Mono&quot;, ui-monospace, monospace; font-size: 12px; line-height: 1.75; color: rgb(207, 211, 229); overflow-x: auto;">
+          <div data-dc-tpl="202"><span data-dc-tpl="203" style="color: rgb(210, 206, 253);">›</span> <span data-dc-tpl="204" style="color: rgb(233, 233, 237);">check what this repo trusts</span></div>
+          <div data-dc-tpl="205" style="color: rgb(178, 182, 202);">⏺ trustline.scan_repo(path=".")</div>
+          <div data-dc-tpl="206" style="color: rgb(178, 182, 202);">  ⎿ 13 targets · 6 agent calls</div>
+          <div data-dc-tpl="207"><span data-dc-tpl="208" style="color: oklch(0.8 0.13 25);">  6 critical</span> · <span data-dc-tpl="209" style="color: oklch(0.83 0.12 60);">2 high</span> · 1 low</div>
+          <div data-dc-tpl="210" style="color: rgb(233, 233, 237);">  Fix first: deploy.yml:11</div>
+        </div>
+      </div>
+      <div data-dc-tpl="211" style="background: var(--color-surface); padding: 28px; display: flex; flex-direction: column; gap: 14px; min-width: 0px;">
+        <div data-dc-tpl="212" style="display: flex; align-items: baseline; justify-content: space-between; gap: 12px;"><span data-dc-tpl="213" style="font-size: 17px; font-weight: 500;">Web app</span><span data-dc-tpl="214" style="font-family: &quot;JetBrains Mono&quot;, ui-monospace, monospace; font-size: 12px; color: var(--color-neutral-700);">repo or URL</span></div>
+        <button data-dc-tpl="215" class="scp3" style="color-scheme: unset; forced-color-adjust: unset; math-depth: unset; position: unset; position-anchor: unset; text-size-adjust: unset; appearance: unset; color: unset; font: unset; font-palette: unset; font-synthesis: unset; position-area: unset; text-orientation: unset; text-rendering: unset; text-spacing-trim: unset; -webkit-font-smoothing: unset; -webkit-locale: unset; -webkit-text-orientation: unset; -webkit-writing-mode: unset; writing-mode: unset; zoom: unset; accent-color: unset; place-content: unset; place-items: unset; place-self: unset; alignment-baseline: unset; anchor-name: unset; anchor-scope: unset; animation-composition: unset; animation: unset; animation-trigger: unset; app-region: unset; aspect-ratio: unset; backdrop-filter: unset; backface-visibility: unset; background-blend-mode: unset; baseline-shift: unset; baseline-source: unset; block-size: unset; border-block: unset; border: unset; border-collapse: unset; border-end-end-radius: unset; border-end-start-radius: unset; border-inline: unset; border-shape: unset; border-start-end-radius: unset; border-start-start-radius: unset; inset: unset; box-decoration-break: unset; box-sizing: unset; break-after: unset; break-before: unset; break-inside: unset; buffered-rendering: unset; caption-side: unset; caret-animation: unset; caret-color: unset; caret-shape: unset; clear: unset; clip: unset; clip-path: unset; clip-rule: unset; color-interpolation: unset; color-interpolation-filters: unset; color-rendering: unset; columns: unset; column-fill: unset; rule-break: unset; rule: unset; rule-inset: unset; rule-visibility-items: unset; column-span: unset; contain: unset; contain-intrinsic-block-size: unset; contain-intrinsic-size: unset; contain-intrinsic-inline-size: unset; container: unset; content: unset; content-visibility: unset; corner-shape: unset; corner-block-end-shape: unset; corner-block-start-shape: unset; counter-increment: unset; counter-reset: unset; counter-set: unset; cx: unset; cy: unset; d: unset; dominant-baseline: unset; dynamic-range-limit: unset; empty-cells: unset; field-sizing: unset; fill: unset; fill-opacity: unset; fill-rule: unset; filter: unset; flex: unset; flex-line-count: unset; flex-wrap: unset; float: unset; flood-color: unset; flood-opacity: unset; grid: unset; grid-area: unset; height: unset; hyphenate-character: unset; hyphenate-limit-chars: unset; hyphens: unset; image-orientation: unset; image-rendering: unset; initial-letter: unset; inline-size: unset; inset-block: unset; inset-inline: unset; interactivity: unset; interest-delay: unset; interpolate-size: unset; isolation: unset; letter-spacing: unset; lighting-color: unset; line-break: unset; list-style: unset; margin-block: unset; margin: unset; margin-inline: unset; marker: unset; mask: unset; mask-type: unset; math-shift: unset; math-style: unset; max-block-size: unset; max-height: unset; max-inline-size: unset; max-width: unset; min-block-size: unset; min-height: unset; min-inline-size: unset; min-width: unset; mix-blend-mode: unset; object-fit: unset; object-position: unset; object-view-box: unset; offset: unset; opacity: unset; order: unset; orphans: unset; outline: unset; outline-offset: unset; overflow-anchor: unset; overflow-block: unset; overflow-clip-margin: unset; overflow-inline: unset; overflow-wrap: unset; overflow: unset; overlay: unset; overscroll-behavior-block: unset; overscroll-behavior-inline: unset; overscroll-behavior: unset; padding-block: unset; padding-inline: unset; page: unset; page-margin-safety: unset; page-orientation: unset; paint-order: unset; perspective: unset; perspective-origin: unset; pointer-events: unset; position-try: unset; position-visibility: unset; print-color-adjust: unset; quotes: unset; r: unset; reading-flow: unset; reading-order: unset; resize: unset; rotate: unset; ruby-align: unset; ruby-overhang: unset; ruby-position: unset; rule-overlap: unset; rx: unset; ry: unset; scale: unset; scroll-axis-lock: unset; scroll-behavior: unset; scroll-initial-target: unset; scroll-margin-block: unset; scroll-margin: unset; scroll-margin-inline: unset; scroll-marker-group: unset; scroll-padding-block: unset; scroll-padding: unset; scroll-padding-inline: unset; scroll-snap-align: unset; scroll-snap-stop: unset; scroll-snap-type: unset; scroll-target-group: unset; scroll-timeline: unset; scrollbar-color: unset; scrollbar-gutter: unset; scrollbar-width: unset; shape-image-threshold: unset; shape-margin: unset; shape-outside: unset; shape-rendering: unset; size: unset; speak: unset; stop-color: unset; stop-opacity: unset; stroke: unset; stroke-dasharray: unset; stroke-dashoffset: unset; stroke-linecap: unset; stroke-linejoin: unset; stroke-miterlimit: unset; stroke-opacity: unset; stroke-width: unset; tab-size: unset; table-layout: unset; text-align: unset; text-align-last: unset; text-anchor: unset; text-autospace: unset; text-box: unset; text-combine-upright: unset; text-decoration: unset; text-decoration-skip-ink: unset; text-emphasis: unset; text-emphasis-position: unset; text-fit: unset; text-indent: unset; text-justify: unset; text-overflow: unset; text-shadow: unset; text-transform: unset; text-underline-offset: unset; text-underline-position: unset; text-wrap: unset; timeline-scope: unset; timeline-trigger: unset; touch-action: unset; transform: unset; transform-box: unset; transform-origin: unset; transform-style: unset; transition: unset; translate: unset; trigger-scope: unset; user-select: unset; vector-effect: unset; vertical-align: unset; view-timeline: unset; view-transition-class: unset; view-transition-group: unset; view-transition-name: unset; view-transition-scope: unset; visibility: unset; border-spacing: unset; -webkit-box-align: unset; -webkit-box-decoration-break: unset; -webkit-box-direction: unset; -webkit-box-flex: unset; -webkit-box-ordinal-group: unset; -webkit-box-orient: unset; -webkit-box-pack: unset; -webkit-box-reflect: unset; -webkit-line-break: unset; -webkit-line-clamp: unset; -webkit-mask-box-image: unset; -webkit-rtl-ordering: unset; -webkit-ruby-position: unset; -webkit-tap-highlight-color: unset; -webkit-text-combine: unset; -webkit-text-decorations-in-effect: unset; -webkit-text-fill-color: unset; -webkit-text-security: unset; -webkit-text-stroke: unset; -webkit-user-drag: unset; white-space-collapse: unset; widows: unset; width: unset; will-change: unset; window-drag: unset; word-break: unset; word-spacing: unset; x: unset; y: unset; z-index: unset; cursor: pointer; border-radius: 8px; box-shadow: rgb(228, 231, 245) 0px 0px 0px 1px; padding: 14px; display: flex; flex-direction: column; gap: 10px; background: var(--color-surface);">
+          <span data-dc-tpl="216" style="font-family: &quot;JetBrains Mono&quot;, ui-monospace, monospace; font-size: 12px; color: var(--color-neutral-700);">demo/paperplane-shop</span>
+          <span data-dc-tpl="217" style="font-size: 21px; letter-spacing: -0.02em;">8 things to fix today</span>
+          <span data-dc-tpl="218" style="display: flex; flex-wrap: wrap; gap: 6px; font-size: 11px;"><span data-dc-tpl="219" style="padding: 3px 8px; border-radius: 5px; color: oklch(0.5 0.18 25); background: oklch(0.95 0.03 25);">6 Critical</span><span data-dc-tpl="220" style="padding: 3px 8px; border-radius: 5px; color: oklch(0.5 0.13 55); background: oklch(0.95 0.04 70);">2 High</span><span data-dc-tpl="221" style="padding: 3px 8px; border-radius: 5px; color: rgb(63, 66, 77); background: rgb(228, 231, 245);">1 Low</span></span>
+          <span data-dc-tpl="222" style="font-size: 13px; color: var(--color-accent-700);">Open the demo report →</span>
+        </button>
+      </div>
+    </div>
+  </section>
+ </div></div>
+
+  <footer data-dc-tpl="223" style="position: relative; overflow: hidden; background: rgb(248, 249, 254); padding-top: 120px;">
+    <div data-dc-tpl="224" style="position: absolute; left: 50%; top: 120px; width: 0px; height: 0px; pointer-events: none;">
+      <div data-dc-tpl="225" style="position: absolute; left: -1500px; top: 0px; width: 3000px; height: 1400px; border-radius: 50%; background: rgb(12, 13, 21); filter: blur(20px); box-shadow: rgba(145, 132, 217, 0.4) 0px -10px 40px 6px, rgba(145, 132, 217, 0.18) 0px -40px 120px 20px;"></div>
+    </div>
+    <div data-dc-tpl="226" style="position: relative; max-width: 1200px; margin: 0px auto; padding: 120px clamp(20px, 4vw, 40px) 112px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 22px; color: rgb(233, 233, 237);">
+      <h2 data-dc-tpl="227" style="font-size: clamp(28px, 3.6vw, 44px); letter-spacing: -0.03em; margin: 0px; text-wrap: balance;">Check what your code trusts.</h2>
+      <div data-dc-tpl="228" style="display: flex; flex-wrap: wrap; justify-content: center; gap: 12px;">
+        <a data-dc-tpl="229" class="btn btn-primary" href="#top" style="min-height: 44px; padding: 0px 20px; color: rgb(231, 229, 254); border-color: rgb(181, 171, 252); background: rgba(145, 132, 217, 0.2);">Scan a repo</a>
+        <button data-dc-tpl="230" class="btn btn-secondary" style="min-height: 44px; padding: 0px 18px;">Watch the demo scan</button>
+      </div>
+      <div data-dc-tpl="231" style="width: 100%; margin-top: 72px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 14px 24px; padding-top: 24px; font-size: 13px; color: rgb(178, 182, 202); background: linear-gradient(to right, transparent, rgba(233, 233, 237, 0.14) 48px, rgba(233, 233, 237, 0.14) calc(100% - 48px), transparent) center top / 100% 1px no-repeat;">
+        <span data-dc-tpl="232" style="display: flex; align-items: center; gap: 10px; color: rgb(233, 233, 237);"><svg data-dc-tpl="233" width="16" height="16" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"><path data-dc-tpl="234" d="M24 4 40 10v12c0 11-7 19-16 22C15 41 8 33 8 22V10Z"></path><rect data-dc-tpl="235" x="14" y="20" width="12" height="8" rx="4"></rect><rect data-dc-tpl="236" x="22" y="20" width="12" height="8" rx="4"></rect></svg>Trustline</span>
+        <span data-dc-tpl="237">Powered by <span data-dc-tpl="238" style="color: rgb(210, 206, 253);">Meta Muse Spark</span> · Meta Global AI Developer Hackathon</span>
+        <span data-dc-tpl="239" style="display: flex; gap: 20px;"><a data-dc-tpl="240" href="#how" style="color: rgb(207, 211, 229);">How it works</a><a data-dc-tpl="241" href="#top" style="color: rgb(207, 211, 229);">GitHub</a></span>
+      </div>
+    </div>
+  </footer></div>
+  <div data-dc-tpl="419" style="position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 50; display: flex; gap: 4px; padding: 4px; border-radius: 12px; background: color-mix(in srgb, var(--color-surface) 92%, transparent); backdrop-filter: blur(10px); box-shadow: var(--shadow-md);">
+    
+      <button data-dc-tpl="421" class="scp5" style="color-scheme: unset; forced-color-adjust: unset; math-depth: unset; position: unset; position-anchor: unset; text-size-adjust: unset; appearance: unset; font-family: unset; font-feature-settings: unset; font-kerning: unset; font-language-override: unset; font-optical-sizing: unset; font-palette: unset; font-size-adjust: unset; font-stretch: unset; font-style: unset; font-synthesis: unset; font-variant: unset; font-variation-settings: unset; font-weight: unset; position-area: unset; text-orientation: unset; text-rendering: unset; text-spacing-trim: unset; -webkit-font-smoothing: unset; -webkit-locale: unset; -webkit-text-orientation: unset; -webkit-writing-mode: unset; writing-mode: unset; zoom: unset; accent-color: unset; place-content: unset; place-self: unset; alignment-baseline: unset; anchor-name: unset; anchor-scope: unset; animation-composition: unset; animation: unset; animation-trigger: unset; app-region: unset; aspect-ratio: unset; backdrop-filter: unset; backface-visibility: unset; background: unset; background-blend-mode: unset; baseline-shift: unset; baseline-source: unset; block-size: unset; border-block: unset; border: unset; border-collapse: unset; border-end-end-radius: unset; border-end-start-radius: unset; border-inline: unset; border-shape: unset; border-start-end-radius: unset; border-start-start-radius: unset; inset: unset; box-decoration-break: unset; box-sizing: unset; break-after: unset; break-before: unset; break-inside: unset; buffered-rendering: unset; caption-side: unset; caret-animation: unset; caret-color: unset; caret-shape: unset; clear: unset; clip: unset; clip-path: unset; clip-rule: unset; color-interpolation: unset; color-interpolation-filters: unset; color-rendering: unset; columns: unset; column-fill: unset; gap: unset; rule-break: unset; rule: unset; rule-inset: unset; rule-visibility-items: unset; column-span: unset; contain: unset; contain-intrinsic-block-size: unset; contain-intrinsic-size: unset; contain-intrinsic-inline-size: unset; container: unset; content: unset; content-visibility: unset; corner-shape: unset; corner-block-end-shape: unset; corner-block-start-shape: unset; counter-increment: unset; counter-reset: unset; counter-set: unset; cx: unset; cy: unset; d: unset; dominant-baseline: unset; dynamic-range-limit: unset; empty-cells: unset; field-sizing: unset; fill: unset; fill-opacity: unset; fill-rule: unset; filter: unset; flex: unset; flex-flow: unset; flex-line-count: unset; float: unset; flood-color: unset; flood-opacity: unset; grid: unset; grid-area: unset; height: unset; hyphenate-character: unset; hyphenate-limit-chars: unset; hyphens: unset; image-orientation: unset; image-rendering: unset; initial-letter: unset; inline-size: unset; inset-block: unset; inset-inline: unset; interactivity: unset; interest-delay: unset; interpolate-size: unset; isolation: unset; justify-items: unset; letter-spacing: unset; lighting-color: unset; line-break: unset; line-height: unset; list-style: unset; margin-block: unset; margin: unset; margin-inline: unset; marker: unset; mask: unset; mask-type: unset; math-shift: unset; math-style: unset; max-block-size: unset; max-height: unset; max-inline-size: unset; max-width: unset; min-block-size: unset; min-inline-size: unset; min-width: unset; mix-blend-mode: unset; object-fit: unset; object-position: unset; object-view-box: unset; offset: unset; opacity: unset; order: unset; orphans: unset; outline: unset; outline-offset: unset; overflow-anchor: unset; overflow-block: unset; overflow-clip-margin: unset; overflow-inline: unset; overflow-wrap: unset; overflow: unset; overlay: unset; overscroll-behavior-block: unset; overscroll-behavior-inline: unset; overscroll-behavior: unset; padding-block: unset; padding-inline: unset; page: unset; page-margin-safety: unset; page-orientation: unset; paint-order: unset; perspective: unset; perspective-origin: unset; pointer-events: unset; position-try: unset; position-visibility: unset; print-color-adjust: unset; quotes: unset; r: unset; reading-flow: unset; reading-order: unset; resize: unset; rotate: unset; ruby-align: unset; ruby-overhang: unset; ruby-position: unset; rule-overlap: unset; rx: unset; ry: unset; scale: unset; scroll-axis-lock: unset; scroll-behavior: unset; scroll-initial-target: unset; scroll-margin-block: unset; scroll-margin: unset; scroll-margin-inline: unset; scroll-marker-group: unset; scroll-padding-block: unset; scroll-padding: unset; scroll-padding-inline: unset; scroll-snap-align: unset; scroll-snap-stop: unset; scroll-snap-type: unset; scroll-target-group: unset; scroll-timeline: unset; scrollbar-color: unset; scrollbar-gutter: unset; scrollbar-width: unset; shape-image-threshold: unset; shape-margin: unset; shape-outside: unset; shape-rendering: unset; size: unset; speak: unset; stop-color: unset; stop-opacity: unset; stroke: unset; stroke-dasharray: unset; stroke-dashoffset: unset; stroke-linecap: unset; stroke-linejoin: unset; stroke-miterlimit: unset; stroke-opacity: unset; stroke-width: unset; tab-size: unset; table-layout: unset; text-align: unset; text-align-last: unset; text-anchor: unset; text-autospace: unset; text-box: unset; text-combine-upright: unset; text-decoration: unset; text-decoration-skip-ink: unset; text-emphasis: unset; text-emphasis-position: unset; text-fit: unset; text-indent: unset; text-justify: unset; text-overflow: unset; text-shadow: unset; text-transform: unset; text-underline-offset: unset; text-underline-position: unset; text-wrap: unset; timeline-scope: unset; timeline-trigger: unset; touch-action: unset; transform: unset; transform-box: unset; transform-origin: unset; transform-style: unset; transition: unset; translate: unset; trigger-scope: unset; user-select: unset; vector-effect: unset; vertical-align: unset; view-timeline: unset; view-transition-class: unset; view-transition-group: unset; view-transition-name: unset; view-transition-scope: unset; visibility: unset; border-spacing: unset; -webkit-box-align: unset; -webkit-box-decoration-break: unset; -webkit-box-direction: unset; -webkit-box-flex: unset; -webkit-box-ordinal-group: unset; -webkit-box-orient: unset; -webkit-box-pack: unset; -webkit-box-reflect: unset; -webkit-line-break: unset; -webkit-line-clamp: unset; -webkit-mask-box-image: unset; -webkit-rtl-ordering: unset; -webkit-ruby-position: unset; -webkit-tap-highlight-color: unset; -webkit-text-combine: unset; -webkit-text-decorations-in-effect: unset; -webkit-text-fill-color: unset; -webkit-text-security: unset; -webkit-text-stroke: unset; -webkit-user-drag: unset; white-space-collapse: unset; widows: unset; width: unset; will-change: unset; window-drag: unset; word-break: unset; word-spacing: unset; x: unset; y: unset; z-index: unset; cursor: pointer; min-height: 44px; padding: 0px 16px; border-radius: 9px; font-size: 13px; display: flex; align-items: center; color: var(--color-accent-200); box-shadow: inset 0 0 0 1px var(--color-accent-600);"><span class="sc-interp">Home</span></button>
+    
+      <button data-dc-tpl="421" class="scp5" style="color-scheme: unset; forced-color-adjust: unset; math-depth: unset; position: unset; position-anchor: unset; text-size-adjust: unset; appearance: unset; font-family: unset; font-feature-settings: unset; font-kerning: unset; font-language-override: unset; font-optical-sizing: unset; font-palette: unset; font-size-adjust: unset; font-stretch: unset; font-style: unset; font-synthesis: unset; font-variant: unset; font-variation-settings: unset; font-weight: unset; position-area: unset; text-orientation: unset; text-rendering: unset; text-spacing-trim: unset; -webkit-font-smoothing: unset; -webkit-locale: unset; -webkit-text-orientation: unset; -webkit-writing-mode: unset; writing-mode: unset; zoom: unset; accent-color: unset; place-content: unset; place-self: unset; alignment-baseline: unset; anchor-name: unset; anchor-scope: unset; animation-composition: unset; animation: unset; animation-trigger: unset; app-region: unset; aspect-ratio: unset; backdrop-filter: unset; backface-visibility: unset; background: unset; background-blend-mode: unset; baseline-shift: unset; baseline-source: unset; block-size: unset; border-block: unset; border: unset; border-collapse: unset; border-end-end-radius: unset; border-end-start-radius: unset; border-inline: unset; border-shape: unset; border-start-end-radius: unset; border-start-start-radius: unset; inset: unset; box-decoration-break: unset; box-sizing: unset; break-after: unset; break-before: unset; break-inside: unset; buffered-rendering: unset; caption-side: unset; caret-animation: unset; caret-color: unset; caret-shape: unset; clear: unset; clip: unset; clip-path: unset; clip-rule: unset; color-interpolation: unset; color-interpolation-filters: unset; color-rendering: unset; columns: unset; column-fill: unset; gap: unset; rule-break: unset; rule: unset; rule-inset: unset; rule-visibility-items: unset; column-span: unset; contain: unset; contain-intrinsic-block-size: unset; contain-intrinsic-size: unset; contain-intrinsic-inline-size: unset; container: unset; content: unset; content-visibility: unset; corner-shape: unset; corner-block-end-shape: unset; corner-block-start-shape: unset; counter-increment: unset; counter-reset: unset; counter-set: unset; cx: unset; cy: unset; d: unset; dominant-baseline: unset; dynamic-range-limit: unset; empty-cells: unset; field-sizing: unset; fill: unset; fill-opacity: unset; fill-rule: unset; filter: unset; flex: unset; flex-flow: unset; flex-line-count: unset; float: unset; flood-color: unset; flood-opacity: unset; grid: unset; grid-area: unset; height: unset; hyphenate-character: unset; hyphenate-limit-chars: unset; hyphens: unset; image-orientation: unset; image-rendering: unset; initial-letter: unset; inline-size: unset; inset-block: unset; inset-inline: unset; interactivity: unset; interest-delay: unset; interpolate-size: unset; isolation: unset; justify-items: unset; letter-spacing: unset; lighting-color: unset; line-break: unset; line-height: unset; list-style: unset; margin-block: unset; margin: unset; margin-inline: unset; marker: unset; mask: unset; mask-type: unset; math-shift: unset; math-style: unset; max-block-size: unset; max-height: unset; max-inline-size: unset; max-width: unset; min-block-size: unset; min-inline-size: unset; min-width: unset; mix-blend-mode: unset; object-fit: unset; object-position: unset; object-view-box: unset; offset: unset; opacity: unset; order: unset; orphans: unset; outline: unset; outline-offset: unset; overflow-anchor: unset; overflow-block: unset; overflow-clip-margin: unset; overflow-inline: unset; overflow-wrap: unset; overflow: unset; overlay: unset; overscroll-behavior-block: unset; overscroll-behavior-inline: unset; overscroll-behavior: unset; padding-block: unset; padding-inline: unset; page: unset; page-margin-safety: unset; page-orientation: unset; paint-order: unset; perspective: unset; perspective-origin: unset; pointer-events: unset; position-try: unset; position-visibility: unset; print-color-adjust: unset; quotes: unset; r: unset; reading-flow: unset; reading-order: unset; resize: unset; rotate: unset; ruby-align: unset; ruby-overhang: unset; ruby-position: unset; rule-overlap: unset; rx: unset; ry: unset; scale: unset; scroll-axis-lock: unset; scroll-behavior: unset; scroll-initial-target: unset; scroll-margin-block: unset; scroll-margin: unset; scroll-margin-inline: unset; scroll-marker-group: unset; scroll-padding-block: unset; scroll-padding: unset; scroll-padding-inline: unset; scroll-snap-align: unset; scroll-snap-stop: unset; scroll-snap-type: unset; scroll-target-group: unset; scroll-timeline: unset; scrollbar-color: unset; scrollbar-gutter: unset; scrollbar-width: unset; shape-image-threshold: unset; shape-margin: unset; shape-outside: unset; shape-rendering: unset; size: unset; speak: unset; stop-color: unset; stop-opacity: unset; stroke: unset; stroke-dasharray: unset; stroke-dashoffset: unset; stroke-linecap: unset; stroke-linejoin: unset; stroke-miterlimit: unset; stroke-opacity: unset; stroke-width: unset; tab-size: unset; table-layout: unset; text-align: unset; text-align-last: unset; text-anchor: unset; text-autospace: unset; text-box: unset; text-combine-upright: unset; text-decoration: unset; text-decoration-skip-ink: unset; text-emphasis: unset; text-emphasis-position: unset; text-fit: unset; text-indent: unset; text-justify: unset; text-overflow: unset; text-shadow: unset; text-transform: unset; text-underline-offset: unset; text-underline-position: unset; text-wrap: unset; timeline-scope: unset; timeline-trigger: unset; touch-action: unset; transform: unset; transform-box: unset; transform-origin: unset; transform-style: unset; transition: unset; translate: unset; trigger-scope: unset; user-select: unset; vector-effect: unset; vertical-align: unset; view-timeline: unset; view-transition-class: unset; view-transition-group: unset; view-transition-name: unset; view-transition-scope: unset; visibility: unset; border-spacing: unset; -webkit-box-align: unset; -webkit-box-decoration-break: unset; -webkit-box-direction: unset; -webkit-box-flex: unset; -webkit-box-ordinal-group: unset; -webkit-box-orient: unset; -webkit-box-pack: unset; -webkit-box-reflect: unset; -webkit-line-break: unset; -webkit-line-clamp: unset; -webkit-mask-box-image: unset; -webkit-rtl-ordering: unset; -webkit-ruby-position: unset; -webkit-tap-highlight-color: unset; -webkit-text-combine: unset; -webkit-text-decorations-in-effect: unset; -webkit-text-fill-color: unset; -webkit-text-security: unset; -webkit-text-stroke: unset; -webkit-user-drag: unset; white-space-collapse: unset; widows: unset; width: unset; will-change: unset; window-drag: unset; word-break: unset; word-spacing: unset; x: unset; y: unset; z-index: unset; cursor: pointer; min-height: 44px; padding: 0px 16px; border-radius: 9px; font-size: 13px; display: flex; align-items: center; color: var(--color-neutral-300); box-shadow: none;"><span class="sc-interp">Scanning</span></button>
+    
+      <button data-dc-tpl="421" class="scp5" style="color-scheme: unset; forced-color-adjust: unset; math-depth: unset; position: unset; position-anchor: unset; text-size-adjust: unset; appearance: unset; font-family: unset; font-feature-settings: unset; font-kerning: unset; font-language-override: unset; font-optical-sizing: unset; font-palette: unset; font-size-adjust: unset; font-stretch: unset; font-style: unset; font-synthesis: unset; font-variant: unset; font-variation-settings: unset; font-weight: unset; position-area: unset; text-orientation: unset; text-rendering: unset; text-spacing-trim: unset; -webkit-font-smoothing: unset; -webkit-locale: unset; -webkit-text-orientation: unset; -webkit-writing-mode: unset; writing-mode: unset; zoom: unset; accent-color: unset; place-content: unset; place-self: unset; alignment-baseline: unset; anchor-name: unset; anchor-scope: unset; animation-composition: unset; animation: unset; animation-trigger: unset; app-region: unset; aspect-ratio: unset; backdrop-filter: unset; backface-visibility: unset; background: unset; background-blend-mode: unset; baseline-shift: unset; baseline-source: unset; block-size: unset; border-block: unset; border: unset; border-collapse: unset; border-end-end-radius: unset; border-end-start-radius: unset; border-inline: unset; border-shape: unset; border-start-end-radius: unset; border-start-start-radius: unset; inset: unset; box-decoration-break: unset; box-sizing: unset; break-after: unset; break-before: unset; break-inside: unset; buffered-rendering: unset; caption-side: unset; caret-animation: unset; caret-color: unset; caret-shape: unset; clear: unset; clip: unset; clip-path: unset; clip-rule: unset; color-interpolation: unset; color-interpolation-filters: unset; color-rendering: unset; columns: unset; column-fill: unset; gap: unset; rule-break: unset; rule: unset; rule-inset: unset; rule-visibility-items: unset; column-span: unset; contain: unset; contain-intrinsic-block-size: unset; contain-intrinsic-size: unset; contain-intrinsic-inline-size: unset; container: unset; content: unset; content-visibility: unset; corner-shape: unset; corner-block-end-shape: unset; corner-block-start-shape: unset; counter-increment: unset; counter-reset: unset; counter-set: unset; cx: unset; cy: unset; d: unset; dominant-baseline: unset; dynamic-range-limit: unset; empty-cells: unset; field-sizing: unset; fill: unset; fill-opacity: unset; fill-rule: unset; filter: unset; flex: unset; flex-flow: unset; flex-line-count: unset; float: unset; flood-color: unset; flood-opacity: unset; grid: unset; grid-area: unset; height: unset; hyphenate-character: unset; hyphenate-limit-chars: unset; hyphens: unset; image-orientation: unset; image-rendering: unset; initial-letter: unset; inline-size: unset; inset-block: unset; inset-inline: unset; interactivity: unset; interest-delay: unset; interpolate-size: unset; isolation: unset; justify-items: unset; letter-spacing: unset; lighting-color: unset; line-break: unset; line-height: unset; list-style: unset; margin-block: unset; margin: unset; margin-inline: unset; marker: unset; mask: unset; mask-type: unset; math-shift: unset; math-style: unset; max-block-size: unset; max-height: unset; max-inline-size: unset; max-width: unset; min-block-size: unset; min-inline-size: unset; min-width: unset; mix-blend-mode: unset; object-fit: unset; object-position: unset; object-view-box: unset; offset: unset; opacity: unset; order: unset; orphans: unset; outline: unset; outline-offset: unset; overflow-anchor: unset; overflow-block: unset; overflow-clip-margin: unset; overflow-inline: unset; overflow-wrap: unset; overflow: unset; overlay: unset; overscroll-behavior-block: unset; overscroll-behavior-inline: unset; overscroll-behavior: unset; padding-block: unset; padding-inline: unset; page: unset; page-margin-safety: unset; page-orientation: unset; paint-order: unset; perspective: unset; perspective-origin: unset; pointer-events: unset; position-try: unset; position-visibility: unset; print-color-adjust: unset; quotes: unset; r: unset; reading-flow: unset; reading-order: unset; resize: unset; rotate: unset; ruby-align: unset; ruby-overhang: unset; ruby-position: unset; rule-overlap: unset; rx: unset; ry: unset; scale: unset; scroll-axis-lock: unset; scroll-behavior: unset; scroll-initial-target: unset; scroll-margin-block: unset; scroll-margin: unset; scroll-margin-inline: unset; scroll-marker-group: unset; scroll-padding-block: unset; scroll-padding: unset; scroll-padding-inline: unset; scroll-snap-align: unset; scroll-snap-stop: unset; scroll-snap-type: unset; scroll-target-group: unset; scroll-timeline: unset; scrollbar-color: unset; scrollbar-gutter: unset; scrollbar-width: unset; shape-image-threshold: unset; shape-margin: unset; shape-outside: unset; shape-rendering: unset; size: unset; speak: unset; stop-color: unset; stop-opacity: unset; stroke: unset; stroke-dasharray: unset; stroke-dashoffset: unset; stroke-linecap: unset; stroke-linejoin: unset; stroke-miterlimit: unset; stroke-opacity: unset; stroke-width: unset; tab-size: unset; table-layout: unset; text-align: unset; text-align-last: unset; text-anchor: unset; text-autospace: unset; text-box: unset; text-combine-upright: unset; text-decoration: unset; text-decoration-skip-ink: unset; text-emphasis: unset; text-emphasis-position: unset; text-fit: unset; text-indent: unset; text-justify: unset; text-overflow: unset; text-shadow: unset; text-transform: unset; text-underline-offset: unset; text-underline-position: unset; text-wrap: unset; timeline-scope: unset; timeline-trigger: unset; touch-action: unset; transform: unset; transform-box: unset; transform-origin: unset; transform-style: unset; transition: unset; translate: unset; trigger-scope: unset; user-select: unset; vector-effect: unset; vertical-align: unset; view-timeline: unset; view-transition-class: unset; view-transition-group: unset; view-transition-name: unset; view-transition-scope: unset; visibility: unset; border-spacing: unset; -webkit-box-align: unset; -webkit-box-decoration-break: unset; -webkit-box-direction: unset; -webkit-box-flex: unset; -webkit-box-ordinal-group: unset; -webkit-box-orient: unset; -webkit-box-pack: unset; -webkit-box-reflect: unset; -webkit-line-break: unset; -webkit-line-clamp: unset; -webkit-mask-box-image: unset; -webkit-rtl-ordering: unset; -webkit-ruby-position: unset; -webkit-tap-highlight-color: unset; -webkit-text-combine: unset; -webkit-text-decorations-in-effect: unset; -webkit-text-fill-color: unset; -webkit-text-security: unset; -webkit-text-stroke: unset; -webkit-user-drag: unset; white-space-collapse: unset; widows: unset; width: unset; will-change: unset; window-drag: unset; word-break: unset; word-spacing: unset; x: unset; y: unset; z-index: unset; cursor: pointer; min-height: 44px; padding: 0px 16px; border-radius: 9px; font-size: 13px; display: flex; align-items: center; color: var(--color-neutral-300); box-shadow: none;"><span class="sc-interp">Results</span></button>
+    
+  </div></div></div></div>
+
+
+
+</body></html>

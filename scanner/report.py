@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 from typing import Any
@@ -993,7 +994,9 @@ async def run_scan(
         refs = await extract_website(source)
         coverage = website_coverage().as_dict()
     else:
-        extracted = extract_scan(source)
+        # Cloning and reading a repository blocks; keep it off the event loop so
+        # the scan's own SSE stream keeps flowing while it runs.
+        extracted = await asyncio.to_thread(extract_scan, source)
         refs = extracted.references
         coverage = extracted.coverage.as_dict()
     actionable = sum(1 for item in refs if item.filter_reason is None)
@@ -1008,8 +1011,8 @@ async def run_scan(
         },
     )
     class_logs: list[CallLog] = []
-    classified = classify(
-        refs, client=client, include_filtered=True, cache=cache, logs=class_logs
+    classified = await asyncio.to_thread(
+        classify, refs, client=client, include_filtered=True, cache=cache, logs=class_logs
     )
     pairs = list(zip(refs, classified, strict=True))
     if is_website_source(source):
@@ -1038,8 +1041,8 @@ async def run_scan(
             if (ref.file, ref.line) in inv_by_loc
         ]
     rank_logs: list[CallLog] = []
-    findings = rank(
-        rows, client=client, cache=cache, logs=rank_logs, on_event=on_event
+    findings = await asyncio.to_thread(
+        rank, rows, client=client, cache=cache, logs=rank_logs, on_event=on_event
     )
     budget = sorted(
         {

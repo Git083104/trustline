@@ -202,6 +202,10 @@ def is_website_source(source: str) -> bool:
     return True
 
 
+class CloneError(RuntimeError):
+    """A GitHub repository could not be downloaded. The message is shown to the user."""
+
+
 def extract(source: str, *, clone_github=None) -> list[Reference]:
     return extract_scan(source, clone_github=clone_github).references
 
@@ -224,20 +228,28 @@ def _clone_github(url: str, dest_parent: Path) -> Path:
     owner, repo = match.group(1), match.group(2)
     dest = dest_parent / repo
     remote = f"https://github.com/{owner}/{repo}.git"
-    subprocess.run(
-        [
-            "git",
-            "clone",
-            "--depth",
-            "1",
-            "--filter=blob:limit=1m",
-            "--quiet",
-            remote,
-            str(dest),
-        ],
-        check=True,
-        timeout=GITHUB_CLONE_TIMEOUT_S,
-    )
+    command = [
+        "git",
+        "clone",
+        "--depth",
+        "1",
+        "--filter=blob:limit=1m",
+        "--quiet",
+        remote,
+        str(dest),
+    ]
+    try:
+        subprocess.run(command, check=True, timeout=GITHUB_CLONE_TIMEOUT_S)
+    except FileNotFoundError as exc:
+        raise CloneError("git is not installed on the scanner host") from exc
+    except subprocess.TimeoutExpired as exc:
+        raise CloneError(
+            f"{owner}/{repo} took longer than {GITHUB_CLONE_TIMEOUT_S}s to download"
+        ) from exc
+    except subprocess.CalledProcessError as exc:
+        raise CloneError(
+            f"{owner}/{repo} could not be downloaded; it may be private or renamed"
+        ) from exc
     return dest
 
 

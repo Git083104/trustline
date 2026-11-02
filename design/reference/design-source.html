@@ -1,0 +1,1246 @@
+<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="65532b51-da3c-4bff-bb4d-68f4941de53e"></script>
+</head>
+<body>
+
+<x-dc>
+<helmet>
+<style>/* Nocturne — design-system tokens and component classes. This file is the source of truth for the system's look; retune it here and see readme.md. */
+/* cyrillic-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("bd4d0589-f916-4214-8007-ba115de33b39") format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("262e06e7-5e1a-4f5f-8877-37dee046dc27") format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("7c285c94-0b67-4836-8604-c75b1b3cc0c8") format('woff2');
+  unicode-range: U+1F00-1FFF;
+}
+/* greek */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("03ea507d-a3ed-429e-be39-561fcf3b655d") format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("110b93d9-389a-42eb-910e-2d0654a04923") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("dcb96245-4ff3-4fb9-9b5f-f86a444a0333") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("a2cc77b7-f1fc-49e8-a3c4-c0a20715bfb0") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("bd4d0589-f916-4214-8007-ba115de33b39") format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("262e06e7-5e1a-4f5f-8877-37dee046dc27") format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("7c285c94-0b67-4836-8604-c75b1b3cc0c8") format('woff2');
+  unicode-range: U+1F00-1FFF;
+}
+/* greek */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("03ea507d-a3ed-429e-be39-561fcf3b655d") format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("110b93d9-389a-42eb-910e-2d0654a04923") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("dcb96245-4ff3-4fb9-9b5f-f86a444a0333") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("a2cc77b7-f1fc-49e8-a3c4-c0a20715bfb0") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("bd4d0589-f916-4214-8007-ba115de33b39") format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("262e06e7-5e1a-4f5f-8877-37dee046dc27") format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("7c285c94-0b67-4836-8604-c75b1b3cc0c8") format('woff2');
+  unicode-range: U+1F00-1FFF;
+}
+/* greek */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("03ea507d-a3ed-429e-be39-561fcf3b655d") format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("110b93d9-389a-42eb-910e-2d0654a04923") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("dcb96245-4ff3-4fb9-9b5f-f86a444a0333") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("a2cc77b7-f1fc-49e8-a3c4-c0a20715bfb0") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("bd4d0589-f916-4214-8007-ba115de33b39") format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("262e06e7-5e1a-4f5f-8877-37dee046dc27") format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("7c285c94-0b67-4836-8604-c75b1b3cc0c8") format('woff2');
+  unicode-range: U+1F00-1FFF;
+}
+/* greek */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("03ea507d-a3ed-429e-be39-561fcf3b655d") format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("110b93d9-389a-42eb-910e-2d0654a04923") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("dcb96245-4ff3-4fb9-9b5f-f86a444a0333") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("a2cc77b7-f1fc-49e8-a3c4-c0a20715bfb0") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+
+:root {
+  --color-bg: #161826;
+  --color-surface: #232532;
+  --color-text: #e9e9ed;
+  --color-accent: #9184d9; /* review round 7 (Barron): the accent moves to
+     the product's blurple — OKLCH hue 289.2, the hue of the app's own Pro
+     accent (#9a8fe0, --om-accent-pro) — at the same lightness the steel
+     accent held (L 0.660, so the documented ratios survive) and chroma
+     in the product blurple's own range (its token sits at C 0.118; the
+     accent takes 0.125, from the old steel's 0.030):
+     the accent now reads as an accent rather than another neutral. */
+  --color-accent-2: #a7a1db; /* the machine-derived stand-in follows: same
+     hue, same L 0.734, chroma at the same 2:3 proportion it held */
+  --color-divider: color-mix(in srgb, #e9e9ed 16%, transparent);
+
+  /* Tonal ramps — generated in OKLCH on one shared lightness scale, so the
+     same step of any role matches the others in visual value. */
+  --color-neutral-100: #f3f5fe;
+  --color-neutral-200: #e4e7f5;
+  --color-neutral-300: #cfd3e5;
+  --color-neutral-400: #b2b6ca;
+  --color-neutral-500: #9397ab;
+  --color-neutral-600: #75798c;
+  --color-neutral-700: #595d6c;
+  --color-neutral-800: #3f424d;
+  --color-neutral-900: #292b31;
+
+  --color-accent-100: #f5f4ff;
+  --color-accent-200: #e7e5fe;
+  --color-accent-300: #d2cefd;
+  --color-accent-400: #b5abfc;
+  --color-accent-500: #968ae0;
+  --color-accent-600: #796cbf;
+  --color-accent-700: #5d5294;
+  --color-accent-800: #423a6a;
+  --color-accent-900: #2b2741;
+
+  --color-accent-2-100: #f5f4ff;
+  --color-accent-2-200: #e7e5fe;
+  --color-accent-2-300: #d2cefd;
+  --color-accent-2-400: #b5afe8;
+  --color-accent-2-500: #9690c9;
+  --color-accent-2-600: #7972a9;
+  --color-accent-2-700: #5c5783;
+  --color-accent-2-800: #423e5d;
+  --color-accent-2-900: #2b293a;
+
+  /* Deck section-divider ground — review round 3: saturation as presence.
+     Dividers take a saturated deep indigo (hue 277, the neutral ramp's own
+     family; C 0.094 — written when the accent held C 0.030, before the
+     round-7 blurple raised it past the ground's) with a lighter bloom and
+     a ghost tint of the same hue, while the slide grounds stay
+     desaturated. Deck-scale fills only — not interface colors. */
+  --color-section: #262a60;
+  --color-section-glow: #353b80;
+  --color-section-ghost: #4c5397;
+
+  --font-heading: "Inter", system-ui, sans-serif;
+  --font-heading-weight: 500;
+  --font-body: "Inter", system-ui, sans-serif;
+
+  --space-1: 2.8px;
+  --space-2: 5.6px;
+  --space-3: 8.4px;
+  --space-4: 11.2px;
+  --space-6: 16.8px;
+  --space-8: 22.4px;
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 14px;
+
+  /* Elevation — derived from the ground: soft ink-tinted shadows on a
+     light theme, a hairline edge + ambient darkness on a dark one. */
+  --shadow-sm: 0 0 0 1px #3f424d;
+  --shadow-md: 0 0 0 1px #595d6c, 0 6px 18px rgba(0,0,0,0.55);
+  --shadow-lg: 0 0 0 1px #9397ab, 0 16px 40px rgba(0,0,0,0.65);
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-body);
+}
+h1, h2, h3, h4 { font-family: var(--font-heading); font-weight: var(--font-heading-weight); }
+
+.lighten{mix-blend-mode:lighten;background-color:transparent}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Components — built with the tokens above. Plain CSS
+   on plain HTML: no JavaScript, no build step. Each class is documented in
+   readme.md and demonstrated in foundations/ and components/.
+   ══════════════════════════════════════════════════════════════════════ */
+
+*, *::before, *::after { box-sizing: border-box; }
+body { margin: 0; font-size: 15px; line-height: 1.55; font-weight: 400; }
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+  line-height: 1.12; letter-spacing: -0.015em; margin: 0 0 var(--space-2);
+}
+h1 { font-size: 42px; }
+h2 { font-size: 32px; }
+h3 { font-size: 25px; }
+h4 { font-size: 20px; }
+h5 { font-size: 16px; }
+h6 { font-size: 13px; }
+h6 { letter-spacing: 0.08em; text-transform: uppercase; }
+p { margin: 0 0 var(--space-3); }
+a { color: var(--color-accent); text-underline-offset: 3px; }
+img { display: block; max-width: 100%; }
+figure { margin: 0; }
+figcaption {
+  font-size: 11px; margin-top: var(--space-1);
+  color: color-mix(in srgb, var(--color-text) 55%, transparent);
+}
+.text-muted { color: color-mix(in srgb, var(--color-text) 55%, transparent); }
+:focus { outline: none; }
+:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+::selection { background: color-mix(in srgb, var(--color-accent) 30%, transparent); }
+
+/* — rules — */
+/* Rules fade to transparent at both ends instead of stopping cleanly — a
+   Nocturne signature. The ramp is 48px an end (one deck baseline unit),
+   painted from the same divider token. Freestanding rules fade; box
+   outlines, in-control separators, and short accent marks stay solid. */
+.hr {
+  height: 1px; border: 0; margin: var(--space-4) 0;
+  background: linear-gradient(to right,
+    transparent, var(--color-divider) 48px,
+    var(--color-divider) calc(100% - 48px), transparent);
+}
+
+/* — buttons — */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  cursor: pointer; text-decoration: none;
+  font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+  font-size: 14px; line-height: 1.2; color: var(--color-text); /* matches the .input's 14px —
+     the pair sits side by side in sign-up rows */
+  background: transparent; border: 1px solid transparent;
+  padding: var(--space-2) calc(var(--space-3) * 1.2);
+  border-radius: var(--radius-md);
+}
+.btn svg { display: block; }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn-primary { color: var(--color-accent); border-color: var(--color-accent); }
+.btn-primary:hover { background: color-mix(in srgb, var(--color-accent) 12%, transparent); }
+.btn-primary:active { background: color-mix(in srgb, var(--color-accent) 22%, transparent); }
+.btn-secondary { border-color: var(--color-divider); }
+.btn-secondary:hover { background: color-mix(in srgb, var(--color-text) 7%, transparent); }
+.btn-secondary:active { background: color-mix(in srgb, var(--color-text) 14%, transparent); }
+.btn-ghost { color: var(--color-accent); padding-inline: var(--space-1); }
+.btn-ghost:hover { background: color-mix(in srgb, var(--color-accent) 10%, transparent); }
+.btn-ghost:active { background: color-mix(in srgb, var(--color-accent) 18%, transparent); }
+.btn-icon { width: 36px; height: 36px; padding: 0; }
+.btn-block { width: 100%; margin-top: var(--space-2); }
+
+/* — forms — */
+.field > label {
+  display: block; font-size: 12px; margin-bottom: 5px;
+  color: color-mix(in srgb, var(--color-text) 70%, transparent);
+}
+.input {
+  width: 100%; min-height: 36px; padding: 6px 10px; font: inherit;
+  font-size: 14px; color: var(--color-text); caret-color: var(--color-accent);
+  background: var(--color-surface);
+  border: 1px solid var(--color-divider); border-radius: var(--radius-md);
+}
+.input:hover { border-color: color-mix(in srgb, var(--color-text) 45%, transparent); }
+.input:focus-visible { border-color: var(--color-accent); outline-offset: 0; }
+textarea.input { min-height: 90px; resize: vertical; }
+.radio { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; }
+.radio input, .seg-opt input {
+  position: absolute; opacity: 0; width: 0; height: 0; pointer-events: none;
+}
+.radio .dot {
+  width: 16px; height: 16px; flex: none; border-radius: 50%;
+  border: 1.5px solid var(--color-divider);
+}
+.radio:hover .dot { border-color: var(--color-accent); }
+.radio input:checked + .dot {
+  border-color: var(--color-accent); background: var(--color-accent);
+  box-shadow: inset 0 0 0 4px var(--color-bg);
+}
+.radio input:focus-visible + .dot { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+.seg {
+  display: inline-flex; overflow: hidden;
+  border: 1px solid var(--color-divider); border-radius: var(--radius-md);
+}
+.seg-opt {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 12px; font-size: 13px; cursor: pointer;
+}
+.seg-opt + .seg-opt { border-left: 1px solid var(--color-divider); }
+.seg-opt:has(input:checked) { color: var(--color-accent); box-shadow: inset 0 0 0 1px var(--color-accent); }
+.seg-opt:not(:has(input:checked)):hover { background: color-mix(in srgb, var(--color-text) 7%, transparent); }
+.seg-opt:has(input:focus-visible) { outline: 2px solid var(--color-accent); outline-offset: -2px; }
+
+/* — cards — */
+.card {
+  display: flex; flex-direction: column; gap: var(--space-2);
+  padding: var(--space-3); border-radius: var(--radius-md); background: var(--color-surface);
+}
+.card-kicker { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-accent); }
+.card-title {
+  font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+  font-size: 17px; line-height: 1.2;
+}
+.card-body { margin: 0; font-size: 13px; opacity: 0.8; flex: 1; }
+.card-meta {
+  display: flex; align-items: center; gap: 6px; font-size: 11px;
+  color: color-mix(in srgb, var(--color-text) 50%, transparent);
+}
+.elev-sm { box-shadow: var(--shadow-sm); }
+.elev-md { box-shadow: var(--shadow-md); }
+.elev-lg { box-shadow: var(--shadow-lg); }
+
+/* — tags — */
+.tag {
+  display: inline-flex; align-items: center; font-size: 11px;
+  letter-spacing: 0.02em; padding: 3px 10px;
+  border-radius: calc(var(--radius-md) * 0.75);
+}
+.tag-accent { background: var(--color-accent-800); color: var(--color-accent-100); }
+.tag-accent-2 { background: var(--color-accent-2-800); color: var(--color-accent-2-100); }
+.tag-neutral { background: var(--color-neutral-800); color: var(--color-neutral-100); }
+.tag-outline { border: 1px solid var(--color-accent); color: var(--color-accent); }
+
+/* — navigation — */
+.nav {
+  display: flex; align-items: center; gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: none;
+}
+.nav-brand {
+  font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+  font-size: 18px; margin-right: auto;
+}
+.nav a { color: inherit; text-decoration: none; font-size: 14px; }
+.nav a:hover, .nav a[aria-current='page'] { color: var(--color-accent); }
+
+/* — tables — */
+.table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.table th {
+  text-align: left; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase;
+  color: color-mix(in srgb, var(--color-text) 60%, transparent);
+  padding: var(--space-2); border-bottom: 1px solid transparent; /* keeps layout; the row paints the fading rule */
+}
+.table td {
+  padding: var(--space-2);
+  border-bottom: 1px solid transparent;
+}
+/* Row rules as row-level strips so the end-fade spans the row, not each cell. */
+.table thead tr {
+  background: linear-gradient(to right,
+    transparent, var(--color-divider) 48px,
+    var(--color-divider) calc(100% - 48px), transparent) no-repeat bottom / 100% 1px;
+}
+.table tbody tr {
+  background: linear-gradient(to right,
+    transparent, color-mix(in srgb, var(--color-text) 8%, transparent) 48px,
+    color-mix(in srgb, var(--color-text) 8%, transparent) calc(100% - 48px), transparent) no-repeat bottom / 100% 1px;
+}
+.table tbody tr:hover {
+  /* the hover tint layers over the row rule, which keeps painting */
+  background:
+    linear-gradient(color-mix(in srgb, var(--color-text) 4%, transparent),
+                    color-mix(in srgb, var(--color-text) 4%, transparent)) no-repeat 0 0 / 100% 100%,
+    linear-gradient(to right,
+      transparent, color-mix(in srgb, var(--color-text) 8%, transparent) 48px,
+      color-mix(in srgb, var(--color-text) 8%, transparent) calc(100% - 48px), transparent) no-repeat bottom / 100% 1px;
+}
+
+/* — dialog — */
+.dialog-backdrop {
+  position: fixed; inset: 0; display: grid; place-items: center;
+  padding: var(--space-4);
+  background: color-mix(in srgb, var(--color-neutral-900) 50%, transparent);
+}
+.dialog {
+  width: min(440px, 100%); display: flex; flex-direction: column; gap: var(--space-3);
+  padding: var(--space-4); border-radius: var(--radius-lg);
+  background: var(--color-surface); box-shadow: var(--shadow-lg);
+}
+.dialog-title {
+  font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+  font-size: 20px;
+}
+.dialog-body { font-size: 14px; opacity: 0.85; }
+.dialog-actions { display: flex; justify-content: flex-end; gap: var(--space-2); margin-top: var(--space-2); }
+
+</style>
+<script src="0ecfb446-270f-4164-979f-16213534519d"></script>
+<style>/* cyrillic-ext */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("5c2e2a40-3778-4f33-8455-0f46411302b8") format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("c3b41f85-1e5f-4686-b513-0af368e078c9") format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("8c0b8ead-c4e9-4f51-bd72-99bca9b8e206") format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("f60b66c3-cb2c-40e4-89b2-7eb09e197425") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("4ee9ad95-1e60-4d0a-891c-e49ae033f471") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("a10531ba-ad19-41d7-9dc3-153f7c431bbe") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("5c2e2a40-3778-4f33-8455-0f46411302b8") format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("c3b41f85-1e5f-4686-b513-0af368e078c9") format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("8c0b8ead-c4e9-4f51-bd72-99bca9b8e206") format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("f60b66c3-cb2c-40e4-89b2-7eb09e197425") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("4ee9ad95-1e60-4d0a-891c-e49ae033f471") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("a10531ba-ad19-41d7-9dc3-153f7c431bbe") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+</style>
+<style>
+html{scroll-behavior:smooth}
+body{margin:0;background:#f8f9fe;color:var(--color-text);-webkit-font-smoothing:antialiased}
+a{color:#5d5294}a:hover{color:#423a6a}
+@keyframes tl-spin{to{transform:rotate(360deg)}}
+@keyframes tl-pulse{0%,100%{opacity:1}50%{opacity:.35}}
+</style>
+</helmet>
+<div style="min-height:100vh;background:#f8f9fe;font-family:var(--font-body);padding-bottom:{{ rootPad }}">
+
+<sc-if value="{{ isHome }}" hint-placeholder-val="{{ true }}">
+<div data-screen-label="01 Home">
+  <nav style="position:fixed;top:0;left:0;right:0;z-index:40;background:{{ navBg }};box-shadow:{{ navLine }};backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);transition:background .35s, box-shadow .35s, color .35s;--color-text:{{ navFg }};--color-divider:{{ navDiv }};color:var(--color-text)">
+    <div style="max-width:1200px;margin:0 auto;padding:10px clamp(20px,4vw,40px);display:flex;align-items:center;flex-wrap:wrap;gap:8px 28px">
+      <a href="#top" style="display:flex;align-items:center;gap:10px;text-decoration:none;color:inherit;margin-right:auto;min-height:44px"><svg width="20" height="20" sc-camel-view-box="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"><path d="M24 4 40 10v12c0 11-7 19-16 22C15 41 8 33 8 22V10Z"></path><rect x="14" y="20" width="12" height="8" rx="4"></rect><rect x="22" y="20" width="12" height="8" rx="4"></rect></svg><span style="font-size:17px;font-weight:500;letter-spacing:-0.01em">Trustline</span></a>
+      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:0 24px;font-size:14px">
+        <a href="#how" style="color:{{ navMuted }};text-decoration:none;min-height:44px;display:flex;align-items:center;transition:color .35s" style-hover="color:var(--color-text)">How it works</a>
+        <a href="#proof" style="color:{{ navMuted }};text-decoration:none;min-height:44px;display:flex;align-items:center;transition:color .35s" style-hover="color:var(--color-text)">Results</a>
+        <a href="#where" style="color:{{ navMuted }};text-decoration:none;min-height:44px;display:flex;align-items:center;transition:color .35s" style-hover="color:var(--color-text)">CI &amp; Muse Code</a>
+        <a class="btn btn-secondary" href="#top" style="min-height:40px;padding:0 14px;color:var(--color-text)">GitHub</a>
+      </div>
+    </div>
+  </nav>
+
+  <header ref="{{ heroRef }}" style="position:relative;overflow:hidden;background:#0c0d15">
+    <div style="position:absolute;inset:0;pointer-events:none;max-width:1200px;margin:0 auto;border-left:1px solid rgba(233,233,237,.06);border-right:1px solid rgba(233,233,237,.06)"></div>
+    <div ref="{{ glowRef }}" style="position:absolute;left:50%;top:calc(100% - 150px);width:0;height:0;pointer-events:none;will-change:transform">
+      <div ref="{{ hazeRef }}" style="position:absolute;left:-560px;top:-300px;width:1120px;height:360px;background:radial-gradient(ellipse 50% 60% at 50% 100%, rgba(145,132,217,.45), rgba(93,82,148,.18) 55%, transparent 75%);opacity:.7"></div>
+      <div style="position:absolute;left:-1500px;top:0;width:3000px;height:1400px;border-radius:50%;background:#f8f9fe;filter:blur(22px);box-shadow:0 -10px 40px 8px rgba(210,206,253,.75), 0 -40px 120px 30px rgba(145,132,217,.5), 0 -100px 240px 70px rgba(93,82,148,.3)"></div>
+    </div>
+    <div id="top" style="position:relative;max-width:900px;margin:0 auto;padding:clamp(130px,14vw,180px) clamp(20px,4vw,40px) clamp(230px,22vw,290px);display:flex;flex-direction:column;align-items:center;text-align:center;gap:26px">
+      <div style="color:#d2cefd"><svg width="36" height="36" sc-camel-view-box="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"><path d="M24 4 40 10v12c0 11-7 19-16 22C15 41 8 33 8 22V10Z"></path><rect x="14" y="20" width="12" height="8" rx="4"></rect><rect x="22" y="20" width="12" height="8" rx="4"></rect></svg></div>
+      <h1 style="font-size:clamp(38px,6vw,74px);line-height:1.04;letter-spacing:-0.04em;margin:0;text-wrap:balance;color:#e9e9ed">Find the parts of your code a stranger could take over.</h1>
+      <p style="font-size:clamp(16px,1.5vw,18px);line-height:1.55;color:#b2b6ca;max-width:600px;margin:0;text-wrap:pretty">Trustline scans a repo or website for expired domains, deleted buckets and abandoned accounts, then tells you what to fix first.</p>
+      <div style="width:100%;max-width:620px;display:flex;flex-direction:column;gap:14px;margin-top:6px">
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:6px;background:rgba(35,37,50,.72);backdrop-filter:blur(10px);border-radius:12px;box-shadow:0 0 0 1px rgba(233,233,237,.14)">
+          <input class="input" aria-label="Paste a GitHub repo or website URL" placeholder="Paste a GitHub repo or website URL" value="{{ query }}" sc-camel-on-change="{{ onQuery }}" style="flex:1 1 220px;min-height:48px;border:0;background:transparent;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:14px">
+          <sc-if value="{{ hasDetected }}" hint-placeholder-val="{{ true }}"><span class="tag tag-accent" style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:11px;padding:5px 10px">{{ detected }}</span></sc-if>
+          <button class="btn btn-primary" sc-camel-on-click="{{ goScan }}" style="min-height:48px;min-width:96px;padding:0 22px;font-size:15px;color:#e7e5fe;border-color:#b5abfc;background:rgba(145,132,217,.22)" style-hover="background:rgba(145,132,217,.34)">Scan</button>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:12px 20px">
+          <button class="btn btn-secondary" sc-camel-on-click="{{ goScan }}" style="min-height:44px;padding:0 18px;gap:10px;color:#e9e9ed;background:rgba(233,233,237,.06)"><svg width="12" height="12" sc-camel-view-box="0 0 24 24" fill="currentColor"><path d="M7 4v16l13-8z"></path></svg>Watch the demo scan</button>
+          <span style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:12px;color:#9397ab">demo/paperplane-shop</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+<div style="--color-text:#161826;--color-surface:#fdfdff;--color-divider:#d5d9ea;--color-accent:#5d5294;--color-bg:#f8f9fe;background:#f8f9fe;color:#161826">
+ <div style="max-width:1200px;margin:0 auto;border-left:1px solid var(--color-neutral-200);border-right:1px solid var(--color-neutral-200)">
+
+  <section id="problem" style="padding:clamp(64px,8vw,112px) clamp(20px,4vw,56px)">
+    <div style="display:flex;flex-direction:column;align-items:center;text-align:center;gap:16px;margin-bottom:clamp(40px,5vw,64px)"><div style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--color-neutral-700)">The problem</div><h2 style="font-size:clamp(30px,3.8vw,46px);line-height:1.1;letter-spacing:-0.03em;max-width:780px;margin:0;text-wrap:balance">In 2024, polyfill.io pushed malware to 100,000+ sites. <span style="color:var(--color-accent-700)">None of them changed a line of code.</span></h2></div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:1px;background:var(--color-neutral-200);border:1px solid var(--color-neutral-200);border-radius:8px;overflow:hidden">
+      <div style="background:var(--color-surface);padding:28px;display:flex;flex-direction:column;gap:14px;min-width:0">
+        <span style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:12px;color:var(--color-neutral-700)">01</span>
+        <div style="font-size:18px;font-weight:500">A trusted script</div>
+        <code style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:12px;line-height:1.6;color:var(--color-neutral-800);background:var(--color-neutral-100);padding:10px 12px;border-radius:6px;overflow-wrap:anywhere">&lt;script src="https://cdn.polyfill.io/v3/polyfill.min.js"&gt;</code>
+        <p style="margin:0;font-size:14px;color:var(--color-neutral-700)">Pasted into templates years ago. Loaded on every page view.</p>
+      </div>
+      <div style="background:var(--color-surface);padding:28px;display:flex;flex-direction:column;gap:14px;min-width:0">
+        <span style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:12px;color:var(--color-neutral-700)">02</span>
+        <div style="font-size:18px;font-weight:500">Its domain changes hands</div>
+        <div style="display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:12px;padding:10px 12px;background:var(--color-neutral-100);border-radius:6px">
+          <span style="color:var(--color-neutral-700)">before</span><span style="color:var(--color-neutral-700);text-decoration:line-through">original maintainer</span>
+          <span style="color:var(--color-neutral-700)">after</span><span>new, unknown owner</span>
+        </div>
+        <p style="margin:0;font-size:14px;color:var(--color-neutral-700)">Same name, same URL. Nobody downstream notices.</p>
+      </div>
+      <div style="background:var(--color-surface);padding:28px;display:flex;flex-direction:column;gap:14px;min-width:0">
+        <span style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:12px;color:oklch(0.50 0.18 25)">03</span>
+        <div style="font-size:18px;font-weight:500">Malware ships to every site that loads it</div>
+        <div style="display:flex;align-items:baseline;gap:10px"><span style="font-size:34px;letter-spacing:-0.03em;color:oklch(0.50 0.18 25)">100,000+</span><span style="font-size:14px;color:var(--color-neutral-700)">sites</span></div>
+        <p style="margin:0;font-size:14px;color:var(--color-neutral-700)">The script was still trusted. Only the owner had changed.</p>
+      </div>
+    </div>
+    <p style="margin:48px auto 0;text-align:center;font-size:clamp(20px,2.4vw,28px);line-height:1.3;letter-spacing:-0.02em;max-width:720px;text-wrap:balance">Nobody re-checks who owns what their code trusts. <span style="color:var(--color-accent-700)">Trustline does.</span></p>
+  </section>
+
+  <section id="how" style="padding:clamp(64px,8vw,112px) clamp(20px,4vw,56px);background:linear-gradient(to right,transparent,var(--color-neutral-200) 48px,var(--color-neutral-200) calc(100% - 48px),transparent) no-repeat top / 100% 1px">
+    <div style="display:flex;flex-direction:column;align-items:center;text-align:center;gap:16px;margin-bottom:clamp(40px,5vw,64px)"><div style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--color-neutral-700)">How it works</div><h2 style="font-size:clamp(30px,3.8vw,46px);line-height:1.1;letter-spacing:-0.03em;max-width:780px;margin:0;text-wrap:balance">Five layers, from raw files <span style="color:var(--color-accent-700)">to a ranked fix list.</span></h2></div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,440px),1fr));gap:48px;align-items:center">
+      <div style="position:relative;height:376px;max-width:520px;width:100%;justify-self:center">
+        <svg width="200" height="376" sc-camel-view-box="0 0 200 376" style="position:absolute;left:0;top:0;overflow:visible">
+          <sc-for list="{{ layersRev }}" as="l" hint-placeholder-count="5">
+            <g sc-camel-on-click="{{ l.select }}" style="cursor:pointer;transform:translateY({{ l.dy }}px);transition:transform .4s cubic-bezier(.2,.8,.2,1)">
+              <polygon points="{{ l.left }}" fill="#e4e7f5" stroke="#161826" stroke-width="1.2" stroke-linejoin="round"></polygon>
+              <polygon points="{{ l.right }}" fill="#cfd3e5" stroke="#161826" stroke-width="1.2" stroke-linejoin="round"></polygon>
+              <polygon points="{{ l.top }}" fill="{{ l.fill }}" stroke="{{ l.stroke }}" stroke-width="1.3" stroke-dasharray="{{ l.dash }}" stroke-linejoin="round"></polygon>
+            </g>
+          </sc-for>
+          <sc-for list="{{ layers }}" as="l" hint-placeholder-count="5">
+            <line x1="182" y1="{{ l.ly }}" x2="208" y2="{{ l.ly }}" stroke="{{ l.lineColor }}" stroke-width="1.2"></line>
+          </sc-for>
+        </svg>
+        <sc-for list="{{ layers }}" as="l" hint-placeholder-count="5">
+          <button sc-camel-on-click="{{ l.select }}" style="all:unset;cursor:pointer;position:absolute;left:220px;right:0;top:{{ l.top0 }}px;display:grid;grid-template-columns:26px minmax(0,1fr);column-gap:8px;min-height:44px" style-hover="opacity:.8">
+            <span style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:12px;color:var(--color-neutral-700);padding-top:4px">{{ l.num }}</span>
+            <span style="display:flex;flex-direction:column;gap:1px;min-width:0">
+              <span style="font-size:19px;line-height:1.2;font-weight:500;letter-spacing:-0.015em;color:{{ l.titleColor }};transition:color .3s">{{ l.title }}</span>
+              <span style="font-size:13px;line-height:1.35;color:var(--color-neutral-700);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ l.desc }}</span>
+            </span>
+          </button>
+        </sc-for>
+      </div>
+      <div style="background:var(--color-surface);border-radius:10px;box-shadow:0 0 0 1px #e4e7f5, 0 24px 48px -28px rgba(22,24,38,.28);overflow:hidden;min-width:0">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 16px;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:12px;color:var(--color-neutral-700);background:linear-gradient(to right,transparent,var(--color-neutral-200) 48px,var(--color-neutral-200) calc(100% - 48px),transparent) no-repeat bottom / 100% 1px">
+          <span>demo/paperplane-shop</span><span style="color:var(--color-accent-700)">{{ howTool }}</span>
+        </div>
+        <div style="padding:20px;display:flex;flex-direction:column;gap:8px;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:12.5px;min-height:296px">
+          <sc-if value="{{ how0 }}" hint-placeholder-val="{{ false }}">
+            <div style="font-family:var(--font-body);font-size:14px;color:var(--color-neutral-800);margin-bottom:6px">13 outside targets found in 41 files</div>
+            <sc-for list="{{ findRows }}" as="r" hint-placeholder-count="5"><div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:4px 16px;padding:10px 12px;background:var(--color-neutral-100);border-radius:6px"><span style="overflow-wrap:anywhere">{{ r.target }}</span><span style="color:var(--color-neutral-700)">{{ r.where }}</span></div></sc-for>
+          </sc-if>
+          <sc-if value="{{ how1 }}" hint-placeholder-val="{{ false }}">
+            <sc-for list="{{ checkRows }}" as="r" hint-placeholder-count="5"><div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:4px 16px;padding:10px 12px;background:var(--color-neutral-100);border-radius:6px"><span style="color:var(--color-neutral-800);overflow-wrap:anywhere"><span style="color:var(--color-accent-700)">{{ r.tool }}</span>({{ r.arg }})</span><span style="color:{{ r.fg }}">{{ r.result }}</span></div></sc-for>
+          </sc-if>
+          <sc-if value="{{ how2 }}" hint-placeholder-val="{{ true }}">
+            <div style="display:grid;grid-template-columns:96px minmax(0,1fr);gap:14px 14px;padding:4px 2px">
+              <span style="color:var(--color-neutral-700);text-transform:uppercase;font-size:11px;letter-spacing:.1em;padding-top:2px">Plan</span>
+              <span style="font-family:var(--font-body);font-size:14px">S3 bucket used by deploy workflows. Does it exist?</span>
+              <span style="color:var(--color-neutral-700);text-transform:uppercase;font-size:11px;letter-spacing:.1em;padding-top:2px">Tool call</span>
+              <span style="color:var(--color-neutral-800);overflow-wrap:anywhere"><span style="color:var(--color-accent-700)">bucket_probe</span>("trustline-demo-release-artifacts")</span>
+              <span style="color:var(--color-neutral-700);text-transform:uppercase;font-size:11px;letter-spacing:.1em;padding-top:2px">Observation</span>
+              <span style="color:oklch(0.50 0.18 25)">NoSuchBucket · anyone can create it</span>
+              <span style="color:var(--color-neutral-700);text-transform:uppercase;font-size:11px;letter-spacing:.1em;padding-top:2px">Next</span>
+              <span style="font-family:var(--font-body);font-size:14px;color:var(--color-neutral-800)">Check release.yml for the same bucket.</span>
+            </div>
+          </sc-if>
+          <sc-if value="{{ how3 }}" hint-placeholder-val="{{ false }}">
+            <sc-for list="{{ rankRows }}" as="r" hint-placeholder-count="4"><div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:10px 12px;background:var(--color-neutral-100);border-radius:6px"><span style="font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;padding:3px 8px;border-radius:5px;color:{{ r.fg }};background:{{ r.bg }}">{{ r.label }}</span><span style="overflow-wrap:anywhere">{{ r.target }}</span></div></sc-for>
+            <div style="font-family:var(--font-body);font-size:13px;color:var(--color-neutral-800);padding:10px 12px;border-radius:6px;box-shadow:inset 0 0 0 1px var(--color-accent-200)"><span style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:11px;color:var(--color-accent-700);text-transform:uppercase;letter-spacing:.1em;margin-right:8px">Rule</span>Model said high → raised to critical: claimable bucket in a deploy path.</div>
+          </sc-if>
+          <sc-if value="{{ how4 }}" hint-placeholder-val="{{ false }}">
+            <div style="font-family:var(--font-body);display:flex;flex-direction:column;gap:12px">
+              <span style="font-size:24px;letter-spacing:-0.02em">8 things to fix today</span>
+              <span style="display:flex;flex-wrap:wrap;gap:6px;font-size:12px"><span style="padding:4px 9px;border-radius:6px;color:oklch(0.50 0.18 25);background:oklch(0.95 0.03 25)">6 Critical</span><span style="padding:4px 9px;border-radius:6px;color:oklch(0.50 0.13 55);background:oklch(0.95 0.04 70)">2 High</span><span style="padding:4px 9px;border-radius:6px;color:#3f424d;background:#e4e7f5">1 Low</span><span style="padding:4px 9px;border-radius:6px;color:oklch(0.45 0.09 160);background:oklch(0.95 0.03 160)">4 Safe</span></span>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:4px 16px;padding:10px 12px;background:var(--color-neutral-100);border-radius:6px;margin-top:6px"><span>Fix today</span><span style="color:var(--color-neutral-700)">8</span></div>
+            <div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:4px 16px;padding:10px 12px;background:var(--color-neutral-100);border-radius:6px"><span>Review later</span><span style="color:var(--color-neutral-700)">1</span></div>
+            <div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:4px 16px;padding:10px 12px;background:var(--color-neutral-100);border-radius:6px"><span>Checked and safe</span><span style="color:var(--color-neutral-700)">4</span></div>
+          </sc-if>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section style="padding:clamp(64px,8vw,112px) clamp(20px,4vw,56px);background:linear-gradient(to right,transparent,var(--color-neutral-200) 48px,var(--color-neutral-200) calc(100% - 48px),transparent) no-repeat top / 100% 1px">
+    <div style="display:flex;flex-direction:column;align-items:center;text-align:center;gap:16px;margin-bottom:clamp(40px,5vw,64px)"><div style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--color-neutral-700)">What it catches</div><h2 style="font-size:clamp(30px,3.8vw,46px);line-height:1.1;letter-spacing:-0.03em;max-width:780px;margin:0;text-wrap:balance">Six ways a stranger gets in.</h2></div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:1px;background:var(--color-neutral-200);border:1px solid var(--color-neutral-200);border-radius:8px;overflow:hidden">
+      <sc-for list="{{ catches }}" as="c" hint-placeholder-count="6">
+        <div style="background:var(--color-surface);padding:28px;display:flex;flex-direction:column;gap:14px;min-width:0;gap:10px">
+          <span style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:12px;color:var(--color-neutral-700)">{{ c.num }}</span>
+          <div style="font-size:18px;font-weight:500;letter-spacing:-0.01em">{{ c.title }}</div>
+          <code style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:12px;color:var(--color-neutral-700);overflow-wrap:anywhere">{{ c.example }}</code>
+        </div>
+      </sc-for>
+    </div>
+  </section>
+
+  <section id="proof" style="padding:clamp(64px,8vw,112px) clamp(20px,4vw,56px);background:linear-gradient(to right,transparent,var(--color-neutral-200) 48px,var(--color-neutral-200) calc(100% - 48px),transparent) no-repeat top / 100% 1px">
+    <div style="display:flex;flex-direction:column;align-items:center;text-align:center;gap:16px;margin-bottom:clamp(40px,5vw,64px)"><div style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--color-neutral-700)">Proof</div><h2 style="font-size:clamp(30px,3.8vw,46px);line-height:1.1;letter-spacing:-0.03em;max-width:780px;margin:0;text-wrap:balance">Evaluated on 9 real open-source repos.</h2></div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:1px;background:var(--color-neutral-200);border:1px solid var(--color-neutral-200);border-radius:8px;overflow:hidden">
+      <div style="background:var(--color-surface);padding:28px;display:flex;flex-direction:column;gap:14px;min-width:0;padding:36px 28px"><span style="font-size:clamp(56px,7vw,92px);line-height:1;letter-spacing:-0.05em;color:var(--color-accent-700)">4/4</span><span style="font-size:16px;color:var(--color-neutral-800)">real threats caught</span></div>
+      <div style="background:var(--color-surface);padding:28px;display:flex;flex-direction:column;gap:14px;min-width:0;padding:36px 28px"><span style="font-size:clamp(56px,7vw,92px);line-height:1;letter-spacing:-0.05em">1</span><span style="font-size:16px;color:var(--color-neutral-800)">false alarm</span></div>
+      <div style="background:var(--color-surface);padding:28px;display:flex;flex-direction:column;gap:14px;min-width:0;padding:36px 28px"><span style="font-size:clamp(56px,7vw,92px);line-height:1;letter-spacing:-0.05em;color:var(--color-neutral-700)">vs 45</span><span style="font-size:16px;color:var(--color-neutral-800)">for a regex baseline</span></div>
+    </div>
+  </section>
+
+  <section id="where" style="padding:clamp(64px,8vw,112px) clamp(20px,4vw,56px);background:linear-gradient(to right,transparent,var(--color-neutral-200) 48px,var(--color-neutral-200) calc(100% - 48px),transparent) no-repeat top / 100% 1px">
+    <div style="display:flex;flex-direction:column;align-items:center;text-align:center;gap:16px;margin-bottom:clamp(40px,5vw,64px)"><div style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--color-neutral-700)">Works where you work</div><h2 style="font-size:clamp(30px,3.8vw,46px);line-height:1.1;letter-spacing:-0.03em;max-width:780px;margin:0;text-wrap:balance">On every pull request, inside your agent, <span style="color:var(--color-accent-700)">or in the browser.</span></h2></div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:1px;background:var(--color-neutral-200);border:1px solid var(--color-neutral-200);border-radius:8px;overflow:hidden">
+      <div style="background:var(--color-surface);padding:28px;display:flex;flex-direction:column;gap:14px;min-width:0">
+        <div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px"><span style="font-size:17px;font-weight:500">GitHub Action</span><span style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:12px;color:var(--color-neutral-700)">CI</span></div>
+        <div style="border-radius:8px;box-shadow:0 0 0 1px #e4e7f5;overflow:hidden;background:var(--color-surface)">
+          <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;font-size:13px;background:var(--color-neutral-100)">
+            <span style="width:22px;height:22px;border-radius:50%;background:var(--color-accent-200);display:grid;place-items:center;font-size:11px;color:var(--color-accent-800)">T</span>
+            <span><b style="font-weight:500">trustline</b> <span style="color:var(--color-neutral-700)">commented on #42</span></span>
+          </div>
+          <div style="padding:12px;display:flex;flex-direction:column;gap:9px;font-size:13px">
+            <div>2 new references a stranger could take over.</div>
+            <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:12px"><span style="font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;padding:3px 8px;border-radius:5px;color:oklch(0.50 0.18 25);background:oklch(0.95 0.03 25)">Critical</span><span style="overflow-wrap:anywhere">trustline-demo-cartkit.com</span></div>
+            <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:12px"><span style="font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;padding:3px 8px;border-radius:5px;color:oklch(0.50 0.13 55);background:oklch(0.95 0.04 70)">High</span><span style="overflow-wrap:anywhere">trustline-demo-metrics.io</span></div>
+          </div>
+        </div>
+      </div>
+      <div style="background:var(--color-surface);padding:28px;display:flex;flex-direction:column;gap:14px;min-width:0">
+        <div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px"><span style="font-size:17px;font-weight:500">Muse Code</span><span style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:12px;color:var(--color-neutral-700)">MCP server</span></div>
+        <div style="background:#0f1019;border-radius:8px;padding:14px;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:12px;line-height:1.75;color:#cfd3e5;overflow-x:auto">
+          <div><span style="color:#d2cefd">›</span> <span style="color:#e9e9ed">check what this repo trusts</span></div>
+          <div style="color:#b2b6ca">⏺ trustline.scan_repo(path=".")</div>
+          <div style="color:#b2b6ca">  ⎿ 13 targets · 6 agent calls</div>
+          <div><span style="color:oklch(0.80 0.13 25)">  6 critical</span> · <span style="color:oklch(0.83 0.12 60)">2 high</span> · 1 low</div>
+          <div style="color:#e9e9ed">  Fix first: deploy.yml:11</div>
+        </div>
+      </div>
+      <div style="background:var(--color-surface);padding:28px;display:flex;flex-direction:column;gap:14px;min-width:0">
+        <div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px"><span style="font-size:17px;font-weight:500">Web app</span><span style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:12px;color:var(--color-neutral-700)">repo or URL</span></div>
+        <button sc-camel-on-click="{{ goResults }}" style="all:unset;cursor:pointer;border-radius:8px;box-shadow:0 0 0 1px #e4e7f5;padding:14px;display:flex;flex-direction:column;gap:10px;background:var(--color-surface)" style-hover="box-shadow:0 0 0 1px #b5abfc">
+          <span style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:12px;color:var(--color-neutral-700)">demo/paperplane-shop</span>
+          <span style="font-size:21px;letter-spacing:-0.02em">8 things to fix today</span>
+          <span style="display:flex;flex-wrap:wrap;gap:6px;font-size:11px"><span style="padding:3px 8px;border-radius:5px;color:oklch(0.50 0.18 25);background:oklch(0.95 0.03 25)">6 Critical</span><span style="padding:3px 8px;border-radius:5px;color:oklch(0.50 0.13 55);background:oklch(0.95 0.04 70)">2 High</span><span style="padding:3px 8px;border-radius:5px;color:#3f424d;background:#e4e7f5">1 Low</span></span>
+          <span style="font-size:13px;color:var(--color-accent-700)">Open the demo report →</span>
+        </button>
+      </div>
+    </div>
+  </section>
+ </div>
+</div>
+
+  <footer style="position:relative;overflow:hidden;background:#f8f9fe;padding-top:120px">
+    <div style="position:absolute;left:50%;top:120px;width:0;height:0;pointer-events:none">
+      <div style="position:absolute;left:-1500px;top:0;width:3000px;height:1400px;border-radius:50%;background:#0c0d15;filter:blur(20px);box-shadow:0 -10px 40px 6px rgba(145,132,217,.4), 0 -40px 120px 20px rgba(145,132,217,.18)"></div>
+    </div>
+    <div style="position:relative;max-width:1200px;margin:0 auto;padding:120px clamp(20px,4vw,40px) 112px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:22px;color:#e9e9ed">
+      <h2 style="font-size:clamp(28px,3.6vw,44px);letter-spacing:-0.03em;margin:0;text-wrap:balance">Check what your code trusts.</h2>
+      <div style="display:flex;flex-wrap:wrap;justify-content:center;gap:12px">
+        <a class="btn btn-primary" href="#top" style="min-height:44px;padding:0 20px;color:#e7e5fe;border-color:#b5abfc;background:rgba(145,132,217,.2)">Scan a repo</a>
+        <button class="btn btn-secondary" sc-camel-on-click="{{ goScan }}" style="min-height:44px;padding:0 18px">Watch the demo scan</button>
+      </div>
+      <div style="width:100%;margin-top:72px;display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:14px 24px;padding-top:24px;font-size:13px;color:#b2b6ca;background:linear-gradient(to right,transparent,rgba(233,233,237,.14) 48px,rgba(233,233,237,.14) calc(100% - 48px),transparent) no-repeat top / 100% 1px">
+        <span style="display:flex;align-items:center;gap:10px;color:#e9e9ed"><svg width="16" height="16" sc-camel-view-box="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"><path d="M24 4 40 10v12c0 11-7 19-16 22C15 41 8 33 8 22V10Z"></path><rect x="14" y="20" width="12" height="8" rx="4"></rect><rect x="22" y="20" width="12" height="8" rx="4"></rect></svg>Trustline</span>
+        <span>Powered by <span style="color:#d2cefd">Meta Muse Spark</span> · Meta Global AI Developer Hackathon</span>
+        <span style="display:flex;gap:20px"><a href="#how" style="color:#cfd3e5">How it works</a><a href="#top" style="color:#cfd3e5">GitHub</a></span>
+      </div>
+    </div>
+  </footer>
+</div>
+</sc-if>
+
+<sc-if value="{{ isApp }}" hint-placeholder-val="{{ false }}">
+  <nav style="display:flex;align-items:center;gap:16px;padding:10px clamp(16px,3vw,32px);background:#13151f">
+    <button sc-camel-on-click="{{ goHome }}" style="all:unset;cursor:pointer;display:flex;align-items:center;gap:10px;min-height:44px;margin-right:auto">
+      <svg width="20" height="20" sc-camel-view-box="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"><path d="M24 4 40 10v12c0 11-7 19-16 22C15 41 8 33 8 22V10Z"></path><rect x="14" y="20" width="12" height="8" rx="4"></rect><rect x="22" y="20" width="12" height="8" rx="4"></rect></svg>
+      <span style="font-size:16px;font-weight:500">Trustline</span>
+    </button>
+    <button class="btn btn-secondary" sc-camel-on-click="{{ goHome }}" style="min-height:44px;padding:0 16px">New scan</button>
+  </nav>
+</sc-if>
+
+<sc-if value="{{ isScan }}" hint-placeholder-val="{{ false }}">
+<div data-screen-label="02 Scanning">
+<div style="background:radial-gradient(ellipse 55% 90% at 12% 0%, color-mix(in srgb, var(--color-section-glow) 55%, transparent), transparent 70%), linear-gradient(180deg,#13151f 0%, #161826 calc(100% - 40px), #f8f9fe 100%)"><div style="max-width:1240px;margin:0 auto;padding:28px clamp(16px,3vw,32px) 64px;display:flex;flex-direction:column;gap:16px">
+    <div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px">
+      <span style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:clamp(18px,2.2vw,24px);letter-spacing:-0.01em">demo/paperplane-shop</span>
+      <span class="tag tag-accent" style="font-family:'JetBrains Mono',ui-monospace,monospace">GitHub repo</span>
+      <span style="margin-left:auto;display:flex;align-items:center;gap:8px;font-size:13px;color:var(--color-neutral-300)"><span style="width:8px;height:8px;border-radius:50%;background:var(--color-accent);animation:tl-pulse 1.4s ease-in-out infinite"></span>Scanning · 0:38</span>
+    </div>
+    <div style="height:6px;border-radius:3px;background:var(--color-neutral-900);overflow:hidden" role="progressbar" aria-valuenow="62" aria-valuemin="0" aria-valuemax="100"><div style="width:62%;height:100%;border-radius:3px;background:linear-gradient(90deg,var(--color-accent-700),var(--color-accent));box-shadow:0 0 12px var(--color-accent)"></div></div>
+    <ol style="list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:8px 4px">
+      <sc-for list="{{ stages }}" as="s" hint-placeholder-count="5">
+        <li style="display:flex;align-items:center;gap:8px;padding:6px 12px 6px 8px;border-radius:999px;font-size:13px;color:{{ s.fg }};background:{{ s.bg }};box-shadow:{{ s.ring }}">
+          <span style="width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font-size:10.5px;font-family:'JetBrains Mono',ui-monospace,monospace;background:{{ s.dotBg }};color:{{ s.dotFg }}">{{ s.mark }}</span>{{ s.name }}
+        </li>
+      </sc-for>
+    </ol>
+  </div></div>
+<div style="--color-text:#161826;--color-surface:#fdfdff;--color-divider:#d5d9ea;--color-accent:#5d5294;--color-bg:#f8f9fe;background:#f8f9fe;color:#161826"><div style="max-width:1240px;margin:0 auto;padding:0 clamp(16px,3vw,32px) 28px">
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:20px;align-items:start">
+    <div style="grid-column:span 2;min-width:min(100%,320px);background:var(--color-surface);border-radius:12px;box-shadow:0 0 0 1px #e4e7f5, 0 1px 2px rgba(22,24,38,.05);overflow:hidden">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid var(--color-neutral-200)">
+        <span style="font-size:15px;font-weight:500">Agent investigation</span>
+        <span style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:11.5px;color:var(--color-neutral-700)">muse-spark · live</span>
+      </div>
+      <div style="display:flex;flex-direction:column">
+        <sc-for list="{{ feed }}" as="f" hint-placeholder-count="4">
+          <div style="display:grid;grid-template-columns:32px minmax(0,1fr);gap:14px;padding:16px 18px;border-bottom:1px solid var(--color-neutral-200)">
+            <span style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:12px;color:var(--color-neutral-700);padding-top:2px">{{ f.n }}</span>
+            <div style="display:flex;flex-direction:column;gap:8px;min-width:0">
+              <div style="display:flex;gap:10px;align-items:baseline;flex-wrap:wrap"><span style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--color-neutral-700);width:64px;flex:none">Plan</span><span style="font-size:14px;flex:1 1 200px">{{ f.plan }}</span></div>
+              <div style="display:flex;gap:10px;align-items:baseline;flex-wrap:wrap"><span style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--color-neutral-700);width:64px;flex:none">Call</span><code style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:12.5px;color:var(--color-neutral-800);background:var(--color-neutral-100);padding:4px 8px;border-radius:5px;overflow-wrap:anywhere;flex:0 1 auto"><span style="color:var(--color-accent-700)">{{ f.tool }}</span>("{{ f.arg }}")</code></div>
+              <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--color-neutral-700);width:64px;flex:none">Result</span>
+                <span style="display:inline-flex;align-items:center;gap:6px;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;padding:3px 8px;border-radius:5px;color:{{ f.fg }};background:{{ f.bg }}">{{ f.spin }}{{ f.label }}</span>
+                <span style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:12.5px;color:{{ f.fg }}">{{ f.result }}</span>
+              </div>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+    <aside style="display:flex;flex-direction:column;gap:16px;min-width:0">
+      <div class="card" style="padding:18px;gap:14px;box-shadow:0 0 0 1px #e4e7f5, 0 1px 2px rgba(22,24,38,.05)">
+        <div style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-neutral-700)">Found so far</div>
+        <div style="display:flex;align-items:baseline;gap:10px"><span style="font-size:40px;line-height:1;letter-spacing:-0.03em">13</span><span style="font-size:14px;color:var(--color-neutral-700)">outside targets</span></div>
+        <div style="display:flex;height:8px;border-radius:4px;overflow:hidden;gap:2px">
+          <sc-for list="{{ found }}" as="b" hint-placeholder-count="4"><span style="flex:{{ b.count }};background:{{ b.bar }}"></span></sc-for>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <sc-for list="{{ found }}" as="b" hint-placeholder-count="4">
+            <div style="display:flex;align-items:center;gap:10px;font-size:14px"><span style="width:8px;height:8px;border-radius:2px;background:{{ b.bar }}"></span><span style="flex:1;color:var(--color-neutral-800)">{{ b.label }}</span><span style="font-family:'JetBrains Mono',ui-monospace,monospace">{{ b.count }}</span></div>
+          </sc-for>
+        </div>
+      </div>
+      <div class="card" style="padding:18px;gap:12px;box-shadow:0 0 0 1px #e4e7f5, 0 1px 2px rgba(22,24,38,.05)">
+        <div style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-neutral-700)">Agent calls</div>
+        <div style="display:flex;align-items:baseline;gap:8px"><span style="font-size:28px;line-height:1">4</span><span style="font-size:14px;color:var(--color-neutral-700)">of 6</span></div>
+        <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:4px"><span style="height:6px;border-radius:3px;background:var(--color-accent)"></span><span style="height:6px;border-radius:3px;background:var(--color-accent)"></span><span style="height:6px;border-radius:3px;background:var(--color-accent)"></span><span style="height:6px;border-radius:3px;background:var(--color-accent-300)"></span><span style="height:6px;border-radius:3px;background:var(--color-neutral-200)"></span><span style="height:6px;border-radius:3px;background:var(--color-neutral-200)"></span></div>
+      </div>
+      <button class="btn btn-primary" sc-camel-on-click="{{ goResults }}" style="min-height:44px">Skip to report</button>
+    </aside>
+  </div>
+</div></div></div>
+</sc-if>
+
+<sc-if value="{{ isResults }}" hint-placeholder-val="{{ false }}">
+<div data-screen-label="03 Results">
+<div style="background:radial-gradient(ellipse 55% 90% at 12% 0%, color-mix(in srgb, var(--color-section-glow) 55%, transparent), transparent 70%), linear-gradient(180deg,#13151f 0%, #161826 calc(100% - 40px), #f8f9fe 100%)"><div style="max-width:1240px;margin:0 auto;padding:32px clamp(16px,3vw,32px) 64px;display:flex;flex-direction:column;gap:18px">
+    <div style="display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:13px;color:var(--color-neutral-300)">
+      <span style="color:var(--color-text)">demo/paperplane-shop</span><span class="tag tag-accent">GitHub repo</span>
+    </div>
+    <h1 style="font-size:clamp(32px,4.4vw,52px);letter-spacing:-0.03em;line-height:1.05;margin:0">8 things to fix today</h1>
+    <div style="display:flex;flex-wrap:wrap;gap:8px">
+      <sc-for list="{{ summaryChips }}" as="c" hint-placeholder-count="4">
+        <span style="display:inline-flex;align-items:center;gap:8px;padding:7px 12px;border-radius:8px;font-size:14px;color:{{ c.fg }};background:{{ c.bg }}"><span style="font-family:'JetBrains Mono',ui-monospace,monospace;font-weight:500">{{ c.count }}</span>{{ c.label }}</span>
+      </sc-for>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px 24px;font-size:13px;color:var(--color-neutral-400)">
+      <span>Scan time <span style="color:var(--color-neutral-200);font-family:'JetBrains Mono',ui-monospace,monospace">1m 04s</span></span>
+      <span>Agent calls <span style="color:var(--color-neutral-200);font-family:'JetBrains Mono',ui-monospace,monospace">6</span></span>
+      <span>Coverage: <span style="color:var(--color-neutral-200)">all files scanned</span></span>
+    </div>
+  </div></div>
+<div style="--color-text:#161826;--color-surface:#fdfdff;--color-divider:#d5d9ea;--color-accent:#5d5294;--color-bg:#f8f9fe;background:#f8f9fe;color:#161826"><div style="max-width:1240px;margin:0 auto;padding:0 clamp(16px,3vw,32px) 28px;display:flex;flex-direction:column;gap:24px">
+  <div role="tablist" style="display:flex;gap:4px;overflow-x:auto;background:linear-gradient(to right,transparent,var(--color-divider) 48px,var(--color-divider) calc(100% - 48px),transparent) no-repeat bottom / 100% 1px">
+    <sc-for list="{{ resTabs }}" as="t" hint-placeholder-count="4">
+      <button role="tab" sc-camel-on-click="{{ t.select }}" style="all:unset;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:8px;min-height:44px;padding:0 14px;font-size:14px;color:{{ t.fg }};box-shadow:{{ t.line }}" style-hover="color:var(--color-text)">{{ t.name }}<span style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:11px;color:var(--color-neutral-700)">{{ t.count }}</span></button>
+    </sc-for>
+  </div>
+
+  <sc-if value="{{ tabFix }}" hint-placeholder-val="{{ true }}">
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <sc-for list="{{ findings }}" as="f" hint-placeholder-count="4">
+        <article style="background:var(--color-surface);border-radius:12px;box-shadow:{{ f.ring }};overflow:hidden">
+          <div style="padding:18px 20px;display:flex;flex-direction:column;gap:12px">
+            <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px">
+              <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;padding:4px 9px;border-radius:6px;color:{{ f.fg }};background:{{ f.bg }}"><span style="width:6px;height:6px;border-radius:50%;background:{{ f.fg }}"></span>{{ f.label }}</span>
+              <span style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:15px;color:var(--color-text);overflow-wrap:anywhere;min-width:0">{{ f.target }}</span>
+              <span class="tag tag-neutral" style="font-size:11px;background:var(--color-neutral-200);color:var(--color-neutral-800)">{{ f.type }}</span>
+              <span style="margin-left:auto;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:12px;color:var(--color-neutral-700)">{{ f.where }}</span>
+            </div>
+            <p style="margin:0;font-size:15px;line-height:1.5;color:var(--color-neutral-800);text-wrap:pretty">{{ f.risk }}</p>
+            <div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;padding:10px 12px;border-radius:8px;background:var(--color-neutral-100)">
+              <span style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--color-accent-700)">Fix</span>
+              <span style="flex:1 1 260px;font-size:14px;line-height:1.5;color:var(--color-text)">{{ f.fix }}</span>
+              <button class="btn btn-secondary" sc-camel-on-click="{{ f.copy }}" style="min-height:44px;padding:0 14px;font-size:13px;gap:8px"><svg width="14" height="14" sc-camel-view-box="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="8" y="8" width="12" height="12" rx="2"></rect><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"></path></svg>{{ f.copyLabel }}</button>
+            </div>
+            <button sc-camel-on-click="{{ f.toggle }}" aria-expanded="{{ f.open }}" style="all:unset;cursor:pointer;display:flex;align-items:center;gap:8px;min-height:36px;font-size:13px;color:var(--color-neutral-700);align-self:flex-start" style-hover="color:var(--color-text)"><svg width="14" height="14" sc-camel-view-box="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="transform:{{ f.caret }}"><polyline points="6 9 12 15 18 9"></polyline></svg>Details</button>
+          </div>
+          <sc-if value="{{ f.open }}" hint-placeholder-val="{{ false }}">
+            <div style="display:grid;grid-template-columns:minmax(90px,120px) minmax(0,1fr);gap:10px 16px;padding:16px 20px 20px;border-top:1px solid var(--color-neutral-200);font-size:13px">
+              <span style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--color-neutral-700);padding-top:2px">Evidence</span>
+              <code style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:12.5px;color:var(--color-neutral-800);overflow-wrap:anywhere">{{ f.evidence }}</code>
+              <span style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--color-neutral-700);padding-top:2px">Found in</span>
+              <code style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:12.5px;color:var(--color-neutral-800)">{{ f.where }}</code>
+              <sc-if value="{{ f.hasRule }}" hint-placeholder-val="{{ false }}">
+                <span style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--color-accent-700);padding-top:2px">Rule note</span>
+                <span style="color:var(--color-neutral-800)">{{ f.rule }}</span>
+              </sc-if>
+            </div>
+          </sc-if>
+        </article>
+      </sc-for>
+
+      <sc-for list="{{ collapsed }}" as="g" hint-placeholder-count="2">
+        <div style="border-radius:12px;box-shadow:0 0 0 1px #e4e7f5, 0 1px 2px rgba(22,24,38,.05);overflow:hidden">
+          <button sc-camel-on-click="{{ g.toggle }}" aria-expanded="{{ g.open }}" style="all:unset;cursor:pointer;box-sizing:border-box;width:100%;display:flex;align-items:center;gap:12px;min-height:52px;padding:0 20px;font-size:14px;color:var(--color-neutral-800)" style-hover="background:color-mix(in srgb, var(--color-text) 4%, transparent)">
+            <svg width="14" height="14" sc-camel-view-box="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="transform:{{ g.caret }}"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            <span style="display:inline-flex;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;padding:3px 8px;border-radius:5px;color:{{ g.fg }};background:{{ g.bg }}">{{ g.tag }}</span>
+            {{ g.title }}
+          </button>
+          <sc-if value="{{ g.open }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;flex-direction:column;padding:0 20px 12px">
+              <sc-for list="{{ g.rows }}" as="r" hint-placeholder-count="2">
+                <div style="display:flex;flex-wrap:wrap;justify-content:space-between;gap:4px 16px;padding:10px 0 10px 26px;border-top:1px solid var(--color-neutral-200);font-size:13px">
+                  <span style="font-family:'JetBrains Mono',ui-monospace,monospace;color:var(--color-text)">{{ r.target }}</span>
+                  <span style="color:var(--color-neutral-700)">{{ r.note }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+        </div>
+      </sc-for>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ tabAll }}" hint-placeholder-val="{{ false }}">
+    <div style="overflow-x:auto;background:var(--color-surface);border-radius:12px;box-shadow:0 0 0 1px #e4e7f5, 0 1px 2px rgba(22,24,38,.05);padding:8px 12px">
+      <sc-raw-table class="table" style="min-width:760px;font-size:13px">
+        <sc-raw-thead><sc-raw-tr><sc-raw-th>Target</sc-raw-th><sc-raw-th>Type</sc-raw-th><sc-raw-th>Owner status</sc-raw-th><sc-raw-th>Severity</sc-raw-th><sc-raw-th>Where used</sc-raw-th></sc-raw-tr></sc-raw-thead>
+        <sc-raw-tbody>
+          <sc-for list="{{ allRows }}" as="r" hint-placeholder-count="8">
+            <sc-raw-tr>
+              <sc-raw-td style="font-family:'JetBrains Mono',ui-monospace,monospace;padding:12px 8px">{{ r.target }}</sc-raw-td>
+              <sc-raw-td style="color:var(--color-neutral-700)">{{ r.type }}</sc-raw-td>
+              <sc-raw-td style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:12px;color:var(--color-neutral-800)">{{ r.owner }}</sc-raw-td>
+              <sc-raw-td><span style="display:inline-flex;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;padding:3px 8px;border-radius:5px;color:{{ r.fg }};background:{{ r.bg }}">{{ r.label }}</span></sc-raw-td>
+              <sc-raw-td style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:12px;color:var(--color-neutral-700)">{{ r.where }}</sc-raw-td>
+            </sc-raw-tr>
+          </sc-for>
+        </sc-raw-tbody>
+      </sc-raw-table>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ tabTrace }}" hint-placeholder-val="{{ false }}">
+    <div style="background:var(--color-surface);border-radius:12px;box-shadow:0 0 0 1px #e4e7f5, 0 1px 2px rgba(22,24,38,.05);overflow:hidden">
+      <sc-for list="{{ trace }}" as="f" hint-placeholder-count="6">
+        <div style="display:grid;grid-template-columns:32px minmax(0,1fr);gap:14px;padding:14px 18px;border-bottom:1px solid var(--color-neutral-200)">
+          <span style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:12px;color:var(--color-neutral-700);padding-top:2px">{{ f.n }}</span>
+          <div style="display:flex;flex-direction:column;gap:6px;min-width:0">
+            <span style="font-size:14px">{{ f.plan }}</span>
+            <div style="display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:12.5px">
+              <span style="color:var(--color-neutral-800);overflow-wrap:anywhere"><span style="color:var(--color-accent-700)">{{ f.tool }}</span>("{{ f.arg }}")</span>
+              <span style="color:var(--color-neutral-700)">→</span>
+              <span style="color:{{ f.fg }}">{{ f.result }}</span>
+            </div>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ tabJson }}" hint-placeholder-val="{{ false }}">
+    <pre style="margin:0;padding:20px;border-radius:12px;background:#0f1019;box-shadow:0 0 0 1px #e4e7f5, 0 1px 2px rgba(22,24,38,.05);font-family:'JetBrains Mono',ui-monospace,monospace;font-size:12.5px;line-height:1.6;color:#e4e7f5;overflow:auto;max-height:640px">{{ rawJson }}</pre>
+  </sc-if>
+</div></div>
+</div>
+</sc-if>
+
+<sc-if value="{{ showSwitcher }}" hint-placeholder-val="{{ true }}">
+  <div style="position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:50;display:flex;gap:4px;padding:4px;border-radius:12px;background:color-mix(in srgb, var(--color-surface) 92%, transparent);backdrop-filter:blur(10px);box-shadow:var(--shadow-md)">
+    <sc-for list="{{ screens }}" as="s" hint-placeholder-count="3">
+      <button sc-camel-on-click="{{ s.go }}" style="all:unset;cursor:pointer;min-height:44px;padding:0 16px;border-radius:9px;font-size:13px;display:flex;align-items:center;color:{{ s.fg }};box-shadow:{{ s.ring }}" style-hover="background:color-mix(in srgb, var(--color-text) 6%, transparent)">{{ s.name }}</button>
+    </sc-for>
+  </div>
+</sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script="" data-props="{&quot;startScreen&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;home&quot;,&quot;scanning&quot;,&quot;results&quot;],&quot;default&quot;:&quot;home&quot;,&quot;tsType&quot;:&quot;'home'|'scanning'|'results'&quot;},&quot;showSwitcher&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;}}">
+const LS = '0 0 0 1px #e4e7f5, 0 1px 2px rgba(22,24,38,.05)';
+const SEV = {
+  critical: { label: 'Critical', fg: 'oklch(0.50 0.18 25)', bg: 'oklch(0.95 0.03 25)', ring: '0 0 0 1px oklch(0.88 0.05 25), 0 10px 28px -16px oklch(0.50 0.18 25 / .35)', bar: 'oklch(0.60 0.19 25)' },
+  high: { label: 'High', fg: 'oklch(0.50 0.13 55)', bg: 'oklch(0.95 0.04 70)', ring: '0 0 0 1px oklch(0.88 0.06 70), 0 10px 28px -16px oklch(0.55 0.13 55 / .3)', bar: 'oklch(0.72 0.15 60)' },
+  medium: { label: 'Medium', fg: 'oklch(0.50 0.11 85)', bg: 'oklch(0.95 0.05 95)', ring: LS, bar: 'oklch(0.80 0.13 90)' },
+  low: { label: 'Low', fg: '#3f424d', bg: '#e4e7f5', ring: LS, bar: '#9397ab' },
+  safe: { label: 'Safe', fg: 'oklch(0.45 0.09 160)', bg: 'oklch(0.95 0.03 160)', ring: LS, bar: 'oklch(0.70 0.10 160)' },
+  checking: { label: 'Checking', fg: '#5d5294', bg: '#e7e5fe', ring: LS, bar: '#b5abfc' },
+};
+const SEV_DARK = {
+  critical: { fg: 'oklch(0.82 0.12 25)', bg: 'oklch(0.32 0.08 25)' }, high: { fg: 'oklch(0.85 0.11 60)', bg: 'oklch(0.33 0.06 60)' },
+  low: { fg: '#e4e7f5', bg: '#3f424d' }, safe: { fg: 'oklch(0.86 0.08 160)', bg: 'oklch(0.32 0.05 160)' },
+};
+const CLAIM_FIX = 'Remove or replace this reference. If this was yours, re-create it in your own account to reclaim the name.';
+const FINDINGS = [
+  { sev: 'critical', target: 'github.com/trustline-demo-tools', type: 'CI script', risk: "Deploy workflow pipes this account's script into bash, and the account no longer exists.", where: '.github/workflows/deploy.yml:11', owner: 'Account deleted (404)', evidence: 'github_owner("trustline-demo-tools") → 404 Not Found · curl … | bash in deploy step' },
+  { sev: 'critical', target: 'polyfill.io', type: 'Script tag', risk: 'Known compromised CDN still loaded on your homepage.', fix: 'Remove it, or use cdnjs.cloudflare.com/polyfill or polyfill-fastly.io.', where: 'public/index.html:7', owner: 'Known compromised', evidence: 'Matched known-compromised CDN list (polyfill.io, June 2024) · no integrity hash' },
+  { sev: 'critical', target: 'trustline-demo-agent.net', type: 'Dockerfile', risk: 'Your image build downloads from a domain nobody owns.', where: 'Dockerfile:3', owner: 'Unregistered', evidence: 'rdap("trustline-demo-agent.net") → 404 · no registration record' },
+  { sev: 'critical', target: 'trustline-demo-cartkit.com', type: 'Script tag', risk: 'Unregistered domain serving a script on your site.', where: 'index.html:8', owner: 'Unregistered', evidence: 'rdap("trustline-demo-cartkit.com") → 404 · dns → NXDOMAIN' },
+  { sev: 'critical', target: 'trustline-demo-chat.github.io', type: 'Script tag', risk: 'GitHub Pages owner deleted; anyone can claim the name.', where: 'index.html:14', owner: 'Owner deleted (404)', evidence: 'github_owner("trustline-demo-chat") → 404 · Pages site returns 404' },
+  { sev: 'critical', target: 's3://trustline-demo-release-artifacts', type: 'S3 bucket', risk: "Deploy and release pull from a bucket that doesn't exist.", where: 'deploy.yml:13, release.yml:3', owner: 'NoSuchBucket', evidence: 'bucket_probe("trustline-demo-release-artifacts") → NoSuchBucket', rule: 'Model said high → raised to critical: claimable bucket in a deploy path.' },
+  { sev: 'high', target: 'trustline-demo-metrics.io', type: 'API endpoint', risk: 'Config sends data to a domain that no longer resolves (NXDOMAIN).', where: 'src/config.js:2', owner: 'NXDOMAIN', evidence: 'dns("trustline-demo-metrics.io") → NXDOMAIN' },
+  { sev: 'high', target: 'trustlinedemoassets.blob.core.windows.net', type: 'Azure storage', risk: "Product images load from a storage account that doesn't exist.", where: 'src/components/ProductImage.jsx:5', owner: 'Account not found', evidence: 'dns("trustlinedemoassets.blob.core.windows.net") → NXDOMAIN', rule: 'Model said medium → raised to high.' },
+];
+const LATER = [{ target: 'trustline-demo-payments.dev', note: 'Test fixture only · tests/fixtures/checkout.json:4', type: 'API endpoint', owner: 'Unregistered', sev: 'low' }];
+const SAFE = ['googletagmanager.com', 'hcaptcha.com', 'slack.com', 'stripe.com'].map(t => ({ target: t, note: 'Registered · resolves · owner unchanged', type: 'Domain', owner: 'Registered', sev: 'safe', where: '—' }));
+const FEED = [
+  { plan: 'S3 bucket used by deploy workflows. Does it exist?', tool: 'bucket_probe', arg: 'trustline-demo-release-artifacts', result: 'NoSuchBucket (anyone can create it)', sev: 'critical' },
+  { plan: 'Deploy step pipes a script from this account into bash. Is the account still there?', tool: 'github_owner', arg: 'trustline-demo-tools', result: 'Owner not found (404)', sev: 'critical' },
+  { plan: 'Dockerfile downloads from this domain. Is it registered?', tool: 'rdap', arg: 'trustline-demo-agent.net', result: 'Unregistered', sev: 'critical' },
+  { plan: 'Config sends data to this host. Does it still resolve?', tool: 'dns', arg: 'trustline-demo-metrics.io', result: 'running…', sev: 'checking' },
+];
+const TRACE = [
+  FEED[0], FEED[1], FEED[2],
+  { ...FEED[3], result: 'NXDOMAIN', sev: 'high' },
+  { plan: 'Script tag on the storefront. Who owns this domain?', tool: 'rdap', arg: 'trustline-demo-cartkit.com', result: 'Unregistered', sev: 'critical' },
+  { plan: 'Product images load from this Azure account. Does it exist?', tool: 'dns', arg: 'trustlinedemoassets.blob.core.windows.net', result: 'NXDOMAIN · account not found', sev: 'high' },
+];
+const HOW = [
+  { title: 'Find', desc: 'Every outside reference', tool: 'files → targets' },
+  { title: 'Check', desc: 'Who owns each one now', tool: 'dns · rdap · bucket_probe · github_api' },
+  { title: 'Investigate', desc: 'Muse Spark follows the evidence', tool: 'plan → tool call → observation' },
+  { title: 'Rank', desc: 'Rules keep real dangers on top', tool: 'model judgment + code rules' },
+  { title: 'Report', desc: 'Fix today, review, safe', tool: 'web · PR comment · MCP' },
+];
+const fmt = (s) => SEV[s];
+
+class Component extends DCLogic {
+  state = { screen: this.props.startScreen ?? 'home', how: 2, tab: 'fix', open: { 5: true }, groupOpen: {}, copied: null, query: 'github.com/demo/paperplane-shop' };
+  componentDidUpdate(prev) { if (prev.startScreen !== this.props.startScreen && this.props.startScreen) this.setState({ screen: this.props.startScreen }); }
+  heroRef = React.createRef(); glowRef = React.createRef(); hazeRef = React.createRef();
+  onScroll = () => {
+    const y = window.scrollY || 0;
+    if (this.glowRef.current) this.glowRef.current.style.transform = 'translateY(' + (-Math.min(y * 0.32, 150)) + 'px)';
+    if (this.hazeRef.current) this.hazeRef.current.style.opacity = String(0.7 + Math.min(y / 500, 0.3));
+    const hb = this.heroRef.current ? this.heroRef.current.getBoundingClientRect().bottom : 9999;
+    const light = hb > 0 && hb < 140;
+    if (light !== !!this.state.navLight) this.setState({ navLight: light });
+  };
+  componentDidMount() { window.addEventListener('scroll', this.onScroll, { passive: true }); this.onScroll(); requestAnimationFrame(this.onScroll); setTimeout(this.onScroll, 300); }
+  componentWillUnmount() { window.removeEventListener('scroll', this.onScroll); }
+  go = (screen) => { this.setState({ screen, navLight: false }); window.scrollTo(0, 0); setTimeout(this.onScroll, 50); };
+  detect(q) {
+    q = (q || '').trim().toLowerCase();
+    if (!q) return '';
+    if (q.includes('github.com/') || /^[\w.-]+\/[\w.-]+$/.test(q)) return 'GitHub repo';
+    if (/[\w-]+\.[a-z]{2,}/.test(q)) return 'Website';
+    return '';
+  }
+  renderVals() {
+    const s = this.state, scr = s.screen;
+    const spinner = React.createElement('span', { style: { width: 9, height: 9, borderRadius: '50%', border: '1.5px solid currentColor', borderTopColor: 'transparent', animation: 'tl-spin .8s linear infinite', display: 'inline-block' } });
+    const detected = this.detect(s.query);
+    const fixes = FINDINGS.map((f, i) => {
+      const c = fmt(f.sev), open = !!s.open[i];
+      return { ...f, ...c, fix: f.fix || CLAIM_FIX, hasRule: !!f.rule, open, caret: open ? 'rotate(180deg)' : 'none',
+        copyLabel: s.copied === i ? 'Copied' : 'Copy',
+        toggle: () => this.setState(p => ({ open: { ...p.open, [i]: !p.open[i] } })),
+        copy: () => { try { navigator.clipboard.writeText(f.fix || CLAIM_FIX); } catch (e) {} this.setState({ copied: i }); clearTimeout(this._t); this._t = setTimeout(() => this.setState({ copied: null }), 1500); } };
+    });
+    const groups = [
+      { key: 'later', tag: 'Low', title: '1 to review later', rows: LATER, ...fmt('low') },
+      { key: 'safe', tag: 'Safe', title: '4 references checked and safe', rows: SAFE, ...fmt('safe') },
+    ].map(g => ({ ...g, open: !!s.groupOpen[g.key], caret: s.groupOpen[g.key] ? 'rotate(180deg)' : 'none', toggle: () => this.setState(p => ({ groupOpen: { ...p.groupOpen, [g.key]: !p.groupOpen[g.key] } })) }));
+    const allRows = [...FINDINGS, { ...LATER[0], where: 'tests/fixtures/checkout.json:4' }, ...SAFE.map((r, i) => ({ ...r, where: ['public/index.html:4', 'src/pages/Checkout.jsx:12', '.github/workflows/notify.yml:8', 'src/pages/Checkout.jsx:3'][i] }))].map(r => ({ ...r, ...fmt(r.sev) }));
+    const cx = 90, w = 82, h = 44, t = 9;
+    const layers = HOW.map((L, i) => {
+      const y = 14 + i * 66, act = s.how === i;
+      return { ...L, num: '0' + (i + 1), dy: act ? -12 : 0, ly: y + h, top0: y + h - 14,
+        top: [cx + ',' + y, (cx + w) + ',' + (y + h), cx + ',' + (y + 2 * h), (cx - w) + ',' + (y + h)].join(' '),
+        left: [(cx - w) + ',' + (y + h), cx + ',' + (y + 2 * h), cx + ',' + (y + 2 * h + t), (cx - w) + ',' + (y + h + t)].join(' '),
+        right: [cx + ',' + (y + 2 * h), (cx + w) + ',' + (y + h), (cx + w) + ',' + (y + h + t), cx + ',' + (y + 2 * h + t)].join(' '),
+        fill: act ? '#f5f4ff' : '#fdfdff', stroke: act ? '#796cbf' : '#161826', dash: act ? '4 4' : 'none',
+        titleColor: act ? 'var(--color-accent-700)' : 'var(--color-text)', lineColor: act ? '#796cbf' : '#161826',
+        select: () => this.setState({ how: i }) };
+    });
+    const stageIdx = 2;
+    const stages = ['Find', 'Check', 'Investigate', 'Rank', 'Report'].map((name, i) => {
+      const done = i < stageIdx, cur = i === stageIdx;
+      return { name, mark: done ? '✓' : String(i + 1),
+        fg: cur ? 'var(--color-accent-100)' : done ? 'var(--color-neutral-200)' : 'var(--color-neutral-400)',
+        bg: cur ? 'var(--color-accent-900)' : 'transparent',
+        ring: cur ? '0 0 0 1px var(--color-accent-600)' : '0 0 0 1px var(--color-neutral-800)',
+        dotBg: cur ? 'var(--color-accent)' : done ? 'var(--color-neutral-700)' : 'var(--color-neutral-900)',
+        dotFg: cur ? 'var(--color-bg)' : 'var(--color-neutral-200)' };
+    });
+    const tabs = [['fix', 'Fix first', '8'], ['all', 'All targets', '13'], ['trace', 'Agent trace', '6'], ['json', 'Raw JSON', '']];
+    const json = JSON.stringify({ target: 'demo/paperplane-shop', type: 'github_repo', coverage: 'all_files', summary: { critical: 6, high: 2, low: 1, safe: 4 },
+      findings: FINDINGS.map(f => ({ severity: f.sev, target: f.target, type: f.type, owner_status: f.owner, locations: f.where.split(', '), evidence: f.evidence, ...(f.rule ? { rule_note: f.rule } : {}), fix: f.fix || CLAIM_FIX })) }, null, 2);
+    return {
+      isHome: scr === 'home', isScan: scr === 'scanning', isResults: scr === 'results', isApp: scr !== 'home', rootPad: scr === 'home' ? '0' : '96px',
+      showSwitcher: this.props.showSwitcher ?? true,
+      goScan: () => this.go('scanning'), goResults: () => this.go('results'), goHome: () => this.go('home'),
+      query: s.query, onQuery: (e) => this.setState({ query: e.target.value }), detected, hasDetected: !!detected,
+      layers, layersRev: layers.slice().reverse(),
+      how0: s.how === 0, how1: s.how === 1, how2: s.how === 2, how3: s.how === 3, how4: s.how === 4, howTool: HOW[s.how].tool,
+      heroRef: this.heroRef, glowRef: this.glowRef, hazeRef: this.hazeRef,
+      navBg: s.navLight ? 'rgba(248,249,254,.86)' : 'rgba(12,13,21,.35)', navFg: s.navLight ? '#161826' : '#e9e9ed',
+      navMuted: s.navLight ? '#3f424d' : '#cfd3e5', navDiv: s.navLight ? '#d5d9ea' : 'rgba(233,233,237,.2)', navLine: s.navLight ? '0 1px 0 #e4e7f5' : 'none',
+      findRows: [['polyfill.io', 'public/index.html:7'], ['github.com/trustline-demo-tools', 'deploy.yml:11'], ['s3://trustline-demo-release-artifacts', 'deploy.yml:13'], ['trustline-demo-agent.net', 'Dockerfile:3'], ['stripe.com', 'Checkout.jsx:3']].map(([target, where]) => ({ target, where })),
+      checkRows: [['rdap', 'trustline-demo-agent.net', 'Unregistered', 'critical'], ['dns', 'trustline-demo-metrics.io', 'NXDOMAIN', 'high'], ['bucket_probe', 'trustline-demo-release-artifacts', 'NoSuchBucket', 'critical'], ['github_owner', 'trustline-demo-tools', '404', 'critical'], ['rdap', 'stripe.com', 'Registered', 'safe']].map(([tool, arg, result, sv]) => ({ tool, arg, result, fg: fmt(sv).fg })),
+      rankRows: [FINDINGS[5], FINDINGS[0], FINDINGS[6], LATER[0]].map(f => ({ target: f.target, ...fmt(f.sev) })),
+      catches: [['Unregistered domains', 'trustline-demo-agent.net → no RDAP record'], ['Deleted S3 / GCS / Azure buckets', 's3://… → NoSuchBucket'], ['Deleted GitHub accounts & Pages', 'github.com/… → 404'], ['Dangling cloud subdomains', 'CNAME → unclaimed cloud resource'], ['Known compromised CDNs', 'polyfill.io'], ['Scripts without integrity hashes', 'script tag with no integrity attribute']].map(([title, example], i) => ({ num: '0' + (i + 1), title, example })),
+      stages,
+      feed: FEED.map((f, i) => ({ ...f, n: String(i + 1).padStart(2, '0'), ...fmt(f.sev), label: fmt(f.sev).label, spin: f.sev === 'checking' ? spinner : null })),
+      found: [['Claimable now', 5, 'critical'], ['Known compromised', 1, 'high'], ['Checking', 2, 'checking'], ['Looks safe', 5, 'safe']].map(([label, count, sv]) => ({ label, count, bar: fmt(sv).bar })),
+      summaryChips: [['6', 'Critical', 'critical'], ['2', 'High', 'high'], ['1', 'Low', 'low'], ['4', 'Safe', 'safe']].map(([count, label, sv]) => ({ count, label, ...SEV_DARK[sv] })),
+      resTabs: tabs.map(([k, name, count]) => ({ name, count, fg: s.tab === k ? 'var(--color-text)' : 'var(--color-neutral-700)', line: s.tab === k ? 'inset 0 -2px 0 var(--color-accent)' : 'none', select: () => this.setState({ tab: k }) })),
+      tabFix: s.tab === 'fix', tabAll: s.tab === 'all', tabTrace: s.tab === 'trace', tabJson: s.tab === 'json',
+      findings: fixes, collapsed: groups, allRows,
+      trace: TRACE.map((f, i) => ({ ...f, n: String(i + 1).padStart(2, '0'), fg: fmt(f.sev).fg })),
+      rawJson: json,
+      screens: [['home', 'Home'], ['scanning', 'Scanning'], ['results', 'Results']].map(([k, name]) => ({ name, go: () => this.go(k), fg: scr === k ? 'var(--color-accent-200)' : 'var(--color-neutral-300)', ring: scr === k ? 'inset 0 0 0 1px var(--color-accent-600)' : 'none' })),
+    };
+  }
+}
+</script>
+
+
+</body></html>

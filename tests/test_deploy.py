@@ -27,3 +27,30 @@ def test_dockerfile_factory_and_local_scan_off():
     assert "TRUSTMAP_ALLOW_LOCAL_SCAN=0" in text
     assert "uvicorn api.main:app --factory" in text
     assert "TRUSTMAP_CACHE_DB=/var/data/trustmap.db" in text
+    assert "mkdir -p /var/data" in text
+    assert not any(line.strip() == "COPY . ." for line in text.splitlines())
+    assert not any(line.strip().startswith("USER ") for line in text.splitlines())
+
+
+def test_dockerignore_excludes_secrets_and_local_junk():
+    lines = {
+        item.strip()
+        for item in (ROOT / ".dockerignore").read_text().splitlines()
+        if item.strip()
+    }
+    assert lines >= {
+        ".env",
+        ".env.*",
+        "eval/labels.jsonl",
+        ".git",
+        "*.db",
+        "Untitled",
+    }
+
+
+def test_dockerfile_installs_git_for_repo_scans():
+    text = (ROOT / "Dockerfile").read_text()
+    # a repository target is fetched with `git clone`, which the slim base lacks
+    assert "git" in text
+    assert "apt-get install" in text
+    assert "rm -rf /var/lib/apt/lists/*" in text
