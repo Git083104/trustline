@@ -248,3 +248,14 @@ def test_busy_when_over_concurrent_limit(tmp_path):
             assert fourth.json() == {"error": BUSY_MSG}
         finally:
             hold.set()
+
+
+def test_vercel_trusts_one_forwarded_hop(monkeypatch):
+    from api.limits import trusted_proxy_hops
+
+    monkeypatch.delenv("TRUSTMAP_TRUSTED_PROXY_HOPS", raising=False)
+    monkeypatch.delenv("RENDER", raising=False)
+    monkeypatch.setenv("VERCEL", "1")
+    assert trusted_proxy_hops() == 1
+    req = _Req("10.0.0.8", "203.0.113.9")
+    assert client_ip(req, hops=trusted_proxy_hops()) == "203.0.113.9"

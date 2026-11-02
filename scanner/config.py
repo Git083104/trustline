@@ -1,5 +1,7 @@
 """Scanner settings. Model keys are read in later phases; do not load .env here."""
 
+import os
+
 # Registrable domains we never flag. Bucket matches on Amazon/Google hosts are kept.
 ALLOWLIST_DOMAINS: frozenset[str] = frozenset(
     {
@@ -107,3 +109,16 @@ EXPIRY_INVESTIGATE_DAYS = 90
 MODEL_PRICES: dict[str, dict[str, float]] = {
     "muse-spark-1.3": {"input": 1.25, "output": 4.25},
 }
+
+
+# Serverless hosts (Vercel) cut a request off after five minutes on the free plan,
+# so the agent stage stops starting new work this long after a scan begins and
+# rank still has time to finish.
+SERVERLESS_AGENT_DEADLINE_S = 170.0
+
+
+def on_serverless() -> bool:
+    """Vercel and similar hosts: one request per scan, a time limit, only /tmp is writable."""
+    if os.environ.get("VERCEL", "").strip():
+        return True
+    return os.environ.get("TRUSTMAP_SERVERLESS", "").strip().lower() in {"1", "true", "yes"}

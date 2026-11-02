@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import time
 from pathlib import Path
 from collections.abc import AsyncIterator, Awaitable, Callable
 from typing import Any, Literal
@@ -18,7 +19,7 @@ from api.classify_target import TargetError, classify_target
 from api.demo import demo_gap_ms, demo_report, load_demo
 from api.jobs import Job, JobStore
 from api.limits import LimitsStore, client_ip
-from scanner.config import SCAN_COST_CAP_USD
+from scanner.config import SCAN_COST_CAP_USD, SERVERLESS_AGENT_DEADLINE_S, on_serverless
 from scanner.llm import LiveModelClient, ModelClient, redact_secrets
 from scanner.lookups import LookupCache, default_cache
 from scanner.report import ScanOutcome, run_scan
@@ -30,6 +31,8 @@ STATIC = Path(__file__).resolve().parent / "static"
 FIXTURES = Path(__file__).resolve().parents[1] / "tests" / "fixtures"
 LIVE_UNCONFIGURED = "Live scans aren't configured; try the demo"
 PATH_REFUSED = "Paste a GitHub repository or website URL"
+HEARTBEAT_S = 15.0
+SSE_HEADERS = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
 
 
 class FreshStatic(StaticFiles):
@@ -69,6 +72,22 @@ def _cors_origins() -> list[str]:
 
 def _sse(event: dict[str, Any]) -> str:
     return f"data: {json.dumps(event)}\n\n"
+
+
+def _job_stream(job: Job) -> StreamingResponse:
+    async def gen() -> AsyncIterator[str]:
+        async for event in job.stream(heartbeat=HEARTBEAT_S):
+            # an SSE comment keeps proxies from closing a quiet stream
+            yield ": keep-alive\n\n" if event is None else _sse(event)
+
+    return StreamingResponse(gen(), media_type="text/event-stream", headers=SSE_HEADERS)
+
+
+def agent_deadline() -> float | None:
+    """When the agent stage must stop starting new work, as a time.monotonic() value."""
+    raw = os.environ.get("TRUSTMAP_AGENT_DEADLINE_S", "").strip()
+    seconds = float(raw) if raw else (SERVERLESS_AGENT_DEADLINE_S if on_serverless() else 0.0)
+    return time.monotonic() + seconds if seconds > 0 else None
 
 
 def create_app(
@@ -144,8 +163,8 @@ def create_app(
             return True
         return bool(os.environ.get("MODEL_API_KEY", "").strip())
 
-    @app.post("/api/scan", response_model=None)
-    async def start_scan(body: ScanIn, request: Request):
+    def admit(body: ScanIn, request: Request) -> Job | JSONResponse:
+        """Check the target and the limits, then start the scan as a background job."""
         try:
             kind, target = classify_target(body.target, body.kind)
         except TargetError as exc:
@@ -166,18 +185,39 @@ def create_app(
                 "kind": kind,
                 "target": target,
                 "cost_cap_usd": cost_cap,
+                # on a serverless host the next request can land on another
+                # instance, which has never heard of this job
+                "shareable": not on_serverless(),
             }
         )
         task = asyncio.create_task(_run_job(job))
         running.add(task)
         task.add_done_callback(running.discard)
-        return {"scan_id": job.scan_id, "kind": kind, "target": target}
+        return job
+
+    @app.post("/api/scan", response_model=None)
+    async def start_scan(body: ScanIn, request: Request):
+        job = admit(body, request)
+        if isinstance(job, JSONResponse):
+            return job
+        return {"scan_id": job.scan_id, "kind": job.kind, "target": job.target}
+
+    @app.post("/api/scan/stream", response_model=None)
+    async def stream_scan(body: ScanIn, request: Request):
+        # Start and follow a scan in one request, which is all a serverless host
+        # guarantees. The job is still stored, so share links work where the
+        # process lives on.
+        job = admit(body, request)
+        if isinstance(job, JSONResponse):
+            return job
+        return _job_stream(job)
 
     async def _run_job(job: Job) -> None:
         def on_event(payload: dict[str, Any]) -> None:
             job.emit(payload)
 
         actual = 0.0
+        deadline = agent_deadline()
         try:
             lookup = cache or lookup_default
             outcome = await scan_runner(
@@ -188,6 +228,7 @@ def create_app(
                 hydrate_only=False,
                 cost_cap=cost_cap,
                 on_event=on_event,
+                **({"deadline": deadline} if deadline is not None else {}),
             )
             actual = outcome.cost_usd
             job.finish(outcome)
@@ -201,12 +242,7 @@ def create_app(
         job = store.get(scan_id)
         if job is None:
             raise HTTPException(status_code=404, detail="unknown scan")
-
-        async def gen() -> AsyncIterator[str]:
-            async for event in job.stream():
-                yield _sse(event)
-
-        return StreamingResponse(gen(), media_type="text/event-stream")
+        return _job_stream(job)
 
     @app.get("/api/scan/{scan_id}", response_model=None)
     def scan_report(scan_id: str):

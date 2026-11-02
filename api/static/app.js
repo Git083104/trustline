@@ -111,6 +111,8 @@
       failed: "",
       notices: [],
       source: null,
+      abort: null,         // cancels the one-request live scan stream
+      shareable: true,     // false on serverless hosts: another instance can't replay the job
       pollTimer: null,
       streamed: false,
       finished: false,
@@ -525,7 +527,9 @@
     if (budget.indexOf(key) !== -1) { return "Not investigated: the scan’s model budget ran out."; }
     if (pre.next === "popular") { return "No agent needed: a top-ranked domain that resolves."; }
     if (pre.next === "low_exposure") { return "No agent needed: low exposure and no hard signal."; }
-    if (pre.next === "agent" && !turns.length && layer(3).state === "running") { return "Queued for the agent…"; }
+    if (pre.next === "agent" && !turns.length) {
+      return layer(3).state === "running" ? "Queued for the agent…" : "Agent skipped: the scan’s time budget ran out. Rank used the facts above.";
+    }
     return "";
   }
 
@@ -659,7 +663,7 @@
     if (budget.length) { source += " " + budget.length + " lower-priority " + plural(budget.length, "target was", "targets were") + " not investigated (model budget)."; }
     if (!list.length && S.gather && !S.gather.actionable) { source = "Nothing in this target could change hands."; }
     var actions = [
-      S.scanId && S.mode !== "demo" ? h("button", { class: "btn", type: "button", onclick: copyShare, text: "Copy share link" }) : null,
+      S.scanId && S.mode !== "demo" && S.shareable ? h("button", { class: "btn", type: "button", onclick: copyShare, text: "Copy share link" }) : null,
       h("button", { class: "btn", type: "button", onclick: copyMarkdown, text: "Copy as Markdown" }),
       h("button", { class: "btn", type: "button", onclick: downloadJson, text: "Download JSON" })
     ];
@@ -832,13 +836,14 @@
     $("#scan-btn").disabled = on;
     $("#scan-label").textContent = on ? "Scanning…" : "Scan";
     $("#target").readOnly = on;
-    $$("[data-demo]").forEach(function (btn) { btn.disabled = on; });
+    $$("[data-demo], .dr-scan").forEach(function (btn) { btn.disabled = on; });
     if (timer) { clearInterval(timer); timer = null; }
     if (on) { timer = setInterval(function () { renderRun(); }, 1000); }
   }
 
   function closeSource() {
     if (S.source) { S.source.close(); S.source = null; }
+    if (S.abort) { S.abort.abort(); S.abort = null; }
     if (S.pollTimer) { clearTimeout(S.pollTimer); S.pollTimer = null; }
   }
 
@@ -872,6 +877,7 @@
     }
     reset({ mode: "live", kind: kind, target: target });
     setBusy(true);
+    if (canStream()) { streamScan(target, raw); return; }
     fetch("/api/scan", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -892,6 +898,85 @@
         openStream("/api/scan/" + encodeURIComponent(id) + "/events");
       })
       .catch(function () { refused(0, {}, raw); });
+  }
+
+  function canStream() {
+    return typeof window.ReadableStream === "function" && typeof window.TextDecoder === "function" &&
+      typeof window.AbortController === "function" && typeof Response !== "undefined" && "body" in Response.prototype;
+  }
+
+  // Start and follow the scan in one request. That is all a serverless host
+  // (Vercel) guarantees; elsewhere the job is also kept for share links.
+  function streamScan(target, raw) {
+    var mine = S;
+    S.abort = new AbortController();
+    fetch("/api/scan/stream", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
+      body: JSON.stringify({ target: target }),
+      signal: S.abort.signal
+    })
+      .then(function (res) {
+        if (mine !== S) { return null; }
+        var type = res.headers.get("content-type") || "";
+        if (!res.ok || type.indexOf("text/event-stream") === -1) {
+          return res.json().catch(function () { return {}; }).then(function (body) {
+            if (mine === S) { refused(res.status, body, raw); }
+          });
+        }
+        return readStream(res.body.getReader(), mine);
+      })
+      .catch(function () {
+        if (mine !== S) { return; }
+        if (S.streamed) { streamEnded(); } else { refused(0, {}, raw); }
+      });
+  }
+
+  function readStream(reader, mine) {
+    var decoder = new TextDecoder();
+    var buffer = "";
+    function frame(chunk) {
+      var data = chunk.split("\n").filter(function (line) { return line.indexOf("data:") === 0; })
+        .map(function (line) { return line.slice(5).replace(/^ /, ""); }).join("\n");
+      if (!data) { return; } // a keep-alive comment
+      var ev;
+      try { ev = JSON.parse(data); } catch (err) { return; }
+      S.streamed = true;
+      if (ev.type === "started" && ev.scan_id) {
+        S.scanId = String(ev.scan_id);
+        S.shareable = ev.shareable !== false;
+        if (S.shareable) { history.replaceState(null, "", scanQuery(S.scanId)); }
+      }
+      consume(ev);
+      if (ev.type === "done" || ev.type === "error") { ended(ev); }
+    }
+    function pump() {
+      return reader.read().then(function (step) {
+        if (mine !== S) { reader.cancel(); return; }
+        if (step.done) { streamEnded(); return; }
+        buffer += decoder.decode(step.value, { stream: true }).replace(/\r\n/g, "\n");
+        var cut = buffer.indexOf("\n\n");
+        while (cut !== -1) {
+          frame(buffer.slice(0, cut));
+          buffer = buffer.slice(cut + 2);
+          cut = buffer.indexOf("\n\n");
+        }
+        return pump();
+      });
+    }
+    return pump();
+  }
+
+  function streamEnded() {
+    S.abort = null;
+    if (S.finished || S.failed) { return; }
+    setBusy(false);
+    if (S.shareable && S.scanId) {
+      showDialog("The live scan connection dropped.", "The scan may still be running on the server.", { label: "Reconnect", run: reattach });
+      return;
+    }
+    showDialog("The live scan connection dropped.", "The host ended the request before the scan finished. Hosts like Vercel stop a request after five minutes on the free plan.",
+      { label: "Retry", run: function () { startScan(S.target); } });
   }
 
   function refused(status, body, raw) {
@@ -1000,7 +1085,9 @@
       showDialog("The scan stopped.", S.failed, again);
       return;
     }
-    loadReport();
+    // on a serverless host that request would reach an instance without the job;
+    // the streamed events already hold the whole report
+    if (S.shareable) { loadReport(); }
   }
 
   // The finished report has the server's own ordering and totals for export.
@@ -1132,6 +1219,90 @@
     link.click();
     setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
   }
+
+  /* ---------- repos to try: a side panel, filled from /static/targets.json ---------- */
+
+  var EXPECT_CLASS = { critical: "critical", high: "high", flagged: "medium", "mostly safe": "info" };
+  var drawer = $("#targets");
+  var drawerTab = $("#targets-tab");
+  var drawerList = $("#targets-list");
+  var targetsLoaded = false;
+
+  function openDrawer() {
+    drawer.hidden = false;
+    drawerTab.setAttribute("aria-expanded", "true");
+    if (!targetsLoaded) { loadTargets(); }
+    $("#targets-close").focus();
+  }
+
+  function closeDrawer() {
+    if (drawer.hidden) { return; }
+    drawer.hidden = true;
+    drawerTab.setAttribute("aria-expanded", "false");
+    drawerTab.focus();
+  }
+
+  function loadTargets() {
+    targetsLoaded = true;
+    drawerList.replaceChildren(pending("Loading…"));
+    fetch("/static/targets.json")
+      .then(function (res) {
+        if (!res.ok) { throw new Error("targets " + res.status); }
+        return res.json();
+      })
+      .then(renderTargets)
+      .catch(function () {
+        targetsLoaded = false;
+        drawerList.replaceChildren(pending("The list didn’t load. Close this panel and open it again."));
+      });
+  }
+
+  function renderTargets(data) {
+    drawerList.replaceChildren();
+    add(drawerList, [
+      data.note ? h("p", { class: "dr-note mono", text: data.note }) : null,
+      (data.groups || []).map(function (group) {
+        return h("section", { class: "dr-group" },
+          h("h3", { text: group.title }),
+          group.blurb ? h("p", { class: "dr-blurb", text: group.blurb }) : null,
+          (group.repos || []).map(repoCard));
+      })
+    ]);
+    $$(".dr-scan", drawerList).forEach(function (btn) { btn.disabled = $("#scan-btn").disabled; });
+  }
+
+  function repoCard(item) {
+    var expect = String(item.expect || "");
+    return h("article", { class: "dr-item" },
+      h("div", { class: "dr-top" },
+        h("span", { class: "dr-repo", text: item.repo }),
+        expect ? h("span", { class: "sev sev-" + (EXPECT_CLASS[expect] || "low"), text: expect }) : null),
+      item.about ? h("p", { class: "dr-about", text: item.about }) : null,
+      h("p", { class: "dr-finding", text: item.finding }),
+      item.where ? h("p", { class: "dr-meta", text: "Where: " + item.where }) : null,
+      item.checked ? h("p", { class: "dr-meta", text: "Checked: " + item.checked }) : null,
+      h("div", { class: "dr-foot" },
+        h("span", { class: "dr-meta", text: fmt(item.targets) + " targets · " + (item.run || "") }),
+        h("button", {
+          class: "dr-scan",
+          type: "button",
+          "aria-label": "Scan " + item.repo,
+          onclick: function () { scanFromList(item.repo); },
+          text: "Scan"
+        })));
+  }
+
+  function scanFromList(repo) {
+    $("#target").value = "github.com/" + repo;
+    closeDrawer();
+    startScan($("#target").value);
+  }
+
+  drawerTab.addEventListener("click", openDrawer);
+  $("#targets-close").addEventListener("click", closeDrawer);
+  drawer.addEventListener("keydown", function (event) {
+    if (event.key === "Escape") { event.preventDefault(); closeDrawer(); }
+  });
 
   /* ---------- wiring ---------- */
 

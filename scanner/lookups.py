@@ -23,6 +23,7 @@ from scanner.config import (
     HTTP_TIMEOUT_S,
     RDAP_BOOTSTRAP_URL,
     RDAP_FALLBACK_BASE,
+    on_serverless,
 )
 from scanner.models import (
     BucketProbeResult,
@@ -91,7 +92,9 @@ class LookupCache:
 
 
 def default_cache() -> LookupCache:
-    path = os.environ.get("TRUSTMAP_CACHE_DB", "trustmap.db")
+    # a serverless host can only write under /tmp
+    fallback = "/tmp/trustmap.db" if on_serverless() else "trustmap.db"
+    path = os.environ.get("TRUSTMAP_CACHE_DB") or fallback
     return LookupCache(path)
 
 

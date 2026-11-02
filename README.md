@@ -23,6 +23,11 @@ The page shows the scan as five layers, each filled in live from the scan's even
 Facts come from deterministic tools and are cached in SQLite. The model never looks
 anything up and never does date math.
 
+**Repos to try** (the tab on the right edge of the page) lists real repos to scan:
+popular projects nobody maintains anymore that have something to flag, polyfill.io
+holdouts, quick runs and clean controls. It reads `api/static/targets.json`, so edit
+that file to change the list.
+
 This repo merges two team builds: the scanner engine from
 [Git083104/trustline](https://github.com/Git083104/trustline) and the five-layer
 interface from [jwang2007/trustline](https://github.com/jwang2007/trustline).
@@ -83,11 +88,31 @@ A `--live` recording is labelled as a live scan on the page.
 
 ## Deploy
 
-The app is a long-lived server, not a set of functions: a scan runs as a background task
-in the process that accepted it, streams Server-Sent Events while it works, and caches
-lookups in SQLite on disk. It needs a host that keeps a process running: Render, Fly,
-Railway, a VM. It does not fit a serverless platform (Vercel, Netlify Functions, Lambda)
-without moving job state and the cache out of the process.
+A scan runs as a background task in the process that accepted it, streams Server-Sent
+Events while it works, and caches lookups in SQLite. It runs best on a host that keeps a
+process alive (Render, Fly, Railway, a VM), and it also runs on Vercel with the
+trade-offs below.
+
+### Vercel
+
+`pyproject.toml` points Vercel at `index.py` (`[tool.vercel] entrypoint = "index:app"`),
+and Vercel picks the FastAPI preset from the dependencies.
+
+1. Push this repository to GitHub.
+2. In Vercel: **Add New → Project**, import the repository, keep the detected settings.
+3. Under **Environment Variables** add `MODEL_API_KEY` (and `GITHUB_TOKEN` if you have
+   one), then **Deploy**.
+
+What changes on Vercel, all handled in code when the `VERCEL` variable is present:
+
+- The page starts and follows a scan in one request (`POST /api/scan/stream`), because
+  the next request can reach a different instance. Share links are turned off there.
+- A request may run for five minutes on the free plan. The agent stage stops starting
+  new work 170 seconds into a scan (`TRUSTMAP_AGENT_DEADLINE_S` changes it), so ranking
+  can finish; skipped targets keep their lookup facts and the code severity rules.
+- Only `/tmp` is writable, so the cache lives in `/tmp/trustmap.db` and starts empty on
+  each new instance. The daily spend cap and per-IP limit live there too, so they count
+  per instance; the per-scan cost cap still applies to every scan.
 
 ### Render (the checked-in blueprint)
 

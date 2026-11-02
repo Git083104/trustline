@@ -370,3 +370,17 @@ async def test_wayback_first_and_last(tmp_path):
     assert result.first_digest == "aaa"
     assert result.last_snapshot == "20200101000000"
     assert result.last_digest == "bbb"
+
+
+def test_default_cache_lives_in_tmp_on_serverless_hosts(monkeypatch):
+    import scanner.lookups as lookups
+
+    monkeypatch.setattr(lookups, "LookupCache", lambda path: path)
+    monkeypatch.delenv("TRUSTMAP_CACHE_DB", raising=False)
+    monkeypatch.delenv("TRUSTMAP_SERVERLESS", raising=False)
+    monkeypatch.delenv("VERCEL", raising=False)
+    assert lookups.default_cache() == "trustmap.db"
+    monkeypatch.setenv("VERCEL", "1")
+    assert lookups.default_cache() == "/tmp/trustmap.db"
+    monkeypatch.setenv("TRUSTMAP_CACHE_DB", "/var/data/trustmap.db")
+    assert lookups.default_cache() == "/var/data/trustmap.db"

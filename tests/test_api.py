@@ -305,13 +305,13 @@ def test_frontend_handles_every_documented_sse_event():
 def test_static_assets_are_served_and_packaged():
     app = create_app(model_client=FakeModelClient(handler=lambda r: {}))
     with TestClient(app) as client:
-        for path in ("/static/app.css", "/static/app.js"):
+        for path in ("/static/app.css", "/static/app.js", "/static/targets.json"):
             response = client.get(path)
             assert response.status_code == 200
             # a redeploy must never pair new HTML with a cached old script
             assert response.headers["cache-control"] == "no-cache"
     packaging = (Path(__file__).resolve().parents[1] / "pyproject.toml").read_text()
-    for name in ("index.html", "app.css", "app.js"):
+    for name in ("index.html", "app.css", "app.js", "targets.json"):
         assert f'"api/static/{name}"' in packaging
 
 
@@ -437,3 +437,109 @@ def test_server_paths_are_refused_unless_local_scans_are_on(tmp_path, monkeypatc
         assert fixture.status_code == 200
         monkeypatch.setenv("TRUSTMAP_ALLOW_LOCAL_SCAN", "1")
         assert client.post("/api/scan", json={"target": str(tmp_path)}).status_code == 200
+
+
+def test_stream_endpoint_runs_a_scan_in_one_response(tmp_path, monkeypatch):
+    monkeypatch.delenv("VERCEL", raising=False)
+    monkeypatch.delenv("TRUSTMAP_SERVERLESS", raising=False)
+    app = _fixture_app(tmp_path=tmp_path)
+    with TestClient(app) as client:
+        response = client.post("/api/scan/stream", json={"target": str(FIXTURE_ROOT)})
+        assert response.status_code == 200
+        assert response.headers["content-type"].startswith("text/event-stream")
+        events = _parse_sse(response.text)
+        assert events[0]["type"] == "started" and events[-1]["type"] == "done"
+        assert events[0]["shareable"] is True
+        scan_id = events[0]["scan_id"]
+        # the job is stored too, so a share link can replay it on this process
+        assert client.get(f"/api/scan/{scan_id}").json()["findings"]
+        assert _parse_sse(client.get(f"/api/scan/{scan_id}/events").text) == events
+
+
+def test_stream_endpoint_refuses_with_json_like_post(tmp_path, monkeypatch):
+    monkeypatch.setattr("api.main._load_local_env", lambda: None)
+    monkeypatch.delenv("MODEL_API_KEY", raising=False)
+    monkeypatch.delenv("TRUSTMAP_ALLOW_LOCAL_SCAN", raising=False)
+    app = create_app()
+    with TestClient(app) as client:
+        assert client.post("/api/scan/stream", json={"target": str(tmp_path)}).status_code == 400
+        no_key = client.post("/api/scan/stream", json={"target": "https://github.com/acme/widgets"})
+        assert no_key.status_code == 503
+        assert no_key.json() == {"error": LIVE_UNCONFIGURED}
+        assert app.state.store._jobs == {}
+
+
+def test_serverless_scans_are_not_shareable_and_get_an_agent_deadline(monkeypatch):
+    seen: dict = {}
+
+    async def runner(*args, **kwargs):
+        seen.update(kwargs)
+        return ScanOutcome(findings=[])
+
+    monkeypatch.setenv("VERCEL", "1")
+    monkeypatch.delenv("TRUSTMAP_AGENT_DEADLINE_S", raising=False)
+    app = create_app(model_client=FakeModelClient(handler=lambda r: {}), runner=runner)
+    with TestClient(app) as client:
+        events = _parse_sse(
+            client.post("/api/scan/stream", json={"target": "https://github.com/acme/widgets"}).text
+        )
+    assert events[0]["shareable"] is False
+    assert events[-1]["type"] == "done"
+    assert seen["deadline"] > 0
+
+
+def test_job_stream_heartbeat_marks_quiet_stretches():
+    async def run() -> list:
+        job = Job(kind="repo", target="https://github.com/acme/widgets")
+        seen: list = []
+
+        async def drain() -> None:
+            async for event in job.stream(heartbeat=0.05):
+                seen.append(event)
+
+        task = asyncio.create_task(drain())
+        await asyncio.sleep(0.18)
+        job.emit({"type": "done", "finding_count": 0})
+        await asyncio.wait_for(task, timeout=5)
+        return seen
+
+    seen = asyncio.run(run())
+    assert seen[0] is None and seen[-1]["type"] == "done"
+
+
+def test_vercel_entrypoint_is_a_ready_app(tmp_path, monkeypatch):
+    import importlib
+    import tomllib
+
+    from fastapi import FastAPI
+
+    project = tomllib.loads((Path(__file__).resolve().parents[1] / "pyproject.toml").read_text())
+    assert project["tool"]["vercel"]["entrypoint"] == "index:app"
+    monkeypatch.setenv("TRUSTMAP_CACHE_DB", str(tmp_path / "vercel.db"))
+    module = importlib.import_module("index")
+    assert isinstance(module.app, FastAPI)
+    with TestClient(module.app) as client:
+        assert client.get("/api/health").json() == {"ok": True}
+        assert client.get("/").status_code == 200
+
+
+def test_frontend_streams_live_scans_in_one_request():
+    script = (STATIC / "app.js").read_text()
+    assert '"/api/scan/stream"' in script
+    assert "getReader" in script
+    # a scan on a serverless host can't be replayed from another instance
+    assert "shareable" in script
+
+
+def test_repos_to_try_list_is_well_formed():
+    data = json.loads((STATIC / "targets.json").read_text())
+    repos = [item for group in data["groups"] for item in group["repos"]]
+    assert data["checked"] and data["note"] and len(repos) >= 10
+    assert len({item["repo"] for item in repos}) == len(repos)
+    for item in repos:
+        assert re.fullmatch(r"[A-Za-z0-9-]+/[\w.-]+", item["repo"]), item["repo"]
+        assert item["expect"] in {"critical", "high", "flagged", "mostly safe", "big run"}
+        assert isinstance(item["targets"], int) and item["finding"] and item["checked"]
+    # the side panel builds from this file; the page itself ships no list
+    markup = (STATIC / "index.html").read_text()
+    assert 'id="targets-tab"' in markup and re.search(r'id="targets-list"[^>]*>\s*</div>', markup)

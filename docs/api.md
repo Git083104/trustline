@@ -68,6 +68,23 @@ If `MODEL_API_KEY` is not set (and no test client is injected):
 
 No job is created. Demo routes do not need the key.
 
+## `POST /api/scan/stream`
+
+Same body, checks and JSON refusals (400, 429, 503) as `POST /api/scan`, but the response
+is the scan's event stream itself (`text/event-stream`), from `started` to `done` or
+`error`. The page uses this so a scan works on a serverless host, where a second request
+may reach a different instance. The job is still stored, so `GET /api/scan/{id}` and the
+events replay work on a long-lived server.
+
+`started` carries `shareable`: `false` when `VERCEL` or `TRUSTMAP_SERVERLESS=1` is set,
+because another instance cannot replay the job.
+
+Every event stream sends an SSE comment (`: keep-alive`) after 15 quiet seconds.
+
+`TRUSTMAP_AGENT_DEADLINE_S` sets how many seconds into a scan the agent stage stops
+starting new work (default 170 on serverless hosts, off elsewhere). Targets it skips keep
+their lookup evidence, so ranking and the severity floors still see it.
+
 ## `GET /api/scan/{id}/events`
 
 Replay buffered events, then live ones, then close on `done` or `error`.

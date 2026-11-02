@@ -357,3 +357,13 @@ def test_a_private_repo_is_not_retried_as_an_archive(monkeypatch):
     monkeypatch.setattr("scanner.extract._download_github_archive", archive)
     with pytest.raises(CloneError, match="private or renamed"):
         extract("https://github.com/acme/widgets")
+
+
+def test_a_broken_bracket_url_is_skipped_not_fatal(tmp_path: Path):
+    # urllib raises "Invalid IPv6 URL" for these; a real repo had one in its text
+    (tmp_path / "notes.md").write_text(
+        "see http://[fe80::1%25en0 and http://[broken]x/y\n"
+        "then https://kept.example.net/after\n"
+    )
+    found = extract(str(tmp_path))
+    assert [ref.host_or_bucket for ref in found] == ["kept.example.net"]

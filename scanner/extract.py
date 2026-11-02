@@ -539,7 +539,11 @@ def _find_on_line(
 def _classify_http_url(
     raw: str, line: str = "", rel: str = ""
 ) -> tuple[str, str, str, str | None] | None:
-    parsed = urlparse(raw)
+    try:
+        parsed = urlparse(raw)
+    except ValueError:
+        # a stray "[" in text reads as a broken IPv6 host; one bad URL must not stop the scan
+        return None
     host = _host_from_netloc(parsed.netloc)
     if not host:
         return None

@@ -31,12 +31,16 @@ packages = ["scanner", "api"]
 "api/static/index.html" = "api/static/index.html"
 "api/static/app.css" = "api/static/app.css"
 "api/static/app.js" = "api/static/app.js"
+"api/static/targets.json" = "api/static/targets.json"
 "scanner/compromised.json" = "scanner/compromised.json"
 "scanner/data/tranco_top100k.txt.gz" = "scanner/data/tranco_top100k.txt.gz"
 "scanner/data/README.md" = "scanner/data/README.md"
 
 [tool.uv]
 package = true
+
+[tool.vercel]
+entrypoint = "index:app"
 
 [dependency-groups]
 dev = [

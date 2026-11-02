@@ -164,6 +164,16 @@
   </footer>
 </main>
 
+<button class="dr-tab" id="targets-tab" type="button" aria-controls="targets" aria-expanded="false">Repos to try</button>
+
+<aside class="drawer" id="targets" role="dialog" aria-modal="false" aria-labelledby="targets-title" hidden>
+  <div class="dr-head">
+    <h2 id="targets-title">Repos to try</h2>
+    <button class="dr-close" id="targets-close" type="button">Close</button>
+  </div>
+  <div class="dr-list" id="targets-list"></div>
+</aside>
+
 <div class="win" id="win" role="alertdialog" aria-modal="true" aria-labelledby="win-title" aria-describedby="win-msg win-detail" hidden>
   <div class="win-bar"><span id="win-title">SYSTEM ERROR</span><span class="win-btns" aria-hidden="true"><i>_</i><i>□</i><i>×</i></span></div>
   <div class="win-body">

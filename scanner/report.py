@@ -1012,6 +1012,7 @@ async def run_scan(
     allow_partial_cache: bool = False,
     cost_cap: float = SCAN_COST_CAP_USD,
     on_event: OnEvent | None = None,
+    deadline: float | None = None,
 ) -> ScanOutcome:
     if is_website_source(source):
         refs = await extract_website(source)
@@ -1058,6 +1059,7 @@ async def run_scan(
             ctx=ctx,
             cost_cap=cost_cap,
             on_event=on_event,
+            deadline=deadline,
         )
         inv_by_loc = {(item.file, item.line): item for item in investigations}
         rows = [

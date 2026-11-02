@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
 from typing import Any
 
 from scanner.config import (
@@ -45,6 +46,7 @@ AGENT_SYSTEM_PROMPT = (
 )
 
 BUDGET_NOTE = "not investigated (budget)"
+TIME_NOTE = "agent skipped (time budget)"
 
 
 def _bucket_provider(raw: str) -> str:
@@ -217,7 +219,10 @@ async def investigate(
     cost_cap: float = SCAN_COST_CAP_USD,
     max_concurrent: int = MAX_INVESTIGATION_CONCURRENCY,
     on_event: OnEvent | None = None,
+    deadline: float | None = None,
 ) -> list[Investigation]:
+    """deadline is a time.monotonic() value; after it no new agent run starts and
+    running ones stop between turns. The precheck facts are kept either way."""
     actionable = [(ref, cl) for ref, cl in pairs if ref.filter_reason is None]
     evidence_by_key = await _precheck_all(actionable, ctx)
     checked: list[tuple[Reference, Classification, dict[str, Any]]] = []
@@ -288,6 +293,11 @@ async def investigate(
                         other_ref, other_cl, _ = eligible[index]
                         results[index] = _budget_skip(other_ref, other_cl)
                     return
+            if _past(deadline):
+                for index in members:
+                    other_ref, _, other_evidence = eligible[index]
+                    results[index] = _time_skip(other_ref, other_evidence)
+                return
             inv = await investigate_one(
                 ref,
                 cl,
@@ -295,6 +305,7 @@ async def investigate(
                 ctx=ctx,
                 evidence=evidence,
                 on_event=on_event,
+                deadline=deadline,
             )
             async with lock:
                 spent += inv.cost_usd
@@ -314,6 +325,7 @@ async def investigate_one(
     ctx: ToolContext,
     evidence: dict[str, Any] | None = None,
     on_event: OnEvent | None = None,
+    deadline: float | None = None,
 ) -> Investigation:
     if evidence is None:
         evidence = await precheck(ref, cl, ctx)
@@ -347,6 +359,9 @@ async def investigate_one(
     tools = definitions()
 
     for _ in range(MAX_AGENT_TOOL_CALLS):
+        if trace and _past(deadline):
+            summary = summary or TIME_NOTE
+            break
         turn, log = await asyncio.to_thread(_model_turn, client, messages, tools)
         cost_total += log.cost_usd
         trace.append(
@@ -456,6 +471,22 @@ def _event_target(ref: Reference, cl: Classification) -> str:
     if matching_platform(ref.host_or_bucket):
         return ref.host_or_bucket
     return ref.domain or ref.host_or_bucket
+
+
+def _past(deadline: float | None) -> bool:
+    return deadline is not None and time.monotonic() >= deadline
+
+
+def _time_skip(ref: Reference, evidence: dict[str, Any]) -> Investigation:
+    # unlike the cost cap, keep the precheck facts so rank and its floors still see them
+    return Investigation(
+        file=ref.file,
+        line=ref.line,
+        host_or_bucket=ref.host_or_bucket,
+        status="done",
+        summary=TIME_NOTE,
+        evidence=evidence,
+    )
 
 
 def _budget_skip(ref: Reference, cl: Classification) -> Investigation:

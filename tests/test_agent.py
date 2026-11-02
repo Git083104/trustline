@@ -423,3 +423,55 @@ async def test_targets_with_different_context_are_investigated_apart(tmp_path):
     found = await investigate(pairs, client=_scripted_client(), ctx=_ctx(tmp_path))
     assert len(found) == 2
     assert sum(1 for item in found if item.cost_usd > 0) == 2
+
+
+@pytest.mark.asyncio
+async def test_past_deadline_skips_the_agent_but_keeps_the_precheck(tmp_path):
+    from scanner.agent import TIME_NOTE
+
+    ref = Reference(
+        file="index.html",
+        line=7,
+        raw="https://cdn-assets-trustmap-7f3k2.com/lib.js",
+        host_or_bucket="cdn-assets-trustmap-7f3k2.com",
+        domain="cdn-assets-trustmap-7f3k2.com",
+    )
+    client = FakeModelClient(
+        tool_handler=lambda request: {"name": "done", "arguments": {"summary": "never"}}
+    )
+    results = await investigate(
+        [(ref, _classification(ref))],
+        client=client,
+        ctx=_ctx(tmp_path),
+        deadline=time.monotonic() - 1,
+    )
+    assert client.calls == []
+    assert results[0].summary == TIME_NOTE
+    assert results[0].status == "done"
+    # rank and its severity floors still see what the lookups found
+    assert results[0].evidence["rdap"]["status"] == "unregistered"
+
+
+@pytest.mark.asyncio
+async def test_deadline_stops_an_agent_between_turns(tmp_path):
+    from scanner.agent import TIME_NOTE, investigate_one
+
+    ref = Reference(
+        file="index.html",
+        line=7,
+        raw="https://cdn-assets-trustmap-7f3k2.com/lib.js",
+        host_or_bucket="cdn-assets-trustmap-7f3k2.com",
+        domain="cdn-assets-trustmap-7f3k2.com",
+    )
+    client = FakeModelClient(
+        tool_handler=lambda request: {"name": "rdap", "arguments": {"domain": "cdn-assets-trustmap-7f3k2.com"}}
+    )
+    result = await investigate_one(
+        ref,
+        _classification(ref),
+        client=client,
+        ctx=_ctx(tmp_path),
+        deadline=time.monotonic() + 0.0,
+    )
+    assert len(client.calls) == 1
+    assert result.summary == TIME_NOTE

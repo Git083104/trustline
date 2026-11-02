@@ -37,7 +37,7 @@ def trusted_proxy_hops() -> int:
     raw = os.environ.get("TRUSTMAP_TRUSTED_PROXY_HOPS", "").strip()
     if raw:
         return max(0, int(raw))
-    if os.environ.get("RENDER", "").strip():
+    if os.environ.get("RENDER", "").strip() or os.environ.get("VERCEL", "").strip():
         return 1
     return TRUSTED_PROXY_HOPS
 
