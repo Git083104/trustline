@@ -504,6 +504,7 @@ def test_serverless_scans_are_not_shareable_and_get_an_agent_deadline(monkeypatc
 
     monkeypatch.setenv("VERCEL", "1")
     monkeypatch.delenv("TRUSTMAP_AGENT_DEADLINE_S", raising=False)
+    monkeypatch.delenv("TRUSTMAP_RANK_DEADLINE_S", raising=False)
     app = create_app(model_client=FakeModelClient(handler=lambda r: {}), runner=runner)
     with TestClient(app) as client:
         events = _parse_sse(
@@ -512,6 +513,8 @@ def test_serverless_scans_are_not_shareable_and_get_an_agent_deadline(monkeypatc
     assert events[0]["shareable"] is False
     assert events[-1]["type"] == "done"
     assert seen["deadline"] > 0
+    # rank gets the 80 s after the agent stops, so the scan ends before the 300 s cutoff
+    assert seen["rank_deadline"] - seen["deadline"] == pytest.approx(80, abs=1)
 
 
 def test_job_stream_heartbeat_marks_quiet_stretches():

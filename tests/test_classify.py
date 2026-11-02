@@ -183,3 +183,39 @@ def cost_from_tokens(inp: int, out: int) -> float:
     from scanner.llm import cost_usd
 
     return cost_usd("muse-spark-1.3", inp, out)
+
+
+def test_classify_runs_batches_in_parallel_and_keeps_order(tmp_path):
+    # 43 batches one after another took 262 s on a real repository, most of
+    # Vercel's 300 s request limit
+    import threading
+    import time
+
+    refs = [
+        Reference(file=f"src/f{i}.js", line=i + 1, raw=f"https://h{i}.example-host.dev/x.js",
+                  host_or_bucket=f"h{i}.example-host.dev", domain="example-host.dev")
+        for i in range(45)
+    ]
+    lock = threading.Lock()
+    live = {"now": 0, "most": 0}
+
+    def handler(request):
+        with lock:
+            live["now"] += 1
+            live["most"] = max(live["most"], live["now"])
+        time.sleep(0.05)
+        payload = json.loads(request["user"].split("\n", 1)[1])
+        with lock:
+            live["now"] -= 1
+        return {"items": [
+            {"id": ref["id"], "type": "script", "runs_in": "browser", "blast_radius": 2,
+             "confidence": 0.9, "reason": ref["host_or_bucket"]}
+            for ref in payload["references"]
+        ]}
+
+    logs: list = []
+    got = classify(refs, client=FakeModelClient(handler), cache=LookupCache(tmp_path / "p.db"), logs=logs)
+    assert [item.reason for item in got] == [ref.host_or_bucket for ref in refs]
+    assert [(item.file, item.line) for item in got] == [(ref.file, ref.line) for ref in refs]
+    assert live["most"] > 1
+    assert len(logs) == 3

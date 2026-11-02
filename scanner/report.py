@@ -3,11 +3,12 @@ from __future__ import annotations
 import asyncio
 import json
 import re
+import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 from scanner.agent import investigate, should_investigate, tranco_checked_safe
-from scanner.classify import classify
+from scanner.classify import classify, set_aside
 from dataclasses import dataclass, field
 
 from scanner.config import (
@@ -77,6 +78,7 @@ CLAIMABLE_FIX = (
     "account to reclaim the name."
 )
 ACTION_PIN_FIX = "Pin to a full commit SHA."
+RANK_TIME_NOTE = "Not ranked by the model: the scan ran out of time on this host, so code rules set the severity."
 ACTION_MISSING_FIX = (
     "Remove or replace this action. If this was yours, re-create it in your own "
     "account to reclaim the name. Pin to a full commit SHA."
@@ -789,6 +791,7 @@ def rank(
     cache: LookupCache | None = None,
     logs: list[CallLog] | None = None,
     on_event: OnEvent | None = None,
+    deadline: float | None = None,
 ) -> list[Finding]:
     groups = group_by_target(rows)
     if not groups:
@@ -800,7 +803,11 @@ def rank(
 
     def rank_one(index: int) -> None:
         finding = _rank_group(
-            groups[index], client=client, cache=cache, logs=group_logs[index]
+            groups[index],
+            client=client,
+            cache=cache,
+            logs=group_logs[index],
+            deadline=deadline,
         )
         results[index] = finding
         # Tell the page as each target is ranked, not after all of them.
@@ -825,6 +832,7 @@ def _rank_group(
     client: ModelClient,
     cache: LookupCache | None,
     logs: list[CallLog] | None,
+    deadline: float | None = None,
 ) -> Finding:
     payload = finding_payload(group)
     floor, floor_why = floor_decision(group)
@@ -866,6 +874,17 @@ def _rank_group(
             raise ValueError("; ".join(problems))
 
     for attempt in range(LLM_MAX_RETRIES + 1):
+        if deadline is not None and time.monotonic() >= deadline:
+            # A serverless host ends the request soon; keep the code severity.
+            return _finding_from_rank(
+                group=group,
+                payload=payload,
+                parsed=None,
+                floor=floor,
+                floor_why=floor_why,
+                cost_total=cost_total,
+                risk=RANK_TIME_NOTE,
+            )
         try:
             parsed, log = call_json(
                 RANK_MODEL,
@@ -922,6 +941,7 @@ def _finding_from_rank(
     floor_why: str,
     cost_total: float,
     needs_review: bool = False,
+    risk: str = "",
 ) -> Finding:
     evidence = group["evidence"]
     refs = [item["file_line"] for item in payload["references"]]
@@ -930,7 +950,7 @@ def _finding_from_rank(
         model_severity: Severity = "info"
         ranked_blast = classified_blast
         override = ""
-        risk = "needs review: ranking failed self-check"
+        risk = risk or "needs review: ranking failed self-check"
         model_fix = "remove dead reference"
         uncertain = ""
     else:
@@ -1013,6 +1033,7 @@ async def run_scan(
     cost_cap: float = SCAN_COST_CAP_USD,
     on_event: OnEvent | None = None,
     deadline: float | None = None,
+    rank_deadline: float | None = None,
 ) -> ScanOutcome:
     if is_website_source(source):
         refs = await extract_website(source)
@@ -1036,9 +1057,16 @@ async def run_scan(
         },
     )
     class_logs: list[CallLog] = []
-    classified = await asyncio.to_thread(
-        classify, refs, client=client, include_filtered=True, cache=cache, logs=class_logs
+    # References code filters set aside never reach a later step, so the model
+    # does not label them.
+    labels = iter(
+        await asyncio.to_thread(
+            classify, refs, client=client, include_filtered=False, cache=cache, logs=class_logs
+        )
     )
+    classified = [
+        next(labels) if ref.filter_reason is None else set_aside(ref) for ref in refs
+    ]
     pairs = list(zip(refs, classified, strict=True))
     if is_website_source(source):
         pairs = apply_website_roles(pairs)
@@ -1069,7 +1097,13 @@ async def run_scan(
         ]
     rank_logs: list[CallLog] = []
     findings = await asyncio.to_thread(
-        rank, rows, client=client, cache=cache, logs=rank_logs, on_event=on_event
+        rank,
+        rows,
+        client=client,
+        cache=cache,
+        logs=rank_logs,
+        on_event=on_event,
+        deadline=rank_deadline,
     )
     budget = sorted(
         {

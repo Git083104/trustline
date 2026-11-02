@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import json
+from concurrent.futures import ThreadPoolExecutor
 
 from scanner.config import (
     CLASSIFY_BATCH_SIZE,
+    CLASSIFY_CONCURRENCY,
     CLASSIFY_MODEL,
     CLASSIFY_REASONING_EFFORT,
 )
@@ -80,11 +82,45 @@ def classify(
     logs: list[CallLog] | None = None,
 ) -> list[Classification]:
     chosen = refs if include_filtered else actionable(refs)
-    results: list[Classification] = []
-    for start in range(0, len(chosen), CLASSIFY_BATCH_SIZE):
-        batch = chosen[start : start + CLASSIFY_BATCH_SIZE]
-        results.extend(_classify_batch(batch, client=client, cache=cache, logs=logs))
-    return results
+    batches = [
+        chosen[start : start + CLASSIFY_BATCH_SIZE]
+        for start in range(0, len(chosen), CLASSIFY_BATCH_SIZE)
+    ]
+    # one log list per batch, merged in batch order, so costs never depend on timing
+    batch_logs: list[list[CallLog]] = [[] for _ in batches]
+
+    def run(index: int) -> list[Classification]:
+        return _classify_batch(
+            batches[index], client=client, cache=cache, logs=batch_logs[index]
+        )
+
+    workers = min(CLASSIFY_CONCURRENCY, len(batches))
+    if workers <= 1:
+        done = [run(index) for index in range(len(batches))]
+    else:
+        # A big repository is dozens of batches; one at a time they took longer
+        # than a serverless request may run.
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            done = list(pool.map(run, range(len(batches))))
+    if logs is not None:
+        for bundle in batch_logs:
+            logs.extend(bundle)
+    return [item for batch in done for item in batch]
+
+
+def set_aside(ref: Reference) -> Classification:
+    """A label for a reference code filters already dropped; no later step reads it."""
+    return Classification(
+        id="set-aside",
+        file=ref.file,
+        line=ref.line,
+        host_or_bucket=ref.host_or_bucket,
+        type="other",
+        runs_in="docs_only",
+        blast_radius=0,
+        confidence=0.0,
+        reason=f"set aside by code: {ref.filter_reason}",
+    )
 
 
 def _classify_batch(

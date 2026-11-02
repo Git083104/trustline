@@ -844,3 +844,47 @@ def test_rank_returns_findings_sorted_whatever_order_they_finish(tmp_path):
     from scanner.report import SEVERITY_ORDER
 
     assert severities == sorted(severities, key=lambda s: SEVERITY_ORDER[s])
+
+
+@pytest.mark.asyncio
+async def test_scan_never_asks_the_model_about_references_code_set_aside(tmp_path):
+    refs = extract(str(FIXTURE_ROOT))
+    dropped = {(ref.file, ref.line) for ref in refs if ref.filter_reason is not None}
+    kept = {(ref.file, ref.line) for ref in refs if ref.filter_reason is None}
+    assert dropped
+    asked: set = set()
+    inner = _fixture_handler()
+
+    def handler(request):
+        if request["schema_name"] == "classification_batch":
+            payload = json.loads(request["user"].split("\n", 1)[1])
+            asked.update((item["file"], item["line"]) for item in payload["references"])
+        return inner(request)
+
+    async def fake_bucket(name, provider, cache=None, **kwargs):
+        return BucketProbeResult(name=name, provider=provider, status="exists", http_status=403)
+
+    client = FakeModelClient(handler=handler, tool_handler=_scripted_client().tool_handler)
+    await scan(
+        str(FIXTURE_ROOT),
+        client=client,
+        cache=LookupCache(tmp_path / "s.db"),
+        ctx=_ctx(tmp_path, bucket_probe=fake_bucket),
+    )
+    assert asked == kept
+    assert not asked & dropped
+
+
+def test_rank_past_its_deadline_keeps_code_severity_without_a_model_call(tmp_path):
+    import time
+
+    from scanner.report import RANK_TIME_NOTE
+
+    ref = Reference(file="deploy/infra.yaml", line=3, raw="s3://missing", host_or_bucket="missing")
+    rows = [(ref, _cl(ref), _inv(ref, {"bucket_probe": {"status": "NoSuchBucket", "http_status": 404}}))]
+    client = FakeModelClient(handler=lambda request: pytest.fail("rank called the model"))
+    found = rank(rows, client=client, cache=LookupCache(tmp_path / "d.db"), deadline=time.monotonic() - 1)
+    assert found[0].severity == "critical"
+    assert found[0].risk == RANK_TIME_NOTE
+    assert found[0].needs_review is False
+    assert client.calls == []

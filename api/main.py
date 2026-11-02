@@ -21,7 +21,12 @@ from api.classify_target import TargetError, classify_target
 from api.demo import demo_gap_ms, demo_report, load_demo
 from api.jobs import Job, JobStore
 from api.limits import LimitsStore, client_ip
-from scanner.config import SCAN_COST_CAP_USD, SERVERLESS_AGENT_DEADLINE_S, on_serverless
+from scanner.config import (
+    SCAN_COST_CAP_USD,
+    SERVERLESS_AGENT_DEADLINE_S,
+    SERVERLESS_RANK_DEADLINE_S,
+    on_serverless,
+)
 from scanner.llm import LiveModelClient, ModelClient, failure_message, redact_secrets
 from scanner.lookups import LookupCache, default_cache
 from scanner.report import ScanOutcome, run_scan
@@ -87,11 +92,22 @@ def _job_stream(job: Job) -> StreamingResponse:
     return StreamingResponse(gen(), media_type="text/event-stream", headers=SSE_HEADERS)
 
 
-def agent_deadline() -> float | None:
+def _deadline(env: str, serverless_default: float, start: float) -> float | None:
+    raw = os.environ.get(env, "").strip()
+    seconds = float(raw) if raw else (serverless_default if on_serverless() else 0.0)
+    return start + seconds if seconds > 0 else None
+
+
+def agent_deadline(start: float | None = None) -> float | None:
     """When the agent stage must stop starting new work, as a time.monotonic() value."""
-    raw = os.environ.get("TRUSTMAP_AGENT_DEADLINE_S", "").strip()
-    seconds = float(raw) if raw else (SERVERLESS_AGENT_DEADLINE_S if on_serverless() else 0.0)
-    return time.monotonic() + seconds if seconds > 0 else None
+    start = time.monotonic() if start is None else start
+    return _deadline("TRUSTMAP_AGENT_DEADLINE_S", SERVERLESS_AGENT_DEADLINE_S, start)
+
+
+def rank_deadline(start: float | None = None) -> float | None:
+    """When rank must stop starting model calls, so the scan ends before the host cuts it off."""
+    start = time.monotonic() if start is None else start
+    return _deadline("TRUSTMAP_RANK_DEADLINE_S", SERVERLESS_RANK_DEADLINE_S, start)
 
 
 def create_app(
@@ -223,7 +239,12 @@ def create_app(
             job.emit(payload)
 
         actual = 0.0
-        deadline = agent_deadline()
+        start = time.monotonic()
+        deadlines = {
+            name: value
+            for name, value in (("deadline", agent_deadline(start)), ("rank_deadline", rank_deadline(start)))
+            if value is not None
+        }
         try:
             lookup = cache or lookup_default
             outcome = await scan_runner(
@@ -234,7 +255,7 @@ def create_app(
                 hydrate_only=False,
                 cost_cap=cost_cap,
                 on_event=on_event,
-                **({"deadline": deadline} if deadline is not None else {}),
+                **deadlines,
             )
             actual = outcome.cost_usd
             job.finish(outcome)

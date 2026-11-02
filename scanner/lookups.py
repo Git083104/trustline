@@ -668,7 +668,7 @@ async def github_owner(
     if hit is not None:
         return GithubOwnerResult.model_validate(hit)
 
-    token = os.environ.get("GITHUB_TOKEN") or None
+    token = os.environ.get("GITHUB_TOKEN", "").strip() or None
     own_client = client is None
     client = client or httpx.AsyncClient(timeout=HTTP_TIMEOUT_S, follow_redirects=False)
     try:
@@ -735,7 +735,7 @@ async def github_repo(
     if hit is not None:
         return GithubRepoResult.model_validate(hit)
 
-    token = os.environ.get("GITHUB_TOKEN") or None
+    token = os.environ.get("GITHUB_TOKEN", "").strip() or None
     own_client = client is None
     client = client or httpx.AsyncClient(timeout=HTTP_TIMEOUT_S, follow_redirects=False)
     try:

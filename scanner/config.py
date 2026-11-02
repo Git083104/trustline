@@ -90,6 +90,8 @@ AGENT_REASONING_EFFORT = "low"
 RANK_REASONING_EFFORT = "medium"
 LLM_MAX_RETRIES = 2
 CLASSIFY_BATCH_SIZE = 20
+# batches in flight at once; rank already runs this many model calls in parallel
+CLASSIFY_CONCURRENCY = 8
 MAX_AGENT_TOOL_CALLS = 6
 MAX_INVESTIGATION_CONCURRENCY = 4
 PRECHECK_CONCURRENCY = 8
@@ -115,6 +117,8 @@ MODEL_PRICES: dict[str, dict[str, float]] = {
 # so the agent stage stops starting new work this long after a scan begins and
 # rank still has time to finish.
 SERVERLESS_AGENT_DEADLINE_S = 170.0
+# ...and rank stops starting model calls here, so the last ones end before the cutoff.
+SERVERLESS_RANK_DEADLINE_S = 250.0
 
 
 def on_serverless() -> bool:

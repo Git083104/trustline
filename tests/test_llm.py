@@ -4,6 +4,7 @@ import ssl
 import certifi
 import httpx
 import openai
+import pytest
 
 from scanner import llm
 from scanner.llm import FakeModelClient, _tokens, call_json, cost_usd, failure_message, redact_secrets
@@ -176,3 +177,33 @@ def test_failure_message_for_timeouts_secrets_and_plain_errors():
     assert failure_message(ValueError("model did not pick a tool")) == "model did not pick a tool"
     assert len(failure_message(RuntimeError("x" * 1000))) == llm.FAILURE_LIMIT + 3
 
+
+
+FAKE_KEY = "LLM_000000000_FAKEkeyFAKEkeyFAKE"
+
+
+def test_redact_secrets_hides_bearer_tokens_and_our_own_keys(monkeypatch):
+    monkeypatch.setenv("MODEL_API_KEY", "\n" + FAKE_KEY)
+    # the exact shape the HTTP library used when it refused the header
+    leaked = f"Illegal header value b'Bearer \\n{FAKE_KEY}'"
+    assert "FAKEkey" not in redact_secrets(leaked)
+    assert "FAKEkey" not in redact_secrets(f"found {FAKE_KEY} in a log line")
+    assert redact_secrets("Authorization: Bearer abcdef0123456789") == "Authorization: Bearer [REDACTED]"
+    monkeypatch.delenv("MODEL_API_KEY")
+    assert "FAKEkey" not in redact_secrets(leaked)  # the Bearer pattern alone still catches it
+
+
+def test_failure_message_never_shows_the_key(monkeypatch):
+    monkeypatch.setenv("MODEL_API_KEY", "\n" + FAKE_KEY)
+    exc = _connection_error(Exception(f"Illegal header value b'Bearer \\n{FAKE_KEY}'"))
+    message = failure_message(exc)
+    assert message.startswith("Couldn't reach the Meta Model API (Exception: Illegal header value")
+    assert "FAKEkey" not in message and "[REDACTED]" in message
+
+
+def test_live_client_strips_a_key_pasted_with_line_breaks(monkeypatch):
+    monkeypatch.setenv("MODEL_API_KEY", f"\n {FAKE_KEY}\n")
+    assert llm.LiveModelClient()._client.api_key == FAKE_KEY
+    monkeypatch.setenv("MODEL_API_KEY", " \n ")
+    with pytest.raises(RuntimeError):
+        llm.LiveModelClient()

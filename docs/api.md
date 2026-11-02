@@ -84,6 +84,8 @@ Every event stream sends an SSE comment (`: keep-alive`) after 15 quiet seconds.
 `TRUSTMAP_AGENT_DEADLINE_S` sets how many seconds into a scan the agent stage stops
 starting new work (default 170 on serverless hosts, off elsewhere). Targets it skips keep
 their lookup evidence, so ranking and the severity floors still see it.
+`TRUSTMAP_RANK_DEADLINE_S` does the same for ranking (default 250 on serverless hosts):
+targets not ranked by then keep the code severity, with the risk text saying so.
 
 ## `GET /api/scan/{id}/events`
 

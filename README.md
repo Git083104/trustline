@@ -109,9 +109,11 @@ What changes on Vercel, all handled in code when the `VERCEL` variable is presen
 
 - The page starts and follows a scan in one request (`POST /api/scan/stream`), because
   the next request can reach a different instance. Share links are turned off there.
-- A request may run for five minutes on the free plan. The agent stage stops starting
-  new work 170 seconds into a scan (`TRUSTMAP_AGENT_DEADLINE_S` changes it), so ranking
-  can finish; skipped targets keep their lookup facts and the code severity rules.
+- A request may run for five minutes on the free plan. Classify sends eight batches to
+  Muse Spark at a time. The agent stage stops starting new work 170 seconds into a scan
+  (`TRUSTMAP_AGENT_DEADLINE_S`) and ranking stops starting model calls at 250 seconds
+  (`TRUSTMAP_RANK_DEADLINE_S`), so the scan ends before the cutoff; skipped targets keep
+  their lookup facts and the code severity rules.
 - Only `/tmp` is writable, so the cache lives in `/tmp/trustmap.db` and starts empty on
   each new instance. The daily spend cap and per-IP limit live there too, so they count
   per instance; the per-scan cost cap still applies to every scan.

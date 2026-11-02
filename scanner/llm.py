@@ -26,6 +26,9 @@ FAILURE_LIMIT = 300
 _SECRET_ASSIGN = re.compile(
     r"(?i)\b(api[_-]?key|token|password|secret)\s*[=:]\s*[^\s'\"\\,;]+"
 )
+# "Bearer <key>", also as Python prints a header inside bytes: b'Bearer \nLLM_...'
+_BEARER = re.compile(r"(?i)\b(bearer)(?:\s|\\[nrt])*[^\s'\"\\,;]+")
+SECRET_ENV = ("MODEL_API_KEY", "META_API_KEY", "GITHUB_TOKEN")
 
 
 class ModelClient(Protocol):
@@ -187,7 +190,8 @@ class LiveModelClient:
     def __init__(self, api_key: str | None = None):
         from openai import DefaultHttpxClient, OpenAI
 
-        key = api_key or os.environ.get("MODEL_API_KEY")
+        # a key pasted with a line break makes an illegal Authorization header
+        key = (api_key or os.environ.get("MODEL_API_KEY") or "").strip()
         if not key:
             raise RuntimeError("MODEL_API_KEY is not set")
         self._client = OpenAI(
@@ -251,6 +255,12 @@ class LiveModelClient:
 
 
 def redact_secrets(text: str) -> str:
+    # Our own keys by value first, whatever an error message wraps them in.
+    for name in SECRET_ENV:
+        value = os.environ.get(name, "").strip()
+        if len(value) >= 8:
+            text = text.replace(value, "[REDACTED]")
+    text = _BEARER.sub(lambda match: f"{match.group(1)} [REDACTED]", text)
     return _SECRET_ASSIGN.sub(lambda match: f"{match.group(1)}=[REDACTED]", text)
 
 
