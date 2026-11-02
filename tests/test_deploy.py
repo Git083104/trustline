@@ -16,7 +16,6 @@ def test_render_yaml_forces_local_scan_off_and_sets_health():
     assert "TRUSTMAP_IP_SCANS_PER_HOUR" in text
     assert "TRUSTMAP_CACHE_DB" in text
     assert "/var/data/trustmap.db" in text
-    assert "mountPath: /var/data" in text
     assert "TRUSTMAP_ALLOW_LOCAL_SCAN" in text
     after = text.split("TRUSTMAP_ALLOW_LOCAL_SCAN", 1)[1]
     assert '"1"' not in after.split("TRUSTMAP_", 1)[0]
@@ -54,3 +53,18 @@ def test_dockerfile_installs_git_for_repo_scans():
     assert "git" in text
     assert "apt-get install" in text
     assert "rm -rf /var/lib/apt/lists/*" in text
+
+
+def test_render_yaml_plan_and_disk_agree():
+    # a persistent cache needs a disk, and only a paid plan can mount one
+    text = (ROOT / "render.yaml").read_text()
+    has_disk = "mountPath:" in text
+    on_free = "plan: free" in text
+    assert has_disk != on_free, (
+        "free plans cannot mount a disk; a paid plan without one silently "
+        "loses the cache on every restart"
+    )
+    # either way the app is pointed at a writable path it creates itself
+    assert "TRUSTMAP_CACHE_DB" in text
+    dockerfile = (ROOT / "Dockerfile").read_text()
+    assert "mkdir -p /var/data" in dockerfile
