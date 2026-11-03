@@ -616,14 +616,28 @@ def test_each_layer_collapses_to_its_result():
     assert 'h("p", { class: "verdict"' not in script
 
 
-def test_stack_artwork_is_decorative_and_follows_the_scan():
+def test_file_tray_figure_sits_beside_the_stack():
+    # the Riffle figure from @lucasmarkes/hairline (MIT), vendored with its license
     markup = (PUBLIC / "index.html").read_text()
-    assert '<svg class="constellation"' in markup
-    assert 'class="constellation" viewBox="0 0 1400 486" width="1400" height="486" aria-hidden="true"' in markup
-    assert 'data-scan="idle" data-found="0"' in markup
-    script = (STATIC / "app.js").read_text()
-    assert 'art.setAttribute("data-scan"' in script
-    assert 'art.setAttribute("data-found"' in script
+    assert '<div class="figure-wrap"><div class="riffle" id="riffle"></div></div>' in markup
+    assert '<script type="module" src="/static/figure.js"></script>' in markup
+    assert 'data-scan="idle"' in markup and "constellation" not in markup
+    # longer leaders between the slabs and their labels
+    assert markup.count('x1="250"') == 5 and markup.count('x2="350"') == 5
+    vendor = STATIC / "vendor"
+    assert (vendor / "hairline-riffle.js").read_text().startswith("/*! Riffle figure from @lucasmarkes/hairline 0.5.1 | MIT License")
+    assert "Copyright (c) 2026 Lucas Marques" in (vendor / "hairline-LICENSE.txt").read_text()
+    figure = (STATIC / "figure.js").read_text()
+    assert 'import { riffle } from "./vendor/hairline-riffle.js";' in figure
+    assert 'getAttribute("data-scan") === "running"' in figure
+    assert 'art.setAttribute("data-scan"' in (STATIC / "app.js").read_text()
+    app = create_app(model_client=FakeModelClient(handler=lambda r: {}))
+    with TestClient(app) as client:
+        for path in ("/static/figure.js", "/static/vendor/hairline-riffle.js"):
+            served = client.get(path)
+            assert served.status_code == 200, path
+            assert "javascript" in served.headers["content-type"], path
+
 
 
 def test_page_carries_the_logo_and_icons():
@@ -636,4 +650,3 @@ def test_page_carries_the_logo_and_icons():
         icon = client.get("/static/favicon.svg")
         assert icon.status_code == 200
         assert icon.headers["content-type"].startswith("image/svg+xml")
-

@@ -849,7 +849,6 @@
     }
     var art = $(".stack-cell");
     art.setAttribute("data-scan", S.mode === "idle" ? "idle" : S.failed ? "failed" : S.finished ? "done" : "running");
-    art.setAttribute("data-found", S.finished && groupsOf(findingsSorted()).today.length ? "1" : "0");
     renderRun();
     renderNotices();
   }
