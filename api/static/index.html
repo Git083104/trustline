@@ -17,32 +17,43 @@
 <main class="sheet">
 
 <div id="page-home">
-  <header class="row">
-    <div class="cell title-cell span-5">
+  <div class="row home-hero">
+    <div class="cell span-3 hero-copy">
       <h1><img class="logo" src="/static/logo.svg" alt="" width="64" height="64">Tether</h1>
       <p class="tagline">Find the parts of your code a stranger could take over.</p>
+      <form class="home-form" id="scan-form" autocomplete="off" novalidate>
+        <div class="input-cell">
+          <label class="sr" for="target">GitHub repository or website to scan</label>
+          <input id="target" name="target" type="text" inputmode="url" spellcheck="false" placeholder="github.com/owner/repo or https://site.com">
+          <span id="kind-chip" class="kind-chip" hidden></span>
+          <p id="home-error" class="inline-error" role="alert" hidden></p>
+        </div>
+        <div class="scan-cell">
+          <button class="scan" id="scan-btn" type="submit" disabled><span id="scan-label">Scan</span><svg viewBox="0 0 30 30" aria-hidden="true"><path d="M6 24 24 6M10 6h14v14" fill="none" stroke="currentColor" stroke-width="2"/></svg></button>
+        </div>
+      </form>
+      <button type="button" class="btn demo-btn" data-demo>Watch the demo</button>
     </div>
-  </header>
-  <form class="row form-row" id="scan-form" autocomplete="off" novalidate>
-    <div class="cell input-cell span-4">
-      <label class="sr" for="target">GitHub repository or website to scan</label>
-      <input id="target" name="target" type="text" inputmode="url" spellcheck="false" placeholder="github.com/owner/repo or https://site.com">
-      <span id="kind-chip" class="kind-chip" hidden></span>
-      <p id="home-error" class="inline-error" role="alert" hidden></p>
-    </div>
-    <div class="cell scan-cell">
-      <button class="scan" id="scan-btn" type="submit" disabled><span id="scan-label">Scan</span><svg viewBox="0 0 30 30" aria-hidden="true"><path d="M6 24 24 6M10 6h14v14" fill="none" stroke="currentColor" stroke-width="2"/></svg></button>
-    </div>
-  </form>
-  <div class="row">
-    <div class="cell span-5">
-      <button type="button" class="btn" data-demo>Watch the demo</button>
+    <div class="cell span-2 home-art" aria-hidden="true">
+      <svg class="home-stack" viewBox="0 0 260 220" role="img">
+        <defs>
+          <pattern id="home-dots" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="matrix(1 .5 -1 .5 0 0)">
+            <circle cx="1.5" cy="1.5" r=".9" fill="#F3F2EE" opacity=".38"/>
+          </pattern>
+        </defs>
+        <g class="slab" data-state="done"><polygon class="side" points="20,183 90,218 90,228 20,193"/><polygon class="side" points="90,218 160,183 160,193 90,228"/><polygon class="top" points="90,148 160,183 90,218 20,183"/><polygon class="tex" points="90,148 160,183 90,218 20,183"/></g>
+        <g class="slab" data-state="done"><polygon class="side" points="20,143 90,178 90,188 20,153"/><polygon class="side" points="90,178 160,143 160,153 90,188"/><polygon class="top" points="90,108 160,143 90,178 20,143"/><polygon class="tex" points="90,108 160,143 90,178 20,143"/></g>
+        <g class="slab" data-state="running"><polygon class="side" points="20,103 90,138 90,148 20,113"/><polygon class="side" points="90,138 160,103 160,113 90,148"/><polygon class="top" points="90,68 160,103 90,138 20,103"/><polygon class="tex" points="90,68 160,103 90,138 20,103"/></g>
+        <g class="slab"><polygon class="side" points="20,63 90,98 90,108 20,73"/><polygon class="side" points="90,98 160,63 160,73 90,108"/><polygon class="top" points="90,28 160,63 90,98 20,63"/><polygon class="tex" points="90,28 160,63 90,98 20,63"/></g>
+        <g class="slab"><polygon class="side" points="20,23 90,58 90,68 20,33"/><polygon class="side" points="90,58 160,23 160,33 90,68"/><polygon class="top" points="90,-12 160,23 90,58 20,23"/><polygon class="tex" points="90,-12 160,23 90,58 20,23"/></g>
+      </svg>
     </div>
   </div>
   <section class="row" id="repos" aria-label="Repos to try">
     <div class="cell span-5">
       <h2 class="repos-title">Repos to try</h2>
-      <div id="repos-list" class="dr-list-inline"></div>
+      <div id="repos-list" class="repo-grid is-collapsed"></div>
+      <button type="button" id="repos-more" class="btn repo-more" hidden>More</button>
     </div>
   </section>
 </div>

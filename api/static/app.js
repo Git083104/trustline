@@ -17,6 +17,18 @@
     live_fetch: "What does this URL serve now?",
     tranco: "How widely used is this host?"
   };
+  var STATUS_WORDS = {
+    blocked: "doesn't resolve",
+    nxdomain: "doesn't resolve",
+    nosuchbucket: "doesn't exist",
+    unregistered: "not registered",
+    registered: "registered",
+    resolves: "resolves",
+    missing: "not found",
+    ok: "ok",
+    unavailable: "unavailable",
+    error: "failed"
+  };
   var POLL_EVERY_MS = 1500;
   var POLL_LIMIT = 240;   // ~6 minutes of waiting before offering a retry
   var FOUND_BUCKETS = [
@@ -304,15 +316,16 @@
     }
     if (data) {
       if (typeof data.status === "string" && data.status) {
-        text = data.status;
+        var mapped = STATUS_WORDS[String(data.status).toLowerCase()];
+        text = mapped || data.status;
       } else if (typeof data.exists === "boolean") {
         text = data.exists ? "exists" : "not found";
       } else if (typeof data.http_status === "number") {
         text = "HTTP " + data.http_status;
       }
       if (data.vulnerable === true) { text = text ? text + " · unclaimed" : "unclaimed"; }
-      if (data.http_status === 404 && text.toLowerCase() !== "nosuchbucket") {
-        text = text ? text + " (404)" : "404";
+      if (data.http_status === 404 && text !== "doesn't exist") {
+        text = text && text !== "ok" ? text + " (404)" : "not found";
       }
     }
     if (!text) { text = String(raw == null ? "" : raw).slice(0, 80); }
@@ -382,10 +395,12 @@
 
     var resultLine = make("div", "feed-line feed-line-result");
     resultLine.appendChild(make("span", "feed-k", "Result"));
+    var resultWrap = make("div", "feed-result-wrap");
     var badge = make("span", "sev-badge sev-checking");
     var resultText = make("span", "feed-result sev-fg-checking");
-    resultLine.appendChild(badge);
-    resultLine.appendChild(resultText);
+    resultWrap.appendChild(badge);
+    resultWrap.appendChild(resultText);
+    resultLine.appendChild(resultWrap);
     body.appendChild(resultLine);
 
     row.appendChild(body);
@@ -793,13 +808,14 @@
   function findingCard(item) {
     var key = SEV_KEY[item.severity] || "low";
     var article = make("article", "finding ring-" + key);
-    var main = make("div", "finding-main");
-
-    var top = make("div", "finding-top");
+    var sevcol = make("div", "sevcol");
     var sev = make("span", "finding-sev sev-" + key);
     sev.appendChild(make("span", "sev-dot"));
     sev.appendChild(make("span", null, SEV_LABEL[item.severity] || item.severity));
-    top.appendChild(sev);
+    sevcol.appendChild(sev);
+    var main = make("div", "finding-main");
+
+    var top = make("div", "finding-top");
     top.appendChild(make("span", "finding-target", item.target));
     if (item.kind) { top.appendChild(make("span", "finding-type", item.kind)); }
     if (item.evidence_level === "proven") {
@@ -859,9 +875,10 @@
       details.hidden = open;
     });
     main.appendChild(toggle);
+    main.appendChild(details);
 
+    article.appendChild(sevcol);
     article.appendChild(main);
-    article.appendChild(details);
     return article;
   }
 
@@ -921,32 +938,35 @@
     });
   }
 
-  function metaItem(label, value, mono) {
-    var span = make("span", null, label + " ");
-    span.appendChild(make("b", mono ? "mono" : null, value));
-    return span;
+  function recordedScanSeconds(report) {
+    var stages = (report && report.stage_seconds) || {};
+    var total = 0;
+    Object.keys(stages).forEach(function (key) {
+      total += Number(stages[key]) || 0;
+    });
+    if (total > 0) { return Math.round(total); }
+    if (state.elapsedMs > 0 && !state.demo) { return Math.round(state.elapsedMs / 1000); }
+    return 0;
   }
 
   function renderMeta(report) {
     var coverage = report.coverage || {};
-    el.resMeta.replaceChildren();
-    if (state.elapsedMs > 0) {
-      el.resMeta.appendChild(metaItem("Scan time", longClock(state.elapsedMs), true));
+    var parts = [];
+    var secs = recordedScanSeconds(report);
+    if (secs > 0) {
+      parts.push(secs + "s" + (state.demo ? " replayed" : ""));
+    } else if (state.demo) {
+      parts.push("replayed");
     }
-    if (state.calls > 0) {
-      el.resMeta.appendChild(metaItem("Agent calls", String(state.calls), true));
-    }
-    var coverageText = coverage.truncated
+    var calls = state.calls || report.agent_runs || 0;
+    if (calls > 0) { parts.push(calls + " agent calls"); }
+    parts.push(coverage.truncated
       ? coverage.files_scanned + " of " + coverage.files_total + " files scanned"
-      : "all files scanned";
-    el.resMeta.appendChild(metaItem("Coverage:", coverageText, false));
-    if (report.partial) {
-      el.resMeta.appendChild(metaItem("Scan", "partial", false));
-    }
+      : "all files scanned");
+    if (report.partial) { parts.push("partial"); }
     var skipped = report.skipped_targets || [];
-    if (skipped.length) {
-      el.resMeta.appendChild(metaItem("Skipped", skipped.join(", "), true));
-    }
+    if (skipped.length) { parts.push("skipped " + skipped.join(", ")); }
+    el.resMeta.textContent = parts.join(" · ");
   }
 
   function renderAllTargets(findings) {
@@ -1105,6 +1125,7 @@
 
   function loadRepos() {
     var list = $("repos-list");
+    var more = $("repos-more");
     if (!list) { return; }
     fetch("/static/targets.json")
       .then(function (res) { return res.ok ? res.json() : null; })
@@ -1112,22 +1133,27 @@
         if (!data || !data.groups) { return; }
         list.replaceChildren();
         data.groups.forEach(function (group) {
-          var wrap = make("div", "dr-group");
-          wrap.appendChild(make("h3", null, group.title || "Repos"));
           (group.repos || []).forEach(function (repo) {
-            var btn = make("button", "dr-item dr-scan");
+            var btn = make("button", "repo-chip");
             btn.type = "button";
-            btn.appendChild(make("span", "dr-repo", repo.repo));
-            if (repo.finding) { btn.appendChild(make("span", "dr-finding", repo.finding)); }
+            btn.appendChild(make("span", "repo-chip-name", repo.repo));
+            btn.appendChild(make("span", "repo-chip-about", repo.about || repo.finding || ""));
             btn.addEventListener("click", function () {
               el.target.value = "https://github.com/" + repo.repo;
               syncInput();
               el.target.focus();
             });
-            wrap.appendChild(btn);
+            list.appendChild(btn);
           });
-          list.appendChild(wrap);
         });
+        if (more) {
+          more.hidden = list.children.length <= 8;
+          more.addEventListener("click", function () {
+            var open = !list.classList.contains("is-collapsed");
+            list.classList.toggle("is-collapsed", open);
+            more.textContent = open ? "More" : "Less";
+          });
+        }
       })
       .catch(function () {});
   }

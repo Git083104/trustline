@@ -266,6 +266,19 @@ def test_frontend_has_the_three_screens_and_no_design_switcher():
     assert "Trustline" not in markup
     assert markup.count("Tether") > 1
     assert "Inter" in markup and "IBM+Plex+Mono" in markup
+    assert "home-art" in markup
+    assert "repo-grid" in markup
+
+
+def test_results_layout_and_feed_wording_ship():
+    css = (STATIC / "app.css").read_text()
+    js = (STATIC / "app.js").read_text()
+    assert "62px minmax(0,1fr) auto" not in css
+    assert "72px minmax(0,1fr)" in css
+    assert "doesn't resolve" in js
+    assert 'parts.join(" · ")' in js
+    assert "replayed" in js
+    assert "repo-chip" in js
 
 
 def test_report_panels_ship_empty_so_only_api_data_renders():
