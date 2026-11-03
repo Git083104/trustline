@@ -268,6 +268,8 @@ def test_frontend_has_the_three_screens_and_no_design_switcher():
     assert "Inter" in markup and "IBM+Plex+Mono" in markup
     assert "home-art" in markup
     assert "repo-grid" in markup
+    assert "Websites to try" in markup
+    assert "Fix it" in markup
 
 
 def test_results_layout_and_feed_wording_ship():
@@ -424,6 +426,68 @@ def test_scan_stream_finishes_for_fixture(tmp_path):
         assert events[0]["type"] == "started"
         assert events[-1]["type"] == "done"
         assert "agent_runs" in events[-1]
+
+
+def test_demo_fix_patch_download():
+    app = create_app(model_client=FakeModelClient(handler=lambda r: {}))
+    with TestClient(app) as client:
+        data = client.get("/api/scan/demo/fix")
+        assert data.status_code == 200
+        payload = data.json()
+        assert "edits" in payload
+        patch = client.get("/api/scan/demo/fix.patch")
+        assert patch.status_code == 200
+        assert "patch" in patch.headers.get("content-disposition", "").lower() or patch.text is not None
+        assert "polyfill" in (payload.get("patch") or patch.text).lower() or payload.get("edits") is not None
+
+
+def test_live_job_fix_patch(tmp_path):
+    html = (Path(__file__).resolve().parents[1] / "api" / "demo_pages.html").read_text()
+
+    async def runner(*args, **kwargs):
+        from scanner.fix import propose_fixes
+        from scanner.models import Finding
+        from scanner.report import ScanOutcome
+
+        finding = Finding(
+            target="polyfill.io",
+            kind="domain",
+            references=["index.html:1"],
+            severity="critical",
+            model_severity="critical",
+            final_severity="critical",
+            classified_blast_radius=3,
+            ranked_blast_radius=3,
+            risk="polyfill.io is abandoned.",
+            fix="replace with maintained source",
+            evidence={},
+            locations=[
+                {
+                    "file": "index.html",
+                    "line": 8,
+                    "tag": "script",
+                    "runs_in": "browser",
+                    "raw": "https://cdn.polyfill.io/v3/polyfill.min.js",
+                    "sri": False,
+                }
+            ],
+        )
+        _ = propose_fixes
+        return ScanOutcome(findings=[finding], file_texts={"index.html": html})
+
+    app = create_app(
+        model_client=FakeModelClient(handler=lambda r: {}),
+        runner=runner,
+    )
+    with TestClient(app) as client:
+        started = client.post(
+            "/api/scan", json={"target": "https://example.com"}
+        ).json()
+        scan_id = started["scan_id"]
+        client.get(f"/api/scan/{scan_id}/events")
+        patch = client.get(f"/api/scan/{scan_id}/fix.patch")
+        assert patch.status_code == 200
+        assert "cdnjs.cloudflare.com/polyfill" in patch.text
 
 
 def test_demo_waits_cap_gaps():

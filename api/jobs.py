@@ -27,6 +27,8 @@ class Job:
         self._waiters: list[asyncio.Event] = []
         self.report: dict[str, Any] | None = None
         self.error: str | None = None
+        self.file_texts: dict[str, str] = {}
+        self.findings_models: list[Any] = []
         self._loop = _running_loop()
         self._lock = threading.Lock()
 
@@ -72,6 +74,8 @@ class Job:
             "findings": [finding_public(item) for item in outcome.findings],
         }
         self.status = "done"
+        self.file_texts = dict(outcome.file_texts)
+        self.findings_models = list(outcome.findings)
         self.emit(
             {
                 "type": "done",

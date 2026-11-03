@@ -17,6 +17,7 @@ class Reference(BaseModel):
     attribute: str = ""
     sri: bool | None = None
     loaded_by: str = ""
+    csp_blocks_external_scripts: bool = False
     action_owner: str = ""
     action_repo: str = ""
     action_ref: str = ""

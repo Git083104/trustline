@@ -49,11 +49,15 @@
       </svg>
     </div>
   </div>
-  <section class="row" id="repos" aria-label="Repos to try">
-    <div class="cell span-5">
+  <section class="row try-row" id="repos" aria-label="Repos and websites to try">
+    <div class="cell span-3">
       <h2 class="repos-title">Repos to try</h2>
       <div id="repos-list" class="repo-grid is-collapsed"></div>
       <button type="button" id="repos-more" class="btn repo-more" hidden>More</button>
+    </div>
+    <div class="cell span-2">
+      <h2 class="repos-title">Websites to try</h2>
+      <div id="sites-list" class="repo-grid"></div>
     </div>
   </section>
 </div>
@@ -132,6 +136,11 @@
         <div id="res-chips" class="res-chips"></div>
         <div id="res-meta" class="res-meta"></div>
         <p id="partial-banner" class="partial-banner" hidden></p>
+        <button type="button" id="fix-it" class="btn" hidden>Fix it</button>
+        <div id="fix-panel" class="fix-panel" hidden>
+          <pre id="fix-diff" class="fix-diff"></pre>
+          <a id="fix-download" class="btn" download="tether.patch" href="#">Download .patch</a>
+        </div>
       </div>
     </div>
     <div class="row">

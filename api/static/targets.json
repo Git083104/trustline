@@ -1,6 +1,23 @@
 {
   "checked": "2026-11-02",
   "note": "Picked and checked on 2 Nov 2026. Owners can fix things or let more lapse at any time, so the live scan is the final word.",
+  "websites": [
+    {
+      "url": "https://jwang2007.github.io/paperplane-shop/",
+      "name": "paperplane-shop",
+      "about": "Live storefront: polyfill.io, an unregistered script domain, a deleted Pages account"
+    },
+    {
+      "url": "https://example.com",
+      "name": "example.com",
+      "about": "should come back clean"
+    },
+    {
+      "url": "https://www.wikipedia.org",
+      "name": "wikipedia.org",
+      "about": "should come back clean"
+    }
+  ],
   "groups": [
     {
       "title": "Finds real problems",

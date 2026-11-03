@@ -11,11 +11,12 @@ from scanner.llm import FakeModelClient
 from scanner.lookups import LookupCache
 from scanner.report import scan
 from scanner.ssrf import SCAN_BLOCKED, ScanBlockedError
-from scanner.website import extract_website, safe_get
+from scanner.website import csp_blocks_external_scripts, extract_website, extract_website_scan, safe_get
 from tests.test_agent import _ctx, _scripted_client
 from tests.test_report import _rank_ok
 
 SITE_ROOT = Path(__file__).parent / "fixtures" / "demo_site"
+PAGES_ROOT = Path(__file__).parent / "fixtures" / "demo_pages"
 EXPECTED = json.loads((SITE_ROOT / "expected.json").read_text())
 
 
@@ -126,6 +127,84 @@ async def test_website_scan_floors_and_fixes(site_server, tmp_path):
     assert jquery.fix != POLYFILL_FIX
     assert "assets.brand-cdn.example.net" not in by_target
     assert "brand-cdn.example.net" not in by_target
+
+
+class _PagesHandler(SimpleHTTPRequestHandler):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, directory=str(PAGES_ROOT), **kwargs)
+
+    def log_message(self, *_args):
+        return
+
+
+@pytest.fixture
+def pages_server(monkeypatch):
+    monkeypatch.setenv("TRUSTMAP_ALLOW_LOCAL_SCAN", "1")
+    server = ThreadingHTTPServer(("127.0.0.1", 0), _PagesHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    host, port = server.server_address[:2]
+    yield f"http://{host}:{port}/"
+    server.shutdown()
+    thread.join(timeout=2)
+
+
+@pytest.mark.asyncio
+async def test_demo_pages_fixture_records_csp_and_keeps_severity(pages_server, tmp_path):
+    extracted = await extract_website_scan(pages_server)
+    assert extracted.csp_blocks_external_scripts is True
+    assert csp_blocks_external_scripts(
+        "default-src 'self'; script-src 'self'; style-src 'self' https://cdnjs.cloudflare.com"
+    )
+    by_host = {ref.host_or_bucket: ref for ref in extracted.references}
+    assert by_host["cdn.polyfill.io"].sri is False
+    assert by_host["cdn.polyfill.io"].csp_blocks_external_scripts is True
+    assert by_host["trustline-demo-cartkit.com"].csp_blocks_external_scripts is True
+    assert by_host["trustline-demo-chat.github.io"].csp_blocks_external_scripts is True
+    assert by_host["cdnjs.cloudflare.com"].sri is True
+    assert "trustlinedemoassets" in by_host or "trustlinedemoassets.blob.core.windows.net" in by_host
+
+    def handler(request):
+        payload = json.loads(request["user"].split("\n", 1)[-1])
+        if request.get("schema_name") == "classification_batch":
+            items = []
+            for item in payload["references"]:
+                items.append(
+                    {
+                        "id": item["id"],
+                        "type": "script",
+                        "runs_in": "browser",
+                        "blast_radius": 3,
+                        "confidence": 0.9,
+                        "reason": "fixture",
+                    }
+                )
+            return {"items": items}
+        return _rank_ok(
+            severity="low",
+            risk="A stranger could take this over.",
+            blast_radius=3,
+            override="",
+        )
+
+    findings = await scan(
+        pages_server,
+        client=FakeModelClient(
+            handler=handler,
+            tool_handler=_scripted_client().tool_handler,
+        ),
+        cache=LookupCache(tmp_path / "pages.db"),
+        ctx=_ctx(tmp_path),
+        hydrate_only=False,
+    )
+    by_target = {item.target: item for item in findings}
+    assert by_target["polyfill.io"].severity == "critical"
+    assert by_target["polyfill.io"].evidence.get("csp_blocks_external_scripts") is True
+    assert "trustline-demo-cartkit.com" in by_target
+    assert "trustline-demo-chat.github.io" in by_target
+    cdnjs = by_target.get("cdnjs.cloudflare.com") or by_target.get("cloudflare.com")
+    assert cdnjs is not None
+    assert cdnjs.severity in {"low", "info", "medium"}
 
 
 @pytest.mark.asyncio

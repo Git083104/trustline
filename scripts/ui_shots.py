@@ -104,6 +104,8 @@ def main() -> int:
                 )
                 page.on("pageerror", lambda err, label=label: errors.append(f"{label} pageerror {err}"))
                 page.goto(f"http://127.0.0.1:{PORT}/", wait_until="networkidle")
+                page.wait_for_selector("text=Websites to try")
+                page.wait_for_selector("text=Repos to try")
                 page.screenshot(path=str(OUT / f"home-{label}.png"), full_page=True)
                 _assert_layout(page, width=width, label=f"home-{label}", errors=errors)
 
@@ -128,6 +130,11 @@ def main() -> int:
                     copy.first.click()
                 page.screenshot(path=str(OUT / f"results-details-{label}.png"), full_page=True)
                 _assert_layout(page, width=width, label=f"results-details-{label}", errors=errors)
+
+                page.get_by_role("button", name="Fix it").click()
+                page.wait_for_selector("#fix-panel", state="visible")
+                page.screenshot(path=str(OUT / f"fix-it-{label}.png"), full_page=True)
+                _assert_layout(page, width=width, label=f"fix-it-{label}", errors=errors)
 
                 page.get_by_role("button", name="Show the work").click()
                 for name in ("Fix first", "All targets", "Agent trace", "Raw JSON"):

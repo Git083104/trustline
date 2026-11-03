@@ -109,6 +109,42 @@ def check_live_stream(base: str) -> bool:
     return ok
 
 
+def check_website_demo(base: str) -> bool:
+    payload = json.dumps({"target": "https://git083104.github.io/paperplane-shop/"}).encode()
+    started = time.perf_counter()
+    try:
+        status, raw, _ms = _request(
+            f"{base}/api/scan/stream",
+            method="POST",
+            body=payload,
+            timeout=90,
+        )
+    except URLError as exc:
+        _print(False, "POST /api/scan/stream website", str(exc), (time.perf_counter() - started) * 1000)
+        return False
+    elapsed = time.perf_counter() - started
+    events = _parse_sse(raw.decode("utf-8", "replace")) if raw else []
+    done = next((item for item in reversed(events) if item.get("type") == "done"), None)
+    ok = status == 200 and done is not None
+    _print(
+        ok,
+        "POST /api/scan/stream website",
+        f"elapsed={elapsed:.2f}s findings={done.get('finding_count') if done else None}",
+        elapsed * 1000,
+    )
+    return ok
+
+
+def check_fix_patch(base: str) -> bool:
+    status, raw, ms = _request(f"{base}/api/scan/demo/fix.patch", timeout=30)
+    text = raw.decode("utf-8", "replace")
+    ok = status == 200 and (
+        "polyfill" in text.lower() or "TETHER" in text or "cdnjs" in text.lower()
+    )
+    _print(ok, "GET /api/scan/demo/fix.patch", f"status={status} bytes={len(raw)}", ms)
+    return ok
+
+
 def check_ssrf(base: str) -> bool:
     all_ok = True
     for url in ("http://169.254.169.254", "http://127.0.0.1"):
@@ -180,6 +216,8 @@ def main() -> int:
         check_home(base),
         check_demo(base),
         check_live_stream(base),
+        check_website_demo(base),
+        check_fix_patch(base),
         check_ssrf(base),
         check_local_429(),
     ]

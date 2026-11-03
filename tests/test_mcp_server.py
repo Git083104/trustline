@@ -21,8 +21,13 @@ async def test_mcp_tools_are_readonly_lookups_plus_scan(tmp_path):
         "github_owner",
         "live_fetch",
         "scan",
+        "propose_fix",
     }
-    for item in tools.values():
+    assert tools["propose_fix"].annotations is not None
+    assert tools["propose_fix"].annotations.readOnlyHint is False
+    for name, item in tools.items():
+        if name == "propose_fix":
+            continue
         assert item.annotations is not None
         assert item.annotations.readOnlyHint is True
         assert item.annotations.destructiveHint is False

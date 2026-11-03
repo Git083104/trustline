@@ -77,7 +77,11 @@
     tabRaw: $("tab-raw"),
     tabNFix: $("tab-n-fix"),
     tabNAll: $("tab-n-all"),
-    tabNTrace: $("tab-n-trace")
+    tabNTrace: $("tab-n-trace"),
+    fixIt: $("fix-it"),
+    fixPanel: $("fix-panel"),
+    fixDiff: $("fix-diff"),
+    fixDownload: $("fix-download")
   };
 
   var state = {
@@ -863,6 +867,14 @@
       addDetail(details, "Action ref",
         item.action_ref + (item.action_sha_pinned ? " (SHA-pinned)" : " (not SHA-pinned)"), false);
     }
+    if (item.evidence && item.evidence.csp_blocks_external_scripts) {
+      addDetail(
+        details,
+        "CSP",
+        "Blocked on this page by its CSP; any other page loading this URL is exposed",
+        true
+      );
+    }
 
     var toggle = make("button", "details-btn");
     toggle.type = "button";
@@ -1089,6 +1101,32 @@
     var pre = make("pre", "raw-json", JSON.stringify(report, null, 2));
     el.tabRaw.appendChild(pre);
     selectTab("fix");
+    setupFixIt(report);
+  }
+
+  function setupFixIt(report) {
+    if (!el.fixIt || !el.fixPanel) { return; }
+    el.fixPanel.hidden = true;
+    el.fixDiff.textContent = "";
+    var id = state.demo ? "demo" : state.scanId;
+    if (!id) {
+      el.fixIt.hidden = true;
+      return;
+    }
+    el.fixIt.hidden = false;
+    el.fixDownload.href = "/api/scan/" + encodeURIComponent(id) + "/fix.patch";
+    el.fixIt.onclick = function () {
+      fetch("/api/scan/" + encodeURIComponent(id) + "/fix")
+        .then(function (res) { return res.ok ? res.json() : {}; })
+        .then(function (data) {
+          el.fixPanel.hidden = false;
+          el.fixDiff.textContent = data.patch || data.body || "No edits.";
+        })
+        .catch(function () {
+          el.fixPanel.hidden = false;
+          el.fixDiff.textContent = "The patch could not be built.";
+        });
+    };
   }
 
   function selectTab(name) {
@@ -1126,32 +1164,49 @@
   function loadRepos() {
     var list = $("repos-list");
     var more = $("repos-more");
-    if (!list) { return; }
+    var sites = $("sites-list");
     fetch("/static/targets.json")
       .then(function (res) { return res.ok ? res.json() : null; })
       .then(function (data) {
-        if (!data || !data.groups) { return; }
-        list.replaceChildren();
-        data.groups.forEach(function (group) {
-          (group.repos || []).forEach(function (repo) {
+        if (!data) { return; }
+        if (list && data.groups) {
+          list.replaceChildren();
+          data.groups.forEach(function (group) {
+            (group.repos || []).forEach(function (repo) {
+              var btn = make("button", "repo-chip");
+              btn.type = "button";
+              btn.appendChild(make("span", "repo-chip-name", repo.repo));
+              btn.appendChild(make("span", "repo-chip-about", repo.about || repo.finding || ""));
+              btn.addEventListener("click", function () {
+                el.target.value = "https://github.com/" + repo.repo;
+                syncInput();
+                el.target.focus();
+              });
+              list.appendChild(btn);
+            });
+          });
+          if (more) {
+            more.hidden = list.children.length <= 8;
+            more.addEventListener("click", function () {
+              var open = !list.classList.contains("is-collapsed");
+              list.classList.toggle("is-collapsed", open);
+              more.textContent = open ? "More" : "Less";
+            });
+          }
+        }
+        if (sites && data.websites) {
+          sites.replaceChildren();
+          data.websites.forEach(function (site) {
             var btn = make("button", "repo-chip");
             btn.type = "button";
-            btn.appendChild(make("span", "repo-chip-name", repo.repo));
-            btn.appendChild(make("span", "repo-chip-about", repo.about || repo.finding || ""));
+            btn.appendChild(make("span", "repo-chip-name", site.name || site.url));
+            btn.appendChild(make("span", "repo-chip-about", site.about || ""));
             btn.addEventListener("click", function () {
-              el.target.value = "https://github.com/" + repo.repo;
+              el.target.value = site.url;
               syncInput();
               el.target.focus();
             });
-            list.appendChild(btn);
-          });
-        });
-        if (more) {
-          more.hidden = list.children.length <= 8;
-          more.addEventListener("click", function () {
-            var open = !list.classList.contains("is-collapsed");
-            list.classList.toggle("is-collapsed", open);
-            more.textContent = open ? "More" : "Less";
+            sites.appendChild(btn);
           });
         }
       })

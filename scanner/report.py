@@ -52,7 +52,7 @@ from scanner.extract import (
 )
 from scanner.tools.platform_takeover import matching_platform
 from scanner.tranco import tranco_rank
-from scanner.website import extract_website
+from scanner.website import extract_website_scan
 from scanner.llm import CallLog, ModelClient, call_json
 from scanner.lookups import LookupCache, consistent_evidence
 from scanner.models import (
@@ -86,6 +86,8 @@ class ScanOutcome:
     partial: bool = False
     stage_seconds: dict[str, float] = field(default_factory=dict)
     coverage: dict[str, object] = field(default_factory=lambda: empty_coverage().as_dict())
+    file_texts: dict[str, str] = field(default_factory=dict)
+    source_html: str = ""
 
     @property
     def cost_usd(self) -> float:
@@ -277,6 +279,8 @@ def group_by_target(
         for name, value in inv.evidence.items():
             groups[key]["evidence"][name] = value
         groups[key]["evidence"] = consistent_evidence(groups[key]["evidence"])
+        if ref.csp_blocks_external_scripts:
+            groups[key]["evidence"]["csp_blocks_external_scripts"] = True
     return [groups[key] for key in order]
 
 
@@ -752,6 +756,7 @@ def _reference_locations(group: dict[str, Any]) -> list[dict[str, Any]]:
                 "raw": ref.raw,
                 "sri": ref.sri,
                 "loaded_by": ref.loaded_by,
+                "runs_in": _cl.runs_in,
             }
         )
     return locations
@@ -1291,10 +1296,15 @@ async def run_scan(
     skipped: list[str] = []
     origin_owner = ""
     origin_repo = ""
+    file_texts: dict[str, str] = {}
+    source_html = ""
     clock.begin_stage("extract")
     if is_website_source(source):
-        refs = await extract_website(source)
+        extracted_web = await extract_website_scan(source)
+        refs = extracted_web.references
         coverage = website_coverage().as_dict()
+        source_html = extracted_web.html
+        file_texts["index.html"] = extracted_web.html
     else:
         # Cloning and reading a repository blocks; keep it off the event loop so
         # the scan's own SSE stream keeps flowing while it runs.
@@ -1303,6 +1313,7 @@ async def run_scan(
         coverage = extracted.coverage.as_dict()
         origin_owner = extracted.github_owner
         origin_repo = extracted.github_repo
+        file_texts = dict(extracted.file_texts)
     actionable = sum(1 for item in refs if item.filter_reason is None)
     emit(
         on_event,
@@ -1424,6 +1435,8 @@ async def run_scan(
         partial=bool(unique_skipped),
         stage_seconds=dict(clock.stage_seconds),
         coverage=coverage,
+        file_texts=file_texts,
+        source_html=source_html,
     )
 
 

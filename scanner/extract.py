@@ -5,7 +5,7 @@ import os
 import re
 import subprocess
 import tempfile
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -164,6 +164,7 @@ class ExtractResult:
     coverage: Coverage
     github_owner: str = ""
     github_repo: str = ""
+    file_texts: dict[str, str] = field(default_factory=dict)
 
 
 def _scan_file_cap() -> int:
@@ -287,6 +288,7 @@ def _github_origin(root: Path) -> tuple[str, str] | None:
 
 def _extract_dir(root: Path) -> ExtractResult:
     found: dict[tuple[str, str, int], Reference] = {}
+    texts: dict[str, str] = {}
     candidates = _candidate_files(root)
     files_total = len(candidates)
     file_cap = _scan_file_cap()
@@ -318,8 +320,10 @@ def _extract_dir(root: Path) -> ExtractResult:
             continue
         used_bytes += size
         scanned += 1
+        texts[rel] = text
         _scan_text(rel, text, found)
     refs = sorted(found.values(), key=lambda ref: (ref.file, ref.line, ref.raw))
+    needed = {ref.file for ref in refs}
     return ExtractResult(
         references=refs,
         coverage=Coverage(
@@ -328,6 +332,7 @@ def _extract_dir(root: Path) -> ExtractResult:
             truncated=truncated,
             reason=reason,
         ),
+        file_texts={name: texts[name] for name in needed if name in texts},
     )
 
 

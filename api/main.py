@@ -11,13 +11,14 @@ from typing import Any, Literal
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 import ipaddress
 
 from api.classify_target import TargetError, classify_target
+from api.fix_api import demo_file_texts, findings_from_public, plan_for, plan_to_dict
 from api.demo import demo_report, demo_waits_ms, load_demo
 from api.jobs import Job, JobStore
 from api.limits import LimitsStore, client_ip
@@ -160,6 +161,25 @@ def create_app(
 
         return StreamingResponse(gen(), media_type="text/event-stream")
 
+    @app.get("/api/scan/demo/fix")
+    def demo_fix() -> dict[str, Any]:
+        report = demo_report()
+        plan = plan_for(
+            findings_from_public(report.get("findings") or []),
+            demo_file_texts(),
+            client=None,
+        )
+        return plan_to_dict(plan)
+
+    @app.get("/api/scan/demo/fix.patch")
+    def demo_fix_patch() -> PlainTextResponse:
+        payload = demo_fix()
+        return PlainTextResponse(
+            payload.get("patch") or "",
+            media_type="text/x-diff",
+            headers={"Content-Disposition": 'attachment; filename="tether.patch"'},
+        )
+
     def live_ready() -> bool:
         if model_client is not None:
             return True
@@ -262,6 +282,26 @@ def create_app(
             )
         assert job.report is not None
         return job.report
+
+    @app.get("/api/scan/{scan_id}/fix")
+    def scan_fix(scan_id: str) -> dict[str, Any]:
+        job = store.get(scan_id)
+        if job is None or job.status != "done":
+            raise HTTPException(status_code=404, detail="unknown scan")
+        findings = job.findings_models or findings_from_public(
+            (job.report or {}).get("findings") or []
+        )
+        plan = plan_for(findings, job.file_texts, client=client())
+        return plan_to_dict(plan)
+
+    @app.get("/api/scan/{scan_id}/fix.patch")
+    def scan_fix_patch(scan_id: str) -> PlainTextResponse:
+        payload = scan_fix(scan_id)
+        return PlainTextResponse(
+            payload.get("patch") or "",
+            media_type="text/x-diff",
+            headers={"Content-Disposition": 'attachment; filename="tether.patch"'},
+        )
 
     return app
 

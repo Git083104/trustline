@@ -156,6 +156,41 @@ def _same_origin(page_url: str, candidate: str) -> bool:
         return False
 
 
+def parse_csp(content: str) -> dict[str, list[str]]:
+    directives: dict[str, list[str]] = {}
+    for part in content.split(";"):
+        tokens = part.split()
+        if not tokens:
+            continue
+        directives[tokens[0].lower()] = tokens[1:]
+    return directives
+
+
+def csp_blocks_external_scripts(content: str) -> bool:
+    directives = parse_csp(content)
+    src = directives.get("script-src") or directives.get("default-src") or []
+    if not src:
+        return False
+    for token in src:
+        low = token.lower()
+        if low in {"'self'", "self", "'none'", "none"}:
+            continue
+        if low.startswith("'nonce-") or low.startswith("'sha256-") or low.startswith(
+            "'sha384-"
+        ) or low.startswith("'sha512-"):
+            continue
+        return False
+    return True
+
+
+@dataclass
+class WebsiteScan:
+    references: list[Reference]
+    html: str
+    url: str
+    csp_blocks_external_scripts: bool = False
+
+
 class _PageParser(HTMLParser):
     def __init__(self, page_url: str) -> None:
         super().__init__(convert_charrefs=True)
@@ -163,10 +198,14 @@ class _PageParser(HTMLParser):
         self.hits: list[_TagHit] = []
         self._script_open: tuple[int, dict[str, str]] | None = None
         self.same_site_scripts: list[str] = []
+        self.csp = ""
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         line, _col = self.getpos()
         adict = {k.lower(): (v or "") for k, v in attrs}
+        if tag == "meta" and adict.get("http-equiv", "").lower() == "content-security-policy":
+            self.csp = adict.get("content", "")
+            return
         if tag == "script":
             self._script_open = (line, adict)
             src = adict.get("src")
@@ -260,6 +299,16 @@ async def extract_website(
     resolve: ResolveFn | None = None,
     send: SendFn | None = None,
 ) -> list[Reference]:
+    return (await extract_website_scan(url, allow_local=allow_local, resolve=resolve, send=send)).references
+
+
+async def extract_website_scan(
+    url: str,
+    *,
+    allow_local: bool | None = None,
+    resolve: ResolveFn | None = None,
+    send: SendFn | None = None,
+) -> WebsiteScan:
     page = await safe_get(
         url,
         max_bytes=PAGE_MAX_BYTES,
@@ -270,6 +319,7 @@ async def extract_website(
     parser = _PageParser(page.url)
     parser.feed(page.body)
     parser.close()
+    blocks = csp_blocks_external_scripts(parser.csp)
     found: dict[tuple[str, str, int], Reference] = {}
     for hit in parser.hits:
         ref = _reference_from_hit(
@@ -277,6 +327,8 @@ async def extract_website(
         )
         if ref is None:
             continue
+        if blocks:
+            ref = ref.model_copy(update={"csp_blocks_external_scripts": True})
         key = (ref.host_or_bucket, ref.file, ref.line)
         found.setdefault(key, ref)
 
@@ -310,7 +362,15 @@ async def extract_website(
                 )
                 if ref is None:
                     continue
+                if blocks:
+                    ref = ref.model_copy(update={"csp_blocks_external_scripts": True})
                 key = (ref.host_or_bucket, ref.file, ref.line)
                 found.setdefault(key, ref)
 
-    return sorted(found.values(), key=lambda item: (item.file, item.line, item.raw))
+    refs = sorted(found.values(), key=lambda item: (item.file, item.line, item.raw))
+    return WebsiteScan(
+        references=refs,
+        html=page.body,
+        url=page.url,
+        csp_blocks_external_scripts=blocks,
+    )

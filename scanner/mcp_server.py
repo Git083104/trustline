@@ -16,6 +16,12 @@ READONLY = ToolAnnotations(
     idempotentHint=True,
     openWorldHint=True,
 )
+CONFIRM = ToolAnnotations(
+    readOnlyHint=False,
+    destructiveHint=False,
+    idempotentHint=False,
+    openWorldHint=True,
+)
 
 
 def create_server(
@@ -87,6 +93,33 @@ def create_server(
             )
         return {"findings": [finding_public(item) for item in findings]}
 
+    async def propose_fix(path: str) -> dict[str, Any]:
+        """Build a Tether patch for a local repo. Does not push. Needs confirmation to apply."""
+        from scanner.extract import extract_scan
+        from scanner.fix import propose_fixes, write_pr_copy
+
+        extracted = extract_scan(path)
+        if scan_fn is not None:
+            findings = await scan_fn(path)
+        else:
+            from scanner.llm import LiveModelClient
+            from scanner.report import scan as run_scan
+
+            findings = await run_scan(
+                path,
+                client=client or LiveModelClient(),
+                cache=cache,
+                ctx=ctx,
+            )
+        plan = propose_fixes(findings, extracted.file_texts)
+        title, body = write_pr_copy(plan, findings, client=client)
+        return {
+            "title": title,
+            "body": body,
+            "patch": plan.patch,
+            "edits": [edit.__dict__ for edit in plan.edits],
+        }
+
     for fn in (
         dns,
         rdap,
@@ -99,6 +132,7 @@ def create_server(
         scan,
     ):
         mcp.add_tool(fn, annotations=READONLY)
+    mcp.add_tool(propose_fix, annotations=CONFIRM)
     return mcp
 
 
