@@ -55,5 +55,6 @@ def test_finding_public_fields():
         "tranco_rank",
         "action_ref",
         "action_sha_pinned",
+        "evidence_level",
     ):
         assert key in public

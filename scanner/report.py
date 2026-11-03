@@ -9,11 +9,20 @@ from typing import Any
 from scanner.agent import investigate, should_investigate, tranco_checked_safe
 from scanner.classify import classify
 from scanner.deadline import ScanClock
+from scanner.ownership import (
+    attach_changed_hands,
+    is_proven_ownership,
+    likely_risk,
+    ownership_claim_without_fact,
+    reregistered_risk,
+    supporting_facts,
+)
 from dataclasses import dataclass, field
 
 from scanner.config import (
     EXPIRY_INVESTIGATE_DAYS,
     LLM_MAX_RETRIES,
+    OWNERSHIP_BLAME_BUDGET_S,
     RANK_CONCURRENCY,
     RANK_MODEL,
     RANK_REASONING_EFFORT,
@@ -378,6 +387,10 @@ def skip_model_rank(group: dict[str, Any]) -> bool:
         return True
     if is_claimable(evidence):
         return True
+    if is_proven_ownership(evidence):
+        return True
+    if supporting_facts(evidence) and not is_claimable(evidence):
+        return True
     repo = evidence.get("github_repo") or {}
     return str(repo.get("status", "")).lower() == "missing"
 
@@ -387,6 +400,10 @@ def template_risk(group: dict[str, Any]) -> str:
     floor, why = floor_decision(group)
     if why:
         return f"{line} {why}".strip()
+    if finding_evidence_level(group) == "likely":
+        return likely_risk(group)
+    if is_proven_ownership(group.get("evidence") or {}):
+        return f"{line} {reregistered_risk(group)}".strip()
     if skip_model_rank(group):
         return f"{line} Claimable or listed as compromised; no model rank.".strip()
     return f"{line} Ranking skipped; using lookup facts.".strip()
@@ -434,7 +451,9 @@ def has_risk_signal(evidence: dict[str, Any]) -> bool:
     if isinstance(days, int) and days <= EXPIRY_INVESTIGATE_DAYS:
         return True
     live = usable.get("live_fetch") or {}
-    return bool(live.get("parked") or live.get("for_sale"))
+    if live.get("parked") or live.get("for_sale"):
+        return True
+    return is_proven_ownership(evidence) or bool(supporting_facts(evidence))
 
 
 def _browser_script_rows(
@@ -636,6 +655,15 @@ def evidence_line(group: dict[str, Any], *, include_runs_in: bool = True) -> str
         parts.append("SRI missing")
     elif True in sri_values:
         parts.append("SRI present")
+    hands = usable.get("changed_hands") or {}
+    if hands.get("reregistered_after_reference"):
+        parts.append(
+            f"registered {hands.get('registration_date')} after reference "
+            f"{hands.get('reference_date')}"
+        )
+    elif hands.get("reference_date"):
+        src = hands.get("reference_source") or "blame"
+        parts.append(f"{src} {hands.get('reference_date')}")
     certs = usable.get("cert_history") or {}
     if str(certs.get("status", "")).lower() == "ok":
         issuers = certs.get("issuers") or []
@@ -698,6 +726,19 @@ def _reference_locations(group: dict[str, Any]) -> list[dict[str, Any]]:
     return locations
 
 
+def finding_evidence_level(group: dict[str, Any]) -> str:
+    evidence = group.get("evidence") or {}
+    rows = group.get("rows") or []
+    ref0 = rows[0][0] if rows else None
+    if is_claimable(evidence) or is_proven_ownership(evidence):
+        return "proven"
+    if ref0 is not None and _group_compromised(group) in {"compromised", "associated"}:
+        return "proven"
+    if supporting_facts(evidence):
+        return "likely"
+    return ""
+
+
 def floor_severity(group: dict[str, Any]) -> str | None:
     level, _reason = floor_decision(group)
     return level
@@ -755,6 +796,8 @@ def floor_decision(group: dict[str, Any]) -> tuple[str | None, str]:
         )
     if str(rdap.get("status", "")).lower() == "unregistered":
         return _claimable_now_floor(group, "RDAP unregistered", where)
+    if is_proven_ownership(evidence):
+        return _claimable_now_floor(group, "registered after the reference", where)
     live = evidence.get("live_fetch") or {}
     for_sale = bool(live.get("for_sale"))
     parked = bool(live.get("parked"))
@@ -936,6 +979,8 @@ def _rank_group(
             problems.append(f"banned field names: {banned}")
         if unknown:
             problems.append(f"unknown lookups cited: {unknown}")
+        if ownership_claim_without_fact(parsed.risk, group["evidence"]):
+            problems.append("ownership change claimed without a code fact")
         if problems:
             raise ValueError("; ".join(problems))
 
@@ -1021,6 +1066,12 @@ def _finding_from_rank(
         model_fix = parsed.fix
         uncertain = parsed.uncertain_about
     uncertain = _github_owner_note(uncertain, evidence)
+    level = finding_evidence_level(group)
+    if level == "likely":
+        risk = likely_risk(group)
+        model_severity = "medium"
+    elif level == "proven" and is_proven_ownership(evidence) and not is_claimable(evidence):
+        risk = reregistered_risk(group)
     final, raised = apply_floor(model_severity, floor)
     floor_reason = floor_why if raised else ""
     action_ref = ""
@@ -1052,6 +1103,7 @@ def _finding_from_rank(
         locations=_reference_locations(group),
         action_ref=action_ref,
         action_sha_pinned=action_sha_pinned,
+        evidence_level=level,
     )
 
 
@@ -1093,6 +1145,8 @@ async def run_scan(
 ) -> ScanOutcome:
     clock = clock or ScanClock()
     skipped: list[str] = []
+    origin_owner = ""
+    origin_repo = ""
     clock.begin_stage("extract")
     if is_website_source(source):
         refs = await extract_website(source)
@@ -1103,6 +1157,8 @@ async def run_scan(
         extracted = await asyncio.to_thread(extract_scan, source)
         refs = extracted.references
         coverage = extracted.coverage.as_dict()
+        origin_owner = extracted.github_owner
+        origin_repo = extracted.github_repo
     actionable = sum(1 for item in refs if item.filter_reason is None)
     emit(
         on_event,
@@ -1157,6 +1213,14 @@ async def run_scan(
         ]
     rank_logs: list[CallLog] = []
     clock.begin_stage("rank")
+    budget = min(OWNERSHIP_BLAME_BUDGET_S, max(0.0, clock.remaining_total()))
+    await attach_changed_hands(
+        rows,
+        github_owner=origin_owner,
+        github_repo=origin_repo,
+        ctx=ctx,
+        budget_s=budget,
+    )
     findings = await asyncio.to_thread(
         rank,
         rows,

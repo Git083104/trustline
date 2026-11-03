@@ -1,0 +1,19 @@
+{
+  "reregistered_after_reference": false,
+  "cert_history": {
+    "status": "ok",
+    "first_issuer_org": "Old CA",
+    "last_issuer_org": "New CA",
+    "max_gap_days": 800
+  },
+  "wayback": {
+    "status": "ok",
+    "first_snapshot": "20100101000000",
+    "last_snapshot": "20240101000000",
+    "first_digest": "aaa",
+    "last_digest": "bbb"
+  },
+  "live_fetch": {
+    "parked": false
+  }
+}

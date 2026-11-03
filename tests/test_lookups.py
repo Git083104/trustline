@@ -318,6 +318,26 @@ async def test_github_owner_missing_with_token(tmp_path, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_github_owner_keeps_created_at(tmp_path, monkeypatch):
+    monkeypatch.setenv("GITHUB_TOKEN", "ghs_testtoken_not_a_secret_value")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={"type": "Organization", "created_at": "2024-03-01T12:00:00Z"},
+        )
+
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(handler), follow_redirects=False
+    ) as client:
+        result = await github_owner(
+            "new-org", client=client, cache=LookupCache(tmp_path / "g.db")
+        )
+    assert result.status == "exists"
+    assert result.created_at == date(2024, 3, 1)
+
+
+@pytest.mark.asyncio
 async def test_github_repo_missing_with_token(tmp_path, monkeypatch):
     monkeypatch.setenv("GITHUB_TOKEN", "ghs_testtoken_not_a_secret_value")
 

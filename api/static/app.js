@@ -805,6 +805,11 @@
     top.appendChild(sev);
     top.appendChild(make("span", "finding-target", item.target));
     if (item.kind) { top.appendChild(make("span", "finding-type", item.kind)); }
+    if (item.evidence_level === "proven") {
+      top.appendChild(make("span", "finding-where", "Proven"));
+    } else if (item.evidence_level === "likely") {
+      top.appendChild(make("span", "finding-where", "Likely changed hands"));
+    }
     var where = whereUsed(item);
     if (where) { top.appendChild(make("span", "finding-where", where)); }
     main.appendChild(top);

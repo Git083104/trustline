@@ -27,8 +27,12 @@ class RdapResult(BaseModel):
     domain: str
     status: str
     registrar: str | None = None
+    registered: date | None = None
     expiry: date | None = None
     days_to_expiry: int | None = None
+    last_changed: date | None = None
+    transfer: date | None = None
+    nameservers: list[str] = Field(default_factory=list)
     statuses: list[str] = Field(default_factory=list)
 
 
@@ -73,6 +77,7 @@ class GithubOwnerResult(BaseModel):
     status: str
     exists: bool | None = None
     kind: str | None = None
+    created_at: date | None = None
     http_status: int | None = None
 
 
@@ -90,6 +95,9 @@ class CertHistoryResult(BaseModel):
     issuers: list[str] = Field(default_factory=list)
     first_seen: date | None = None
     last_seen: date | None = None
+    first_issuer_org: str = ""
+    last_issuer_org: str = ""
+    max_gap_days: int | None = None
 
 
 class WaybackResult(BaseModel):
@@ -202,3 +210,4 @@ class Finding(BaseModel):
     locations: list[dict[str, Any]] = Field(default_factory=list)
     action_ref: str = ""
     action_sha_pinned: bool | None = None
+    evidence_level: Literal["proven", "likely", ""] = ""

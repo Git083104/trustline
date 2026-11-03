@@ -142,6 +142,8 @@ Extra finding fields:
 - `evidence.live_fetch`: `final_url`, `http_status`, `redirect_chain`, `title`, `parked`, `for_sale`, `signal`
 - `action_ref` / `action_sha_pinned`: GitHub Actions `uses:` pin (full 40-char SHA or not)
 - `evidence.github_repo`: `exists` / `missing` for `owner/repo` actions
+- `evidence_level`: `proven` (claimable now, `reregistered_after_reference`, or compromised list) or `likely` (only supporting signals). Empty when neither applies. Floors use proven facts only.
+- `evidence.changed_hands`: code-produced dates. `reregistered_after_reference` is true when RDAP registration or GitHub `created_at` is newer than the line's blame date (or `file existed since` from the commits API). `supporting` may list RDAP transfer/last-changed, nameserver drift, a CT gap then a new issuer org, or Wayback content that flipped. The model cannot assert an ownership change without one of these facts.
 
 Website findings put page locations in `references` (`page_url`, `tag`, `attribute`,
 `line`, `sri`, `raw`) instead of `file:line`.

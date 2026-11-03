@@ -42,6 +42,7 @@ def finding_public(item: Finding) -> dict[str, Any]:
         "live_signal": live.get("signal"),
         "action_ref": item.action_ref,
         "action_sha_pinned": item.action_sha_pinned,
+        "evidence_level": item.evidence_level,
         "references": item.locations or item.references,
         "cost_usd": item.cost_usd,
     }

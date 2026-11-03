@@ -162,6 +162,8 @@ class Coverage:
 class ExtractResult:
     references: list[Reference]
     coverage: Coverage
+    github_owner: str = ""
+    github_repo: str = ""
 
 
 def _scan_file_cap() -> int:
@@ -213,11 +215,19 @@ def extract(source: str, *, clone_github=None) -> list[Reference]:
 def extract_scan(source: str, *, clone_github=None) -> ExtractResult:
     path = Path(source)
     if path.exists():
-        return _extract_dir(path.resolve())
-    if GITHUB_RE.match(source.strip()):
+        result = _extract_dir(path.resolve())
+        origin = _github_origin(path.resolve())
+        if origin:
+            result.github_owner, result.github_repo = origin
+        return result
+    match = GITHUB_RE.match(source.strip())
+    if match:
         cloner = clone_github or _clone_github
         with tempfile.TemporaryDirectory() as tmp:
-            return _extract_dir(cloner(source.strip(), Path(tmp)))
+            result = _extract_dir(cloner(source.strip(), Path(tmp)))
+            result.github_owner = match.group(1)
+            result.github_repo = match.group(2)
+            return result
     raise FileNotFoundError(f"not a local path or GitHub URL: {source}")
 
 
@@ -251,6 +261,26 @@ def _clone_github(url: str, dest_parent: Path) -> Path:
             f"{owner}/{repo} could not be downloaded; it may be private or renamed"
         ) from exc
     return dest
+
+
+def _github_origin(root: Path) -> tuple[str, str] | None:
+    try:
+        completed = subprocess.run(
+            ["git", "-C", str(root), "remote", "get-url", "origin"],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return None
+    remote = (completed.stdout or "").strip()
+    match = GITHUB_RE.match(remote) or GITHUB_RE.match(
+        remote.replace("git@github.com:", "https://github.com/")
+    )
+    if not match:
+        return None
+    return match.group(1), match.group(2)
 
 
 def _extract_dir(root: Path) -> ExtractResult:

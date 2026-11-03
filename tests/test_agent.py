@@ -12,6 +12,7 @@ from scanner.llm import FakeModelClient
 from scanner.lookups import LookupCache
 from scanner.models import (
     BucketProbeResult,
+    CertHistoryResult,
     Classification,
     DnsResult,
     GithubOwnerResult,
@@ -19,6 +20,7 @@ from scanner.models import (
     PlatformTakeoverResult,
     RdapResult,
     Reference,
+    WaybackResult,
 )
 from scanner.tools import ToolContext
 
@@ -94,6 +96,15 @@ def _ctx(tmp_path, **impls) -> ToolContext:
             http_status=404 if missing else 200,
         )
 
+    async def fake_certs(domain, cache=None, **kwargs):
+        return CertHistoryResult(domain=domain, status="unavailable")
+
+    async def fake_wayback(url, cache=None, **kwargs):
+        return WaybackResult(url=url, status="unavailable")
+
+    async def fake_blame(owner, repo, path, line, cache=None, **kwargs):
+        return {"status": "unavailable"}
+
     return ToolContext(
         cache=LookupCache(tmp_path / "c.db"),
         dns=impls.get("dns", fake_dns),
@@ -103,6 +114,9 @@ def _ctx(tmp_path, **impls) -> ToolContext:
         github_owner=impls.get("github_owner", fake_github_owner),
         github_repo=impls.get("github_repo", fake_github_repo),
         nameservers=impls.get("nameservers", fake_nameservers),
+        cert_history=impls.get("cert_history", fake_certs),
+        wayback=impls.get("wayback", fake_wayback),
+        line_first_seen=impls.get("line_first_seen", fake_blame),
         fetch=impls.get("fetch"),
     )
 

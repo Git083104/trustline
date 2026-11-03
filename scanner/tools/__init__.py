@@ -9,6 +9,7 @@ from scanner.lookups import (
     dns as lookup_dns,
     github_owner as lookup_github_owner,
     github_repo as lookup_github_repo,
+    line_first_seen as lookup_line_first_seen,
     nameservers as lookup_nameservers,
     platform_takeover as lookup_platform,
     rdap as lookup_rdap,
@@ -51,6 +52,7 @@ class ToolContext:
     github_owner: Callable = lookup_github_owner
     github_repo: Callable = lookup_github_repo
     nameservers: Callable = lookup_nameservers
+    line_first_seen: Callable = lookup_line_first_seen
     fetch: Callable | None = None
 
 

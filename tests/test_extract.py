@@ -274,3 +274,17 @@ def test_clone_timeout_names_the_limit(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(subprocess, "run", slow)
     with pytest.raises(CloneError, match=str(GITHUB_CLONE_TIMEOUT_S)):
         _clone_github("https://github.com/acme/widgets", tmp_path)
+
+
+def test_extract_records_github_origin_from_remote(tmp_path: Path):
+    subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "remote", "add", "origin", "https://github.com/acme/widgets.git"],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+    )
+    (tmp_path / "app.py").write_text('URL = "https://kept.example.net/v1"\n')
+    result = extract_scan(str(tmp_path))
+    assert result.github_owner == "acme"
+    assert result.github_repo == "widgets"

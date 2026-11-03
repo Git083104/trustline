@@ -1,0 +1,13 @@
+{
+  "reference_date": "2018-04-01",
+  "reference_source": "blame",
+  "registration_date": "2024-02-10",
+  "reregistered_after_reference": true,
+  "rdap": {
+    "status": "registered",
+    "registered": "2024-02-10",
+    "transfer": "2024-02-11",
+    "last_changed": "2024-02-12",
+    "nameservers": ["ns1.takeover.example"]
+  }
+}

@@ -109,6 +109,8 @@ EVAL_TARGET_CAP = 25
 EVAL_SAMPLE_SEED = 42
 EVAL_LOOKUP_CONCURRENCY = 10
 EXPIRY_INVESTIGATE_DAYS = 90
+OWNERSHIP_BLAME_BUDGET_S = 10.0
+CT_GAP_DAYS = 365
 # USD per million tokens
 MODEL_PRICES: dict[str, dict[str, float]] = {
     "muse-spark-1.3": {"input": 1.25, "output": 4.25},

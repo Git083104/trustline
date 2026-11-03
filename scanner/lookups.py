@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import sqlite3
 import time
 from datetime import date, datetime, timezone
@@ -231,7 +232,7 @@ def _rdap_bases_for(domain: str, bootstrap: dict[str, Any]) -> list[str]:
 def _parse_rdap(domain: str, payload: dict[str, Any]) -> RdapResult:
     statuses = [str(s) for s in payload.get("status") or []]
     registrar = _rdap_registrar(payload)
-    expiry = _rdap_expiry(payload)
+    expiry = _rdap_event_date(payload, "expiration")
     days = None
     if expiry is not None:
         days = (expiry - datetime.now(timezone.utc).date()).days
@@ -239,8 +240,14 @@ def _parse_rdap(domain: str, payload: dict[str, Any]) -> RdapResult:
         domain=domain,
         status="registered",
         registrar=registrar,
+        registered=_rdap_event_date(payload, "registration")
+        or _rdap_event_date(payload, "reregistration"),
         expiry=expiry,
         days_to_expiry=days,
+        last_changed=_rdap_event_date(payload, "last changed")
+        or _rdap_event_date(payload, "last update of rdap database"),
+        transfer=_rdap_event_date(payload, "transfer"),
+        nameservers=_rdap_nameservers(payload),
         statuses=statuses,
     )
 
@@ -260,22 +267,33 @@ def _rdap_registrar(payload: dict[str, Any]) -> str | None:
     return None
 
 
-def _rdap_expiry(payload: dict[str, Any]) -> date | None:
+def _rdap_event_date(payload: dict[str, Any], action: str) -> date | None:
+    wanted = action.lower()
     for event in payload.get("events") or []:
-        if str(event.get("eventAction", "")).lower() != "expiration":
+        if str(event.get("eventAction", "")).lower() != wanted:
             continue
+        parsed = _parse_date(event.get("eventDate"))
+        if parsed is not None:
+            return parsed
         raw = event.get("eventDate")
         if not raw:
             continue
         try:
-            parsed = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+            return datetime.fromisoformat(str(raw).replace("Z", "+00:00")).date()
         except ValueError:
-            try:
-                return date.fromisoformat(str(raw)[:10])
-            except ValueError:
-                continue
-        return parsed.date()
+            continue
     return None
+
+
+def _rdap_nameservers(payload: dict[str, Any]) -> list[str]:
+    names: list[str] = []
+    for item in payload.get("nameservers") or []:
+        if not isinstance(item, dict):
+            continue
+        host = item.get("ldhName") or item.get("unicodeName")
+        if host:
+            names.append(str(host).rstrip(".").lower())
+    return names
 
 
 async def dns(
@@ -451,25 +469,35 @@ async def cert_history(
         issuers: list[str] = []
         first: date | None = None
         last: date | None = None
+        dated: list[tuple[date, str]] = []
         if isinstance(rows, list):
             for row in rows:
                 issuer = str(row.get("issuer_name") or "")
                 if issuer and issuer not in issuers:
                     issuers.append(issuer)
-                for field in ("not_before", "entry_timestamp"):
-                    parsed = _parse_date(row.get(field))
-                    if parsed and (first is None or parsed < first):
-                        first = parsed
+                seen = _parse_date(row.get("not_before")) or _parse_date(
+                    row.get("entry_timestamp")
+                )
+                if seen:
+                    dated.append((seen, _issuer_org(issuer)))
+                    if first is None or seen < first:
+                        first = seen
                 for field in ("not_after", "entry_timestamp"):
                     parsed = _parse_date(row.get(field))
                     if parsed and (last is None or parsed > last):
                         last = parsed
+        dated.sort(key=lambda item: item[0])
+        first_org = dated[0][1] if dated else ""
+        last_org = dated[-1][1] if dated else ""
         result = CertHistoryResult(
             domain=domain,
             status="ok",
             issuers=issuers[:8],
             first_seen=first,
             last_seen=last,
+            first_issuer_org=first_org,
+            last_issuer_org=last_org,
+            max_gap_days=_max_cert_gap_days(dated),
         )
     except (httpx.HTTPError, ValueError, TypeError):
         result = CertHistoryResult(domain=domain, status="unavailable")
@@ -478,6 +506,22 @@ async def cert_history(
             await client.aclose()
     cache.set_json(key, result.model_dump(mode="json"))
     return result
+
+
+def _issuer_org(issuer_name: str) -> str:
+    match = re.search(r"\bO\s*=\s*([^,/]+)", issuer_name or "", re.IGNORECASE)
+    if match:
+        return match.group(1).strip()
+    return (issuer_name or "").strip()
+
+
+def _max_cert_gap_days(dated: list[tuple[date, str]]) -> int | None:
+    if len(dated) < 2:
+        return None
+    widest = 0
+    for prev, nxt in zip(dated, dated[1:]):
+        widest = max(widest, (nxt[0] - prev[0]).days)
+    return widest if widest else None
 
 
 def _parse_date(value: Any) -> date | None:
@@ -689,6 +733,7 @@ async def github_owner(
                     status="exists",
                     exists=True,
                     kind=payload.get("type"),
+                    created_at=_parse_date(payload.get("created_at")),
                     http_status=200,
                 )
                 cache.set_json(key, result.model_dump(mode="json"))
@@ -811,3 +856,148 @@ async def nameservers(
         names = []
     cache.set_json(key, names)
     return names
+
+
+BLAME_QUERY = """
+query ($owner: String!, $name: String!, $path: String!) {
+  repository(owner: $owner, name: $name) {
+    object(expression: "HEAD") {
+      ... on Commit {
+        blame(path: $path) {
+          ranges {
+            startingLine
+            endingLine
+            commit { committedDate }
+          }
+        }
+      }
+    }
+  }
+}
+"""
+
+
+async def line_first_seen(
+    owner: str,
+    repo: str,
+    path: str,
+    line: int,
+    *,
+    client: httpx.AsyncClient | None = None,
+    cache: LookupCache | None = None,
+) -> dict[str, Any]:
+    cache = cache or default_cache()
+    key = f"blame:{owner.lower()}/{repo.lower()}:{path}:{line}"
+    hit = cache.get_json(key)
+    if isinstance(hit, dict):
+        return hit
+    token = os.environ.get("GITHUB_TOKEN") or None
+    own_client = client is None
+    client = client or httpx.AsyncClient(timeout=HTTP_TIMEOUT_S, follow_redirects=True)
+    try:
+        result = await _blame_graphql(owner, repo, path, line, client, token)
+        if result is None:
+            result = await _oldest_commit(owner, repo, path, client, token)
+    except httpx.HTTPError:
+        result = {"status": "unavailable"}
+    finally:
+        if own_client:
+            await client.aclose()
+    cache.set_json(key, result)
+    return result
+
+
+async def _blame_graphql(
+    owner: str,
+    repo: str,
+    path: str,
+    line: int,
+    client: httpx.AsyncClient,
+    token: str | None,
+) -> dict[str, Any] | None:
+    if not token:
+        return None
+    response = await client.post(
+        "https://api.github.com/graphql",
+        headers=_github_headers(token),
+        json={
+            "query": BLAME_QUERY,
+            "variables": {"owner": owner, "name": repo, "path": path},
+        },
+    )
+    if response.status_code >= 400:
+        return None
+    try:
+        payload = response.json()
+    except ValueError:
+        return None
+    ranges = (
+        (((payload.get("data") or {}).get("repository") or {}).get("object") or {})
+        .get("blame")
+        or {}
+    ).get("ranges") or []
+    for item in ranges:
+        start = int(item.get("startingLine") or 0)
+        end = int(item.get("endingLine") or 0)
+        if start <= line <= end:
+            commit = item.get("commit") or {}
+            parsed = _parse_date(commit.get("committedDate"))
+            if parsed is None:
+                return None
+            return {
+                "status": "ok",
+                "source": "blame",
+                "date": parsed.isoformat(),
+                "path": path,
+                "line": line,
+            }
+    return None
+
+
+async def _oldest_commit(
+    owner: str,
+    repo: str,
+    path: str,
+    client: httpx.AsyncClient,
+    token: str | None,
+) -> dict[str, Any]:
+    url = f"https://api.github.com/repos/{owner}/{repo}/commits"
+    response = await client.get(
+        url,
+        headers=_github_headers(token),
+        params={"path": path, "per_page": "1"},
+    )
+    if response.status_code >= 400:
+        return {"status": "unavailable"}
+    last = _link_last(response.headers.get("link") or "")
+    if last:
+        response = await client.get(last, headers=_github_headers(token))
+        if response.status_code >= 400:
+            return {"status": "unavailable"}
+    try:
+        rows = response.json()
+    except ValueError:
+        return {"status": "unavailable"}
+    if not isinstance(rows, list) or not rows:
+        return {"status": "unavailable"}
+    commit = rows[-1].get("commit") or {}
+    parsed = _parse_date((commit.get("committer") or {}).get("date") or commit.get("author", {}).get("date"))
+    if parsed is None:
+        return {"status": "unavailable"}
+    return {
+        "status": "ok",
+        "source": "file existed since",
+        "date": parsed.isoformat(),
+        "path": path,
+    }
+
+
+def _link_last(header: str) -> str | None:
+    for part in header.split(","):
+        if 'rel="last"' not in part:
+            continue
+        start = part.find("<")
+        end = part.find(">")
+        if start >= 0 and end > start:
+            return part[start + 1 : end].strip()
+    return None
