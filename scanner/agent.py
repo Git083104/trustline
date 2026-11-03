@@ -8,6 +8,7 @@ from scanner.config import (
     AGENT_MODEL,
     AGENT_REASONING_EFFORT,
     EXPIRY_INVESTIGATE_DAYS,
+    LLM_REQUEST_TIMEOUT_S,
     MAX_AGENT_TOOL_CALLS,
     MAX_INVESTIGATION_CONCURRENCY,
     PRECHECK_CONCURRENCY,
@@ -39,10 +40,13 @@ AGENT_SYSTEM_PROMPT = (
     "You investigate one outside reference for takeover risk. "
     "Code already ran dns and rdap for hosts, bucket_probe for buckets, "
     "github_owner for GitHub accounts, and platform_takeover when a host or CNAME "
-    "matches a listed platform; those results are in the first message. "
+    "matches a listed platform; those results are in the first message and decide "
+    "severity. Confirm those facts. Gather context with live_fetch, cert_history, "
+    "wayback, or ownership tools when useful. "
     "tranco_rank is popularity context only: never use it to lower a claimable-now "
     "or compromised finding. Each turn pick exactly one tool. Call done(summary) "
-    "when finished. Do not invent dates, DNS results, or HTTP statuses."
+    "when finished: say where the reference executes and what an attacker gains if "
+    "they claim it. Do not invent dates, DNS results, or HTTP statuses."
 )
 
 BUDGET_NOTE = "not investigated (budget)"
@@ -203,7 +207,21 @@ async def precheck(
 def should_investigate(ref: Reference, cl: Classification, evidence: dict[str, Any]) -> bool:
     if ref.filter_reason is not None:
         return False
-    return has_hard_signal(evidence) or cl.blast_radius >= 1
+    if tranco_checked_safe(ref, evidence) and not precheck_conclusive(ref, evidence):
+        return False
+    if cl.runs_in == "docs_only" and not precheck_conclusive(ref, evidence):
+        return False
+    if cl.blast_radius == 0 and not precheck_conclusive(ref, evidence):
+        hands = evidence.get("changed_hands") or {}
+        if not hands.get("reregistered_after_reference") and not hands.get("supporting"):
+            return False
+    return (
+        precheck_conclusive(ref, evidence)
+        or has_hard_signal(evidence)
+        or bool((evidence.get("changed_hands") or {}).get("reregistered_after_reference"))
+        or bool((evidence.get("changed_hands") or {}).get("supporting"))
+        or cl.blast_radius >= 1
+    )
 
 
 def _precheck_key(ref: Reference, cl: Classification) -> tuple:
@@ -252,6 +270,8 @@ async def investigate(
     on_event: OnEvent | None = None,
     clock: ScanClock | None = None,
     skipped_hosts: list[str] | None = None,
+    github_owner: str = "",
+    github_repo: str = "",
 ) -> list[Investigation]:
     actionable = [(ref, cl) for ref, cl in pairs if ref.filter_reason is None]
     evidence_by_key = await _precheck_all(actionable, ctx)
@@ -271,7 +291,7 @@ async def investigate(
     eligible: list[tuple[Reference, Classification, dict[str, Any]]] = []
     held: list[Investigation] = []
     for ref, cl, evidence in checked:
-        if tranco_checked_safe(ref, evidence):
+        if tranco_checked_safe(ref, evidence) and not precheck_conclusive(ref, evidence):
             rank = evidence["tranco_rank"]
             held.append(
                 Investigation(
@@ -280,18 +300,6 @@ async def investigate(
                     host_or_bucket=ref.host_or_bucket,
                     status="done",
                     summary=f"Tranco rank {rank}",
-                    evidence=evidence,
-                )
-            )
-            continue
-        if precheck_conclusive(ref, evidence) and should_investigate(ref, cl, evidence):
-            held.append(
-                Investigation(
-                    file=ref.file,
-                    line=ref.line,
-                    host_or_bucket=ref.host_or_bucket,
-                    status="done",
-                    summary=PRECHECK_NOTE,
                     evidence=evidence,
                 )
             )
@@ -331,11 +339,9 @@ async def investigate(
                         other_ref, other_cl, other_ev = eligible[index]
                         results[index] = _deadline_skip(other_ref, other_cl, other_ev)
                         hosts.append(other_ref.host_or_bucket)
-                        if skipped_hosts is not None:
-                            skipped_hosts.append(other_ref.host_or_bucket)
                     clock.note_skip(
                         "agent",
-                        "stage budget exhausted before tool loop",
+                        "stage budget exhausted before tool loop; kept code verdict",
                         hosts,
                     )
                     return
@@ -359,11 +365,23 @@ async def investigate(
             for index in members[1:]:
                 results[index] = share(inv, index)
 
-    coros = [worker(members) for members in groups.values()]
+    def _prio(members: list[int]) -> int:
+        ref, _cl, evidence = eligible[members[0]]
+        if precheck_conclusive(ref, evidence):
+            return 0
+        hands = evidence.get("changed_hands") or {}
+        if hands.get("reregistered_after_reference") or hands.get("supporting"):
+            return 1
+        return 2
+
+    ordered = sorted(groups.values(), key=_prio)
+    coros = [worker(members) for members in ordered]
     if clock is not None:
         left = max(0.05, clock.remaining_stage())
+        # One tool-loop wave so rank still gets a 20s timeout.
+        wave = min(left, LLM_REQUEST_TIMEOUT_S + 2.0)
         try:
-            await asyncio.wait_for(asyncio.gather(*coros), timeout=left)
+            await asyncio.wait_for(asyncio.gather(*coros), timeout=wave)
         except asyncio.TimeoutError:
             hosts = []
             for index, item in enumerate(results):
@@ -372,17 +390,36 @@ async def investigate(
                 other_ref, other_cl, other_ev = eligible[index]
                 results[index] = _deadline_skip(other_ref, other_cl, other_ev)
                 hosts.append(other_ref.host_or_bucket)
-                if skipped_hosts is not None:
-                    skipped_hosts.append(other_ref.host_or_bucket)
             if hosts:
                 clock.note_skip(
                     "agent",
-                    "stage budget exhausted during tool loop",
+                    "stage budget exhausted during tool loop; kept code verdict",
                     hosts,
                 )
     else:
         await asyncio.gather(*coros)
-    return held + [item for item in results if item is not None]
+    out = held + [item for item in results if item is not None]
+    if github_owner or github_repo:
+        from scanner.config import OWNERSHIP_BLAME_BUDGET_S
+        from scanner.ownership import attach_changed_hands
+
+        by_loc = {(item.file, item.line): item for item in out}
+        rows = [
+            (ref, cl, by_loc[(ref.file, ref.line)])
+            for ref, cl, _ in checked
+            if (ref.file, ref.line) in by_loc
+        ]
+        leftover = clock.remaining_stage() if clock is not None else OWNERSHIP_BLAME_BUDGET_S
+        if leftover >= LLM_REQUEST_TIMEOUT_S:
+            await attach_changed_hands(
+                rows,
+                github_owner=github_owner,
+                github_repo=github_repo,
+                ctx=ctx,
+                budget_s=min(OWNERSHIP_BLAME_BUDGET_S, leftover - LLM_REQUEST_TIMEOUT_S + 5),
+            )
+        out = [inv for _ref, _cl, inv in rows]
+    return out
 
 
 async def investigate_one(
@@ -399,15 +436,6 @@ async def investigate_one(
         evidence = await precheck(ref, cl, ctx)
     else:
         evidence = dict(evidence)
-    if precheck_conclusive(ref, evidence):
-        return Investigation(
-            file=ref.file,
-            line=ref.line,
-            host_or_bucket=ref.host_or_bucket,
-            status="done",
-            summary=PRECHECK_NOTE,
-            evidence=evidence,
-        )
 
     messages: list[dict[str, Any]] = [
         {

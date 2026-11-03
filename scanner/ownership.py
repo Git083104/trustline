@@ -95,11 +95,23 @@ def supporting_facts(evidence: dict[str, Any]) -> list[dict[str, Any]]:
 
 def is_proven_ownership(evidence: dict[str, Any]) -> bool:
     hands = evidence.get("changed_hands") or {}
-    return bool(hands.get("reregistered_after_reference"))
+    if not hands.get("reregistered_after_reference"):
+        return False
+    return str(hands.get("reference_source") or "") == "blame"
+
+
+def is_rest_fallback_reregister(evidence: dict[str, Any]) -> bool:
+    hands = evidence.get("changed_hands") or {}
+    if not hands.get("reregistered_after_reference"):
+        return False
+    return str(hands.get("reference_source") or "") == "file existed since"
 
 
 def likely_risk(group: dict[str, Any]) -> str:
-    facts = supporting_facts(group.get("evidence") or {})
+    evidence = group.get("evidence") or {}
+    if is_rest_fallback_reregister(evidence):
+        return reregistered_risk(group, likely=True)
+    facts = supporting_facts(evidence)
     bits = []
     for item in facts:
         name = item.get("fact")
@@ -121,21 +133,41 @@ def likely_risk(group: dict[str, Any]) -> str:
     return f"Likely changed hands. {listed}."
 
 
-def reregistered_risk(group: dict[str, Any]) -> str:
+def reregistered_risk(group: dict[str, Any], *, likely: bool = False) -> str:
     hands = (group.get("evidence") or {}).get("changed_hands") or {}
     ref_d = hands.get("reference_date")
     reg_d = hands.get("registration_date")
-    src = hands.get("reference_source") or "blame"
-    return (
-        f"Registered {reg_d} after the reference ({src} {ref_d})."
+    github = any(
+        is_github_owner_ref(ref) for ref, _cl, _inv in group.get("rows") or []
     )
+    if github:
+        core = f"GitHub account created on {reg_d}, after this line was added on {ref_d}"
+    else:
+        core = f"Registered again on {reg_d}, after this line was added on {ref_d}"
+    if likely:
+        src = hands.get("reference_source") or "file existed since"
+        if src == "file existed since":
+            if github:
+                core = (
+                    f"GitHub account created on {reg_d}, after this file existed since {ref_d}"
+                )
+            else:
+                core = (
+                    f"Registered again on {reg_d}, after this file existed since {ref_d}"
+                )
+        return f"Likely changed hands. {core}."
+    return core + "."
 
 
 def ownership_claim_without_fact(risk: str, evidence: dict[str, Any]) -> bool:
     folded = risk.casefold()
     if not any(phrase in folded for phrase in OWNERSHIP_PHRASES):
         return False
-    if is_proven_ownership(evidence) or supporting_facts(evidence):
+    if (
+        is_proven_ownership(evidence)
+        or is_rest_fallback_reregister(evidence)
+        or supporting_facts(evidence)
+    ):
         return False
     return True
 

@@ -74,7 +74,6 @@ async def test_popular_compromised_domain_stays_critical(tmp_path, monkeypatch):
         client=FakeModelClient(tool_handler=tool_handler),
         ctx=_ctx(tmp_path),
     )
-    assert agent_calls["n"] == 0
     evidence = results[0].evidence
     evidence["tranco_rank"] = 50
     group = {

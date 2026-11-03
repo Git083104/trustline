@@ -13,6 +13,7 @@ from scanner.deadline import ScanClock
 from scanner.ownership import (
     attach_changed_hands,
     is_proven_ownership,
+    is_rest_fallback_reregister,
     likely_risk,
     ownership_claim_without_fact,
     reregistered_risk,
@@ -23,6 +24,7 @@ from dataclasses import dataclass, field
 from scanner.config import (
     EXPIRY_INVESTIGATE_DAYS,
     LLM_MAX_RETRIES,
+    LLM_REQUEST_TIMEOUT_S,
     OWNERSHIP_BLAME_BUDGET_S,
     RANK_CONCURRENCY,
     RANK_MODEL,
@@ -76,6 +78,8 @@ class ScanOutcome:
     skip_reasons: list[str] = field(default_factory=list)
     classify_rule_n: int = 0
     classify_model_n: int = 0
+    agent_runs: int = 0
+    agent_tool_calls: int = 0
     partial: bool = False
     stage_seconds: dict[str, float] = field(default_factory=dict)
     coverage: dict[str, object] = field(default_factory=lambda: empty_coverage().as_dict())
@@ -187,6 +191,7 @@ RANK_SYSTEM_PROMPT = (
     "You rank takeover risk for one outside target (a bucket or a registrable domain). "
     "Use only the supplied classification and evidence. Do not invent dates, DNS results, "
     "HTTP statuses, or counts. "
+    "Code applies severity floors from those facts; you write the explanation. "
     "risk is 1-2 plain-English sentences for a developer: what a stranger could do and "
     "where it lands in the repo. Do not use field names such as rdap, runs_in, "
     "blast_radius, or status. "
@@ -389,19 +394,23 @@ def is_claimable(evidence: dict[str, Any]) -> bool:
 def skip_model_rank(group: dict[str, Any]) -> bool:
     evidence = group["evidence"]
     ref0 = group["rows"][0][0]
-    if compromised_status(ref0.host_or_bucket, ref0.domain):
+    cl0 = group["rows"][0][1]
+    if (
+        is_claimable(evidence)
+        or is_proven_ownership(evidence)
+        or is_rest_fallback_reregister(evidence)
+        or supporting_facts(evidence)
+        or floor_decision(group)[0] is not None
+    ):
+        return False
+    if tranco_checked_safe(ref0, evidence):
         return True
-    if is_claimable(evidence):
-        return True
-    if is_proven_ownership(evidence):
+    if cl0.runs_in == "docs_only":
         return True
     repo = evidence.get("github_repo") or {}
-    repo_status = str(repo.get("status", "")).lower()
-    if repo_status == "missing":
+    if str(repo.get("status", "")).lower() == "exists" and is_github_action_ref(ref0):
         return True
-    if repo_status == "exists" and is_github_action_ref(ref0):
-        return True
-    return tranco_checked_safe(ref0, evidence)
+    return False
 
 
 def template_risk(group: dict[str, Any]) -> str:
@@ -743,7 +752,7 @@ def finding_evidence_level(group: dict[str, Any]) -> str:
         return "proven"
     if ref0 is not None and _group_compromised(group) in {"compromised", "associated"}:
         return "proven"
-    if supporting_facts(evidence):
+    if is_rest_fallback_reregister(evidence) or supporting_facts(evidence):
         return "likely"
     return ""
 
@@ -901,15 +910,30 @@ def rank(
     def rank_one(index: int) -> None:
         group = groups[index]
         known = skip_model_rank(group)
-        if not known and clock is not None and clock.expired():
+        code_backed = (
+            known
+            or is_claimable(group["evidence"])
+            or is_proven_ownership(group["evidence"])
+            or is_rest_fallback_reregister(group["evidence"])
+            or supporting_facts(group["evidence"])
+            or floor_decision(group)[0] is not None
+        )
+        if not known and clock is not None and clock.remaining_stage() < LLM_REQUEST_TIMEOUT_S:
             finding = _template_finding(group, deadline=True)
-            if skipped is not None:
-                skipped.append(group["target"])
-            clock.note_skip(
-                "rank",
-                "stage budget exhausted before model call",
-                [group["target"]],
-            )
+            if not code_backed:
+                if skipped is not None:
+                    skipped.append(group["target"])
+                clock.note_skip(
+                    "rank",
+                    "stage budget exhausted before model call",
+                    [group["target"]],
+                )
+            elif clock is not None:
+                clock.note_skip(
+                    "rank",
+                    "stage budget exhausted; kept code verdict",
+                    [group["target"]],
+                )
         else:
             timeout_s = (
                 None if known else (clock.request_timeout() if clock is not None else None)
@@ -924,12 +948,19 @@ def rank(
                 )
             except TimeoutError:
                 finding = _template_finding(group, deadline=True)
-                if skipped is not None:
-                    skipped.append(group["target"])
-                if clock is not None:
+                if not code_backed:
+                    if skipped is not None:
+                        skipped.append(group["target"])
+                    if clock is not None:
+                        clock.note_skip(
+                            "rank",
+                            f"model call exceeded {timeout_s}s timeout",
+                            [group["target"]],
+                        )
+                elif clock is not None:
                     clock.note_skip(
                         "rank",
-                        f"model call exceeded {timeout_s}s timeout",
+                        f"model call exceeded {timeout_s}s; kept code verdict",
                         [group["target"]],
                     )
         results[index] = finding
@@ -1083,11 +1114,12 @@ def _finding_from_rank(
         uncertain = parsed.uncertain_about
     uncertain = _github_owner_note(uncertain, evidence)
     level = finding_evidence_level(group)
-    if parsed is None and level == "likely":
-        risk = likely_risk(group)
-        model_severity = "medium"
-    elif level == "proven" and is_proven_ownership(evidence) and not is_claimable(evidence):
-        risk = reregistered_risk(group)
+    if parsed is None:
+        if level == "likely":
+            risk = likely_risk(group)
+            model_severity = "medium"
+        elif level == "proven" and is_proven_ownership(evidence) and not is_claimable(evidence):
+            risk = reregistered_risk(group)
     final, raised = apply_floor(model_severity, floor)
     floor_reason = floor_why if raised else ""
     action_ref = ""
@@ -1220,6 +1252,8 @@ async def run_scan(
             on_event=on_event,
             clock=clock,
             skipped_hosts=skipped,
+            github_owner=origin_owner,
+            github_repo=origin_repo,
         )
         inv_by_loc = {(item.file, item.line): item for item in investigations}
         rows = [
@@ -1228,17 +1262,18 @@ async def run_scan(
             if (ref.file, ref.line) in inv_by_loc
         ]
     rank_logs: list[CallLog] = []
-    # Blame is investigation, not ranking. Keep it on the agent clock so unused
-    # classify/agent time can pay for it without starving the rank wave.
-    blame_left = clock.remaining_stage() if clock.stage == "agent" else clock.remaining_total()
-    budget = min(OWNERSHIP_BLAME_BUDGET_S, max(0.0, blame_left))
-    await attach_changed_hands(
-        rows,
-        github_owner=origin_owner,
-        github_repo=origin_repo,
-        ctx=ctx,
-        budget_s=budget,
-    )
+    if cached_rows is not None:
+        blame_left = (
+            clock.remaining_stage() if clock.stage == "agent" else clock.remaining_total()
+        )
+        budget = min(OWNERSHIP_BLAME_BUDGET_S, max(0.0, blame_left))
+        await attach_changed_hands(
+            rows,
+            github_owner=origin_owner,
+            github_repo=origin_repo,
+            ctx=ctx,
+            budget_s=budget,
+        )
     clock.begin_stage("rank")
     findings = await asyncio.to_thread(
         rank,
@@ -1270,6 +1305,10 @@ async def run_scan(
         clock.classify_rule_n,
         clock.classify_model_n,
     )
+    agent_runs = sum(1 for item in investigations if item.trace)
+    agent_tool_calls = sum(
+        1 for item in investigations for event in item.trace if event.kind == "act"
+    )
     return ScanOutcome(
         findings=findings,
         investigations=investigations,
@@ -1281,6 +1320,8 @@ async def run_scan(
         skip_reasons=list(clock.skip_events),
         classify_rule_n=clock.classify_rule_n,
         classify_model_n=clock.classify_model_n,
+        agent_runs=agent_runs,
+        agent_tool_calls=agent_tool_calls,
         partial=bool(unique_skipped),
         stage_seconds=dict(clock.stage_seconds),
         coverage=coverage,
@@ -1399,8 +1440,6 @@ def rows_from_lookup_cache(
                     ),
                 )
             )
-            continue
-        if not should_investigate(ref, cl, evidence):
             continue
         rows.append(
             (

@@ -334,6 +334,11 @@ def _run_timed(fn: Callable[[], T], timeout_s: float | None) -> T:
     except FuturesTimeout as exc:
         future.cancel()
         raise TimeoutError(f"llm request exceeded {timeout_s}s") from exc
+    except Exception as exc:
+        name = type(exc).__name__
+        if "Timeout" in name or "timeout" in str(exc).lower():
+            raise TimeoutError(f"llm request exceeded {timeout_s}s") from exc
+        raise
     finally:
         pool.shutdown(wait=False, cancel_futures=True)
 

@@ -10,6 +10,7 @@ from scanner.ownership import (
     attach_changed_hands,
     likely_risk,
     ownership_claim_without_fact,
+    reregistered_risk,
     supporting_facts,
 )
 from scanner.report import finding_evidence_level, floor_severity, rank
@@ -57,6 +58,9 @@ def test_proven_reregistered_after_reference_floors():
     }
     assert finding_evidence_level(group) == "proven"
     assert floor_severity(group) == "critical"
+    assert reregistered_risk(group) == (
+        "Registered again on 2024-02-10, after this line was added on 2018-04-01."
+    )
 
 
 def test_likely_supporting_signals_do_not_floor():
@@ -124,7 +128,7 @@ def test_likely_rank_uses_template(tmp_path):
     assert findings[0].floor_applied == ""
 
 
-def test_proven_rank_skips_model(tmp_path):
+def test_proven_rank_keeps_floor_and_allows_model_text(tmp_path):
     ref = _ref()
     evidence = {
         "dns": {"status": "resolves"},
@@ -137,7 +141,12 @@ def test_proven_rank_skips_model(tmp_path):
             "reregistered_after_reference": True,
         },
     }
-    client = FakeModelClient(handler=lambda request: _rank_ok(severity="low"))
+    client = FakeModelClient(
+        handler=lambda request: _rank_ok(
+            severity="low",
+            risk="Registered again on 2024-02-10, after this line was added on 2018-04-01 in index.html:7.",
+        )
+    )
     findings = rank(
         [
             (
@@ -149,10 +158,77 @@ def test_proven_rank_skips_model(tmp_path):
         client=client,
         cache=LookupCache(tmp_path / "c.db"),
     )
-    assert client.calls == []
+    assert client.calls
     assert findings[0].evidence_level == "proven"
     assert "2024-02-10" in findings[0].risk
     assert findings[0].severity == "critical"
+    assert findings[0].model_severity == "low"
+
+
+def test_rest_fallback_is_likely_without_floor():
+    ref = _ref()
+    group = {
+        "target": "old-brand.example",
+        "kind": "domain",
+        "rows": [
+            (
+                ref,
+                _cl(ref, type="script", runs_in="browser", blast_radius=2),
+                _inv(ref, {}),
+            )
+        ],
+        "evidence": {
+            "dns": {"status": "resolves"},
+            "rdap": {"status": "registered", "registered": "2024-02-10"},
+            "changed_hands": {
+                "status": "ok",
+                "reference_date": "2016-05-01",
+                "reference_source": "file existed since",
+                "registration_date": "2024-02-10",
+                "reregistered_after_reference": True,
+            },
+        },
+    }
+    assert finding_evidence_level(group) == "likely"
+    assert floor_severity(group) is None
+    assert "file existed since" in likely_risk(group)
+
+
+def test_github_owner_reregistered_wording():
+    ref = Reference(
+        file="README.md",
+        line=4,
+        raw="https://github.com/old-brand-tools",
+        host_or_bucket="github.com/old-brand-tools",
+        domain="github.com",
+    )
+    group = {
+        "target": "github.com/old-brand-tools",
+        "kind": "domain",
+        "rows": [
+            (
+                ref,
+                _cl(ref, type="other", runs_in="docs_only", blast_radius=0),
+                _inv(ref, {}),
+            )
+        ],
+        "evidence": {
+            "github_owner": {
+                "status": "exists",
+                "created_at": "2024-03-01",
+            },
+            "changed_hands": {
+                "status": "ok",
+                "reference_date": "2019-01-15",
+                "reference_source": "blame",
+                "registration_date": "2024-03-01",
+                "reregistered_after_reference": True,
+            },
+        },
+    }
+    assert reregistered_risk(group) == (
+        "GitHub account created on 2024-03-01, after this line was added on 2019-01-15."
+    )
 
 
 def test_model_cannot_claim_ownership_change_without_fact(tmp_path):

@@ -175,7 +175,8 @@ async def test_prerun_dns_and_bucket_always_in_evidence(tmp_path):
     )
     gone = bucket_ref.host_or_bucket
     assert by_host[gone].evidence["bucket_probe"]["status"] == "NoSuchBucket"
-    assert client.calls == []
+    assert client.calls
+    assert all(item.trace for item in results)
 
 
 @pytest.mark.asyncio
@@ -280,6 +281,8 @@ async def test_nosuchbucket_blast_zero_is_still_investigated(tmp_path):
     assert len(results) == 1
     assert results[0].status == "done"
     assert results[0].evidence["bucket_probe"]["status"] == "NoSuchBucket"
+    assert results[0].trace
+    assert any(event.kind == "act" for event in results[0].trace)
 
 
 @pytest.mark.asyncio

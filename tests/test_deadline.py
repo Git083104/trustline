@@ -142,14 +142,19 @@ def test_unused_stage_time_flows_forward():
     assert clock.request_timeout() == pytest.approx(20.0, abs=0.2)
 
 
-def test_claimable_floor_skips_rank_call(tmp_path):
+def test_claimable_floor_keeps_severity_when_model_writes(tmp_path):
     ref = Reference(
         file="deploy/infra.yaml",
         line=3,
         raw="s3://missing",
         host_or_bucket="missing",
     )
-    client = FakeModelClient(handler=lambda request: _rank_ok(severity="low"))
+    client = FakeModelClient(
+        handler=lambda request: _rank_ok(
+            severity="low",
+            risk="Anyone can create this bucket and inherit deploy/infra.yaml:3.",
+        )
+    )
     findings = rank(
         [
             (
@@ -161,8 +166,9 @@ def test_claimable_floor_skips_rank_call(tmp_path):
         client=client,
         cache=LookupCache(tmp_path / "c.db"),
     )
-    assert client.calls == []
+    assert client.calls
     assert findings[0].severity == "critical"
+    assert findings[0].model_severity == "low"
     assert findings[0].floor_applied == "critical"
     assert "NoSuchBucket" in findings[0].floor_reason
-    assert findings[0].cost_usd == 0
+    assert "Anyone can create this bucket" in findings[0].risk

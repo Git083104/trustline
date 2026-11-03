@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import os
 from collections import defaultdict
 from pathlib import Path
 
@@ -546,6 +547,7 @@ def main(argv: list[str] | None = None) -> int:
     from dotenv import load_dotenv
 
     load_dotenv(Path(".env"), override=True)
+    os.environ.setdefault("TRUSTMAP_SCAN_DEADLINE_S", "600")
     parser = argparse.ArgumentParser(prog="run_eval")
     parser.add_argument("--labels", default=str(LABELS_FILE))
     parser.add_argument("--results", default=str(RESULTS_FILE))
@@ -561,7 +563,7 @@ def main(argv: list[str] | None = None) -> int:
         run(
             labels_path=Path(args.labels),
             results_path=Path(args.results),
-            cache=LookupCache(args.cache),
+            cache=LookupCache(args.cache, ttl_s=10 * 365 * 24 * 3600),
             rubric=args.rubric,
         )
     )

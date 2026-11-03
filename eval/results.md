@@ -1,15 +1,5 @@
 # Eval results
 
-## 2026-11-01 Phase C note
-
-Re-ran `python -m eval.run_eval --rubric revised --cache trustmap.db` after Tranco,
-live_fetch, and GitHub Actions `uses:` work. Classify/rank still call Muse against
-the cached lookups (`hydrate_only=True`). The run had not finished writing a new
-table after ~15 minutes, so the scored numbers below are **unchanged**: revised
-rubric still **4/4 real threats** (`gold_ch_caught=4`) and **1 false alarm**.
-Tranco skip and parked/for-sale floors do not apply to the gold claimable-now /
-NXDOMAIN / polyfill cases in this set.
-
 ## Labels remapped under the revised rubric
 
 Expiry-only targets (DNS resolves and RDAP registered, ≤ 90 days) mapped to info. `eval/labels.jsonl` was not edited.
@@ -26,7 +16,7 @@ precision@10 ranks labeled targets only and is capped by the few gold critical/h
 |---|---|---|---|---|---|---|---|
 | baseline (original) | 0.056 | 0.102 | 49 | 5 | 44 | 1.000 | 0.00000000 |
 | baseline (revised) | 0.044 | 0.222 | 18 | 4 | 14 | 0.800 | 0.00000000 |
-| trustmap | 0.044 | 0.800 | 5 | 4 | 1 | 0.800 | 0.01689450 |
+| trustmap | 0.044 | 0.800 | 5 | 4 | 1 | 0.800 | 0.32367375 |
 
 #### Confusion (baseline original, gold \ predicted)
 | gold \ pred | critical | high | medium | low | info |
@@ -50,10 +40,10 @@ precision@10 ranks labeled targets only and is capped by the few gold critical/h
 | gold \ pred | critical | high | medium | low | info |
 |---|---|---|---|---|---|
 | critical | 1 | 0 | 0 | 0 | 0 |
-| high | 1 | 2 | 0 | 0 | 1 |
+| high | 2 | 1 | 0 | 0 | 1 |
 | medium | 1 | 0 | 0 | 0 | 0 |
-| low | 0 | 0 | 0 | 3 | 10 |
-| info | 0 | 0 | 0 | 85 | 44 |
+| low | 0 | 0 | 1 | 1 | 11 |
+| info | 0 | 0 | 0 | 6 | 123 |
 
 ### Human-labeled only
 
@@ -87,10 +77,10 @@ precision@10 ranks labeled targets only and is capped by the few gold critical/h
 | gold \ pred | critical | high | medium | low | info |
 |---|---|---|---|---|---|
 | critical | 1 | 0 | 0 | 0 | 0 |
-| high | 1 | 2 | 0 | 0 | 1 |
+| high | 2 | 1 | 0 | 0 | 1 |
 | medium | 1 | 0 | 0 | 0 | 0 |
-| low | 0 | 0 | 0 | 1 | 1 |
-| info | 0 | 0 | 0 | 2 | 2 |
+| low | 0 | 0 | 0 | 0 | 2 |
+| info | 0 | 0 | 0 | 0 | 4 |
 
 ## Revised rubric
 
@@ -102,7 +92,7 @@ precision@10 ranks labeled targets only and is capped by the few gold critical/h
 |---|---|---|---|---|---|---|---|
 | baseline (original) | 0.044 | 0.082 | 49 | 4 | 45 | 1.000 | 0.00000000 |
 | baseline (revised) | 0.044 | 0.222 | 18 | 4 | 14 | 1.000 | 0.00000000 |
-| trustmap | 0.044 | 0.800 | 5 | 4 | 1 | 1.000 | 0.01689450 |
+| trustmap | 0.044 | 0.800 | 5 | 4 | 1 | 1.000 | 0.32367375 |
 
 #### Confusion (baseline original, gold \ predicted)
 | gold \ pred | critical | high | medium | low | info |
@@ -126,10 +116,10 @@ precision@10 ranks labeled targets only and is capped by the few gold critical/h
 | gold \ pred | critical | high | medium | low | info |
 |---|---|---|---|---|---|
 | critical | 1 | 0 | 0 | 0 | 0 |
-| high | 1 | 2 | 0 | 0 | 0 |
+| high | 2 | 1 | 0 | 0 | 0 |
 | medium | 1 | 0 | 0 | 0 | 0 |
-| low | 0 | 0 | 0 | 3 | 10 |
-| info | 0 | 0 | 0 | 85 | 45 |
+| low | 0 | 0 | 1 | 1 | 11 |
+| info | 0 | 0 | 0 | 6 | 124 |
 
 ### Human-labeled only
 
@@ -163,59 +153,59 @@ precision@10 ranks labeled targets only and is capped by the few gold critical/h
 | gold \ pred | critical | high | medium | low | info |
 |---|---|---|---|---|---|
 | critical | 1 | 0 | 0 | 0 | 0 |
-| high | 1 | 2 | 0 | 0 | 0 |
+| high | 2 | 1 | 0 | 0 | 0 |
 | medium | 1 | 0 | 0 | 0 | 0 |
-| low | 0 | 0 | 0 | 1 | 1 |
-| info | 0 | 0 | 0 | 2 | 3 |
+| low | 0 | 0 | 0 | 0 | 2 |
+| info | 0 | 0 | 0 | 0 | 5 |
 
 ## Gold critical/high debug (original labels)
 
 ### https://github.com/quantopian/zipline `quantopian-orchestration` gold=critical
 label_evidence: {"bucket_probe": {"status": "NoSuchBucket", "name": "quantopian-orchestration", "provider": "s3", "http_status": 404}}
 trustmap: target=quantopian-orchestration model_severity=critical final_severity=critical floor_reason=(none)
-finding_evidence: {"bucket_probe": {"status": "NoSuchBucket", "name": "quantopian-orchestration", "provider": "s3", "http_status": 404}, "wayback": {"status": "unavailable"}}
+finding_evidence: {"bucket_probe": {"status": "NoSuchBucket", "name": "quantopian-orchestration", "provider": "s3", "http_status": 404}, "tranco_rank": 3, "wayback": {"status": "unavailable"}}
 
 ### https://github.com/quantopian/zipline `quandl.com` gold=high
 label_evidence: {"dns": {"status": "resolves", "host": "docs.quandl.com"}, "rdap": {"status": "registered", "domain": "quandl.com", "days_to_expiry": 80}}
 trustmap: target=quandl.com model_severity=info final_severity=info floor_reason=(none)
-finding_evidence: {"dns": {"status": "resolves", "host": "docs.quandl.com"}, "rdap": {"status": "registered", "domain": "quandl.com", "days_to_expiry": 80}, "cert_history": {"status": "unavailable", "domain": "quandl.com"}, "wayback": {"status": "ok"}}
+finding_evidence: {"dns": {"status": "resolves", "host": "docs.quandl.com"}, "tranco_rank": null, "rdap": {"status": "registered", "domain": "quandl.com", "days_to_expiry": 80}, "cert_history": {"status": "unavailable", "domain": "quandl.com"}, "wayback": {"status": "ok"}}
 
 ### https://github.com/lbryio/lbry-desktop `lbry.tech` gold=high
 label_evidence: {"dns": {"status": "nxdomain", "host": "forum.lbry.tech"}, "rdap": {"status": "registered", "domain": "lbry.tech", "days_to_expiry": 70}}
-trustmap: target=lbry.tech model_severity=low final_severity=high floor_reason=NXDOMAIN in executing position (browser, build) is at least high
-finding_evidence: {"dns": {"status": "nxdomain", "host": "forum.lbry.tech"}, "rdap": {"status": "registered", "domain": "lbry.tech", "days_to_expiry": 70}, "cert_history": {"status": "unavailable", "domain": "lbry.tech"}, "wayback": {"status": "unavailable"}}
+trustmap: target=lbry.tech model_severity=info final_severity=high floor_reason=NXDOMAIN in executing position (browser, build) is at least high
+finding_evidence: {"dns": {"status": "nxdomain", "host": "forum.lbry.tech"}, "tranco_rank": null, "rdap": {"status": "registered", "domain": "lbry.tech", "days_to_expiry": 70}, "cert_history": {"status": "unavailable", "domain": "lbry.tech"}, "wayback": {"status": "unavailable"}, "changed_hands": {"status": "unavailable"}}
 
 ### https://github.com/debois/elm-mdl `polyfill.io` gold=high
 label_evidence: {"dns": {"status": "nxdomain", "host": "cdn.polyfill.io"}, "rdap": {"status": "unknown", "domain": "polyfill.io", "days_to_expiry": null}}
-trustmap: target=polyfill.io model_severity=high final_severity=high floor_reason=(none)
-finding_evidence: {"dns": {"status": "nxdomain", "host": "cdn.polyfill.io"}, "rdap": {"status": "unknown", "domain": "polyfill.io", "days_to_expiry": null}, "cert_history": {"status": "unavailable", "domain": "polyfill.io"}, "wayback": {"status": "ok"}}
+trustmap: target=polyfill.io model_severity=high final_severity=critical floor_reason=compromised domain in a browser script without SRI (browser) is at least critical
+finding_evidence: {"dns": {"status": "nxdomain", "host": "cdn.polyfill.io"}, "tranco_rank": 53571, "rdap": {"status": "unknown", "domain": "polyfill.io", "days_to_expiry": null}, "cert_history": {"status": "unavailable", "domain": "polyfill.io"}, "wayback": {"status": "ok"}}
 
 ### https://github.com/TryKickoff/kickoff `polyfill.io` gold=high
 label_evidence: {"dns": {"status": "nxdomain", "host": "cdn.polyfill.io"}, "rdap": {"status": "unknown", "domain": "polyfill.io", "days_to_expiry": null}}
-trustmap: target=polyfill.io model_severity=critical final_severity=critical floor_reason=(none)
-finding_evidence: {"dns": {"status": "nxdomain", "host": "cdn.polyfill.io"}, "rdap": {"status": "unknown", "domain": "polyfill.io", "days_to_expiry": null}, "cert_history": {"status": "unavailable", "domain": "polyfill.io"}, "wayback": {"status": "unavailable"}}
+trustmap: target=polyfill.io model_severity=high final_severity=critical floor_reason=compromised domain in a browser script without SRI (browser) is at least critical
+finding_evidence: {"dns": {"status": "nxdomain", "host": "cdn.polyfill.io"}, "tranco_rank": 53571, "rdap": {"status": "unknown", "domain": "polyfill.io", "days_to_expiry": null}, "cert_history": {"status": "unavailable", "domain": "polyfill.io"}, "wayback": {"status": "unavailable"}}
 
 ## Gold critical/high debug (revised labels)
 
 ### https://github.com/quantopian/zipline `quantopian-orchestration` gold=critical
 label_evidence: {"bucket_probe": {"status": "NoSuchBucket", "name": "quantopian-orchestration", "provider": "s3", "http_status": 404}}
 trustmap: target=quantopian-orchestration model_severity=critical final_severity=critical floor_reason=(none)
-finding_evidence: {"bucket_probe": {"status": "NoSuchBucket", "name": "quantopian-orchestration", "provider": "s3", "http_status": 404}, "wayback": {"status": "unavailable"}}
+finding_evidence: {"bucket_probe": {"status": "NoSuchBucket", "name": "quantopian-orchestration", "provider": "s3", "http_status": 404}, "tranco_rank": 3, "wayback": {"status": "unavailable"}}
 
 ### https://github.com/lbryio/lbry-desktop `lbry.tech` gold=high
 label_evidence: {"dns": {"status": "nxdomain", "host": "forum.lbry.tech"}, "rdap": {"status": "registered", "domain": "lbry.tech", "days_to_expiry": 70}}
-trustmap: target=lbry.tech model_severity=low final_severity=high floor_reason=NXDOMAIN in executing position (browser, build) is at least high
-finding_evidence: {"dns": {"status": "nxdomain", "host": "forum.lbry.tech"}, "rdap": {"status": "registered", "domain": "lbry.tech", "days_to_expiry": 70}, "cert_history": {"status": "unavailable", "domain": "lbry.tech"}, "wayback": {"status": "unavailable"}}
+trustmap: target=lbry.tech model_severity=info final_severity=high floor_reason=NXDOMAIN in executing position (browser, build) is at least high
+finding_evidence: {"dns": {"status": "nxdomain", "host": "forum.lbry.tech"}, "tranco_rank": null, "rdap": {"status": "registered", "domain": "lbry.tech", "days_to_expiry": 70}, "cert_history": {"status": "unavailable", "domain": "lbry.tech"}, "wayback": {"status": "unavailable"}, "changed_hands": {"status": "unavailable"}}
 
 ### https://github.com/debois/elm-mdl `polyfill.io` gold=high
 label_evidence: {"dns": {"status": "nxdomain", "host": "cdn.polyfill.io"}, "rdap": {"status": "unknown", "domain": "polyfill.io", "days_to_expiry": null}}
-trustmap: target=polyfill.io model_severity=high final_severity=high floor_reason=(none)
-finding_evidence: {"dns": {"status": "nxdomain", "host": "cdn.polyfill.io"}, "rdap": {"status": "unknown", "domain": "polyfill.io", "days_to_expiry": null}, "cert_history": {"status": "unavailable", "domain": "polyfill.io"}, "wayback": {"status": "ok"}}
+trustmap: target=polyfill.io model_severity=high final_severity=critical floor_reason=compromised domain in a browser script without SRI (browser) is at least critical
+finding_evidence: {"dns": {"status": "nxdomain", "host": "cdn.polyfill.io"}, "tranco_rank": 53571, "rdap": {"status": "unknown", "domain": "polyfill.io", "days_to_expiry": null}, "cert_history": {"status": "unavailable", "domain": "polyfill.io"}, "wayback": {"status": "ok"}}
 
 ### https://github.com/TryKickoff/kickoff `polyfill.io` gold=high
 label_evidence: {"dns": {"status": "nxdomain", "host": "cdn.polyfill.io"}, "rdap": {"status": "unknown", "domain": "polyfill.io", "days_to_expiry": null}}
-trustmap: target=polyfill.io model_severity=critical final_severity=critical floor_reason=(none)
-finding_evidence: {"dns": {"status": "nxdomain", "host": "cdn.polyfill.io"}, "rdap": {"status": "unknown", "domain": "polyfill.io", "days_to_expiry": null}, "cert_history": {"status": "unavailable", "domain": "polyfill.io"}, "wayback": {"status": "unavailable"}}
+trustmap: target=polyfill.io model_severity=high final_severity=critical floor_reason=compromised domain in a browser script without SRI (browser) is at least critical
+finding_evidence: {"dns": {"status": "nxdomain", "host": "cdn.polyfill.io"}, "tranco_rank": 53571, "rdap": {"status": "unknown", "domain": "polyfill.io", "days_to_expiry": null}, "cert_history": {"status": "unavailable", "domain": "polyfill.io"}, "wayback": {"status": "unavailable"}}
 
 ## Budget skips
 - (none)
