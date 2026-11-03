@@ -9,7 +9,7 @@ import pytest
 from scanner.compromised import POLYFILL_FIX, SRI_FIX
 from scanner.llm import FakeModelClient
 from scanner.lookups import LookupCache
-from scanner.report import scan
+from scanner.report import run_scan, scan
 from scanner.ssrf import SCAN_BLOCKED, ScanBlockedError
 from scanner.website import csp_blocks_external_scripts, extract_website, extract_website_scan, safe_get
 from tests.test_agent import _ctx, _scripted_client
@@ -205,6 +205,28 @@ async def test_demo_pages_fixture_records_csp_and_keeps_severity(pages_server, t
     cdnjs = by_target.get("cdnjs.cloudflare.com") or by_target.get("cloudflare.com")
     assert cdnjs is not None
     assert cdnjs.severity in {"low", "info", "medium"}
+
+
+@pytest.mark.asyncio
+async def test_code_only_scan_skips_model_and_keeps_floors(pages_server, tmp_path):
+    def boom(_request):
+        raise AssertionError("model should not be called")
+
+    outcome = await run_scan(
+        pages_server,
+        client=FakeModelClient(
+            handler=boom,
+            tool_handler=_scripted_client().tool_handler,
+        ),
+        cache=LookupCache(tmp_path / "code_only.db"),
+        ctx=_ctx(tmp_path),
+        hydrate_only=False,
+        code_only=True,
+    )
+    assert outcome.code_only is True
+    assert outcome.cost_usd == 0
+    by_target = {item.target: item for item in outcome.findings}
+    assert by_target["polyfill.io"].severity == "critical"
 
 
 @pytest.mark.asyncio

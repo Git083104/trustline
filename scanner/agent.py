@@ -272,6 +272,7 @@ async def investigate(
     skipped_hosts: list[str] | None = None,
     github_owner: str = "",
     github_repo: str = "",
+    code_only: bool = False,
 ) -> list[Investigation]:
     actionable = [(ref, cl) for ref, cl in pairs if ref.filter_reason is None]
     evidence_by_key = await _precheck_all(actionable, ctx)
@@ -306,6 +307,18 @@ async def investigate(
             continue
         if should_investigate(ref, cl, evidence):
             eligible.append((ref, cl, evidence))
+    if code_only:
+        return [
+            Investigation(
+                file=ref.file,
+                line=ref.line,
+                host_or_bucket=ref.host_or_bucket,
+                status="done",
+                summary="code rules only",
+                evidence=evidence,
+            )
+            for ref, cl, evidence in checked
+        ]
     if not eligible:
         return held
 

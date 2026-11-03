@@ -80,25 +80,34 @@ def test_daily_and_hourly_store(tmp_path):
     assert other.check("9.9.9.9") is None
 
 
-def test_daily_cap_429_demo_still_works(tmp_path):
+def test_daily_cap_runs_code_only_and_demo_still_works(tmp_path):
     limits = LimitsStore(
         tmp_path / "cap.db", daily_cap=1, ip_per_hour=50, scan_reserve=1
     )
     limits.add_spend(1)
+    seen = {}
 
     async def runner(*args, **kwargs):
-        return ScanOutcome(findings=[])
+        seen["code_only"] = kwargs.get("code_only")
+        return ScanOutcome(findings=[], code_only=True)
 
     app = create_app(
-        model_client=FakeModelClient(handler=lambda r: {}),
+        model_client=FakeModelClient(handler=lambda r: pytest.fail("model called")),
         cache=LookupCache(tmp_path / "c.db"),
         runner=runner,
         limits=limits,
     )
     with TestClient(app) as client:
-        blocked = client.post("/api/scan", json={"target": str(tmp_path)})
-        assert blocked.status_code == 429
-        assert blocked.json() == {"error": DAILY_LIMIT_MSG}
+        started = client.post("/api/scan", json={"target": str(tmp_path)})
+        assert started.status_code == 200
+        scan_id = started.json()["scan_id"]
+        client.get(f"/api/scan/{scan_id}/events")
+        report = client.get(f"/api/scan/{scan_id}").json()
+        assert seen["code_only"] is True
+        assert report["code_only"] is True
+        assert report["code_only_banner"] == (
+            "Daily AI budget reached: this scan used code rules only."
+        )
         assert client.get("/api/scan/demo").status_code == 200
         events = client.get("/api/scan/demo/events?speed=0")
         assert events.status_code == 200
@@ -178,7 +187,7 @@ def test_spoofed_xff_does_not_bypass_ip_limit(tmp_path):
         assert spoofed.json() == {"error": HOURLY_LIMIT_MSG}
 
 
-def test_third_simultaneous_scan_refused_when_daily_reserved(tmp_path):
+def test_third_simultaneous_scan_is_code_only_when_daily_reserved(tmp_path):
     limits = LimitsStore(
         tmp_path / "reserve.db",
         daily_cap=2,
@@ -207,9 +216,13 @@ def test_third_simultaneous_scan_refused_when_daily_reserved(tmp_path):
             third = client.post("/api/scan", json={"target": str(tmp_path)})
             assert first.status_code == 200
             assert second.status_code == 200
-            assert third.status_code == 429
-            assert third.json() == {"error": DAILY_LIMIT_MSG}
+            assert third.status_code == 200
             assert limits.spent_today() == 2
+            third_id = third.json()["scan_id"]
+            hold.set()
+            client.get(f"/api/scan/{third_id}/events")
+            report = client.get(f"/api/scan/{third_id}").json()
+            assert report["code_only"] is True
         finally:
             hold.set()
 

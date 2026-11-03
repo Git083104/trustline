@@ -88,6 +88,7 @@ class ScanOutcome:
     coverage: dict[str, object] = field(default_factory=lambda: empty_coverage().as_dict())
     file_texts: dict[str, str] = field(default_factory=dict)
     source_html: str = ""
+    code_only: bool = False
 
     @property
     def cost_usd(self) -> float:
@@ -1012,6 +1013,7 @@ def rank(
     clock: ScanClock | None = None,
     skipped: list[str] | None = None,
     fallbacks: list[str] | None = None,
+    code_only: bool = False,
 ) -> list[Finding]:
     groups = group_by_target(rows)
     if not groups:
@@ -1023,9 +1025,11 @@ def rank(
 
     def rank_one(index: int) -> None:
         group = groups[index]
-        known = skip_model_rank(group)
+        known = skip_model_rank(group) or code_only
         remaining = clock.remaining_stage() if clock is not None else RANK_TIMEOUT_S
-        if not known and clock is not None and remaining < 0.05:
+        if code_only:
+            finding = _template_finding(group, deadline=False)
+        elif not known and clock is not None and remaining < 0.05:
             finding = _template_finding(group, deadline=True)
             if fallbacks is not None:
                 fallbacks.append(group["target"])
@@ -1266,6 +1270,7 @@ async def scan(
     cost_cap: float = SCAN_COST_CAP_USD,
     on_event: OnEvent | None = None,
     clock: ScanClock | None = None,
+    code_only: bool = False,
 ) -> list[Finding]:
     outcome = await run_scan(
         source,
@@ -1276,6 +1281,7 @@ async def scan(
         cost_cap=cost_cap,
         on_event=on_event,
         clock=clock,
+        code_only=code_only,
     )
     return outcome.findings
 
@@ -1291,6 +1297,7 @@ async def run_scan(
     cost_cap: float = SCAN_COST_CAP_USD,
     on_event: OnEvent | None = None,
     clock: ScanClock | None = None,
+    code_only: bool = False,
 ) -> ScanOutcome:
     clock = clock or ScanClock()
     skipped: list[str] = []
@@ -1336,6 +1343,7 @@ async def run_scan(
         logs=class_logs,
         clock=clock,
         skipped=skipped,
+        code_only=code_only,
     )
     pairs = list(zip(refs, classified, strict=True))
     if is_website_source(source):
@@ -1361,6 +1369,7 @@ async def run_scan(
             skipped_hosts=skipped,
             github_owner=origin_owner,
             github_repo=origin_repo,
+            code_only=code_only,
         )
         inv_by_loc = {(item.file, item.line): item for item in investigations}
         rows = [
@@ -1393,6 +1402,7 @@ async def run_scan(
         clock=clock,
         skipped=skipped,
         fallbacks=fallbacks,
+        code_only=code_only,
     )
     clock.end_stage()
     budget = sorted(
@@ -1437,6 +1447,7 @@ async def run_scan(
         coverage=coverage,
         file_texts=file_texts,
         source_html=source_html,
+        code_only=code_only,
     )
 
 

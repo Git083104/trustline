@@ -20,6 +20,8 @@ def test_render_yaml_forces_local_scan_off_and_sets_health():
     assert 'value: "1"' in text
     assert "TRUSTMAP_DAILY_CAP_USD" in text
     assert "TRUSTMAP_IP_SCANS_PER_HOUR" in text
+    ip_after = text.split("TRUSTMAP_IP_SCANS_PER_HOUR", 1)[1]
+    assert 'value: "20"' in ip_after.split("TRUSTMAP_", 1)[0]
     assert "TRUSTMAP_CACHE_DB" in text
     assert "/var/data/trustmap.db" in text
     assert "TRUSTMAP_ALLOW_LOCAL_SCAN" in text

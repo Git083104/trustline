@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import sqlite3
 import time
+from dataclasses import dataclass
 from pathlib import Path
 
 from scanner.config import (
@@ -16,7 +17,14 @@ from scanner.config import (
 DAILY_LIMIT_MSG = "Daily limit reached, try the demo"
 HOURLY_LIMIT_MSG = "Hourly limit reached, try the demo"
 BUSY_MSG = "Busy, try again in a minute"
+CODE_ONLY_BANNER = "Daily AI budget reached: this scan used code rules only."
 HOUR_S = 3600
+
+
+@dataclass
+class AdmitResult:
+    error: str | None = None
+    code_only: bool = False
 
 
 def _env_float(name: str, default: float) -> float:
@@ -164,7 +172,7 @@ class LimitsStore:
             return HOURLY_LIMIT_MSG
         return None
 
-    def admit(self, ip: str, scan_id: str, reserve_usd: float | None = None) -> str | None:
+    def admit(self, ip: str, scan_id: str, reserve_usd: float | None = None) -> AdmitResult:
         reserve_usd = self.scan_reserve if reserve_usd is None else reserve_usd
         day = self.day_key()
         cutoff = self._now() - HOUR_S
@@ -173,7 +181,14 @@ class LimitsStore:
             inflight = conn.execute("SELECT COUNT(*) FROM inflight").fetchone()[0]
             if inflight >= self.max_concurrent:
                 conn.execute("ROLLBACK")
-                return BUSY_MSG
+                return AdmitResult(error=BUSY_MSG)
+            starts = conn.execute(
+                "SELECT COUNT(*) FROM scan_starts WHERE ip = ? AND ts >= ?",
+                (ip, cutoff),
+            ).fetchone()[0]
+            if starts >= self.ip_per_hour:
+                conn.execute("ROLLBACK")
+                return AdmitResult(error=HOURLY_LIMIT_MSG)
             committed = conn.execute(
                 "SELECT usd FROM spend_ledger WHERE day = ?",
                 (day,),
@@ -183,27 +198,19 @@ class LimitsStore:
                 (day,),
             ).fetchone()
             spent = float(committed[0] if committed else 0) + float(reserved[0])
-            if spent + reserve_usd > self.daily_cap:
-                conn.execute("ROLLBACK")
-                return DAILY_LIMIT_MSG
-            starts = conn.execute(
-                "SELECT COUNT(*) FROM scan_starts WHERE ip = ? AND ts >= ?",
-                (ip, cutoff),
-            ).fetchone()[0]
-            if starts >= self.ip_per_hour:
-                conn.execute("ROLLBACK")
-                return HOURLY_LIMIT_MSG
+            code_only = spent + reserve_usd > self.daily_cap
             conn.execute("INSERT INTO inflight (scan_id) VALUES (?)", (scan_id,))
-            conn.execute(
-                "INSERT INTO spend_reserve (scan_id, day, usd) VALUES (?, ?, ?)",
-                (scan_id, day, reserve_usd),
-            )
+            if not code_only:
+                conn.execute(
+                    "INSERT INTO spend_reserve (scan_id, day, usd) VALUES (?, ?, ?)",
+                    (scan_id, day, reserve_usd),
+                )
             conn.execute(
                 "INSERT INTO scan_starts (ip, ts) VALUES (?, ?)",
                 (ip, self._now()),
             )
             conn.execute("COMMIT")
-        return None
+        return AdmitResult(code_only=code_only)
 
     def record_start(self, ip: str) -> None:
         with self._connect() as conn:

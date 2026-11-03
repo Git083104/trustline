@@ -319,6 +319,7 @@ def classify(
     logs: list[CallLog] | None = None,
     clock: ScanClock | None = None,
     skipped: list[str] | None = None,
+    code_only: bool = False,
 ) -> list[Classification]:
     chosen = refs if include_filtered else actionable(refs)
     results: list[Classification | None] = [None] * len(chosen)
@@ -335,6 +336,12 @@ def classify(
         clock.classify_rule_n = rule_n
         clock.classify_model_n = model_n
     log.info("classify rules=%s model=%s", rule_n, model_n)
+    if code_only:
+        if clock is not None:
+            clock.classify_model_n = 0
+        for index in pending:
+            results[index] = _fallback_classification(chosen[index])
+        return [item for item in results if item is not None]
     if not pending:
         return [item for item in results if item is not None]
 

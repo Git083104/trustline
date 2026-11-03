@@ -197,9 +197,10 @@ def create_app(
             return JSONResponse(status_code=503, content={"error": LIVE_UNCONFIGURED})
         ip = client_ip(request, hops=limit_store.trusted_hops)
         job = Job(kind=kind, target=target)
-        blocked = limit_store.admit(ip, job.scan_id, cost_cap)
-        if blocked:
-            return JSONResponse(status_code=429, content={"error": blocked})
+        admitted = limit_store.admit(ip, job.scan_id, cost_cap)
+        if admitted.error:
+            return JSONResponse(status_code=429, content={"error": admitted.error})
+        job.code_only = admitted.code_only
         store.add(job)
         job.emit(
             {
@@ -207,6 +208,7 @@ def create_app(
                 "kind": kind,
                 "target": target,
                 "cost_cap_usd": cost_cap,
+                "code_only": job.code_only,
             }
         )
         task = asyncio.create_task(_run_job(job))
@@ -242,10 +244,11 @@ def create_app(
                 cache=lookup,
                 ctx=ctx or ToolContext(cache=lookup),
                 hydrate_only=False,
-                cost_cap=cost_cap,
+                cost_cap=0.0 if job.code_only else cost_cap,
                 on_event=on_event,
+                code_only=job.code_only,
             )
-            actual = outcome.cost_usd
+            actual = 0.0 if job.code_only else outcome.cost_usd
             job.finish(outcome)
         except Exception as exc:
             job.fail(failure_message(exc))

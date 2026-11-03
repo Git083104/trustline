@@ -6,6 +6,7 @@ import time
 import uuid
 from typing import Any, AsyncIterator
 
+from api.limits import CODE_ONLY_BANNER
 from scanner.events import finding_public
 from scanner.report import ScanOutcome
 
@@ -29,6 +30,7 @@ class Job:
         self.error: str | None = None
         self.file_texts: dict[str, str] = {}
         self.findings_models: list[Any] = []
+        self.code_only = False
         self._loop = _running_loop()
         self._lock = threading.Lock()
 
@@ -71,6 +73,10 @@ class Job:
             "coverage": outcome.coverage,
             "agent_runs": outcome.agent_runs,
             "rank_fallbacks": outcome.rank_fallbacks,
+            "code_only": self.code_only or outcome.code_only,
+            "code_only_banner": (
+                CODE_ONLY_BANNER if self.code_only or outcome.code_only else ""
+            ),
             "findings": [finding_public(item) for item in outcome.findings],
         }
         self.status = "done"
@@ -89,6 +95,7 @@ class Job:
                 "partial": outcome.partial,
                 "agent_runs": outcome.agent_runs,
                 "rank_fallbacks": outcome.rank_fallbacks,
+                "code_only": self.code_only or outcome.code_only,
             }
         )
 

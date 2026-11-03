@@ -1060,7 +1060,11 @@
     setRecordedLabel(el.resRecorded, report);
     if (el.partial) {
       var skipped = report.skipped_targets || [];
-      if (report.partial && skipped.length) {
+      if (report.code_only) {
+        el.partial.hidden = false;
+        el.partial.textContent = report.code_only_banner
+          || "Daily AI budget reached: this scan used code rules only.";
+      } else if (report.partial && skipped.length) {
         el.partial.hidden = false;
         el.partial.textContent = "Partial scan. Skipped: " + skipped.join(", ");
       } else if (report.partial) {

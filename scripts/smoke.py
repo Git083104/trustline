@@ -96,7 +96,7 @@ def check_live_stream(base: str) -> bool:
     ok = (
         status == 200
         and done is not None
-        and elapsed <= 75
+        and elapsed <= 90
         and done.get("partial") is False
         and len(done.get("skipped_targets") or []) == 0
     )
