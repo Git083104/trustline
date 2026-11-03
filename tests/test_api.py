@@ -590,14 +590,18 @@ def test_page_shows_results_not_product_copy():
     # the demo video explains the product; the page keeps to inputs and results
     markup = (PUBLIC / "index.html").read_text()
     for copy in ("A title check for everything", "AI model:", "Evidence:", "Brief", "No key needed for the demo",
-                 "Facts:", "Judgment:", "Scope:", 'class="desc'):
+                 "Facts:", "Judgment:", "Scope:", 'class="desc', ">Target<", "Layers:"):
         assert copy not in markup, copy
-    assert 'id="run"' in markup and 'id="run-text"' in markup
+    # the input is a search bar: its label is for screen readers only
+    assert '<label class="sr" for="target">' in markup
+    # run details are a dropdown under the input
+    assert '<details class="run" id="run" hidden><summary>Run details</summary><p id="run-text"></p></details>' in markup
 
 
 def test_each_layer_collapses_to_its_result():
     markup = (PUBLIC / "index.html").read_text()
     for n in range(1, 6):
+        assert f'id="layer-{n}" data-state="pending" data-open="false"' in markup
         assert re.search(rf'id="r{n}"[^>]*>\s*</div>', markup), n
         assert f'data-toggle="{n}" aria-expanded="false" aria-controls="c{n}" hidden' in markup
         assert re.search(rf'id="c{n}" hidden>', markup), n
@@ -607,3 +611,29 @@ def test_each_layer_collapses_to_its_result():
         assert f"function {name}()" in script
     assert "function showDetails(n)" in script
     assert '"Hide details" : "Show details"' in script
+    # engine and status open with the details; the Report tally carries the verdict
+    assert 'setAttribute("data-open", open ? "true" : "false")' in script
+    assert 'h("p", { class: "verdict"' not in script
+
+
+def test_stack_artwork_is_decorative_and_follows_the_scan():
+    markup = (PUBLIC / "index.html").read_text()
+    assert '<svg class="constellation"' in markup
+    assert 'class="constellation" viewBox="0 0 1400 486" width="1400" height="486" aria-hidden="true"' in markup
+    assert 'data-scan="idle" data-found="0"' in markup
+    script = (STATIC / "app.js").read_text()
+    assert 'art.setAttribute("data-scan"' in script
+    assert 'art.setAttribute("data-found"' in script
+
+
+def test_page_carries_the_logo_and_icons():
+    markup = (PUBLIC / "index.html").read_text()
+    for href in ("/static/favicon.svg", "/static/favicon-32.png", "/static/apple-touch-icon.png", "/static/logo.svg"):
+        assert href in markup, href
+        assert (PUBLIC / href.removeprefix("/")).is_file(), href
+    app = create_app(model_client=FakeModelClient(handler=lambda r: {}))
+    with TestClient(app) as client:
+        icon = client.get("/static/favicon.svg")
+        assert icon.status_code == 200
+        assert icon.headers["content-type"].startswith("image/svg+xml")
+

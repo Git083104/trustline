@@ -726,7 +726,6 @@
     var note = budget.length ? budget.length + " lower-priority " + plural(budget.length, "target was", "targets were") + " not investigated (model budget)." : "";
     if (!list.length && S.gather && !S.gather.actionable) { note = "Nothing in this target could change hands."; }
     return [
-      h("p", { class: "verdict", text: verdict(groups) }),
       note ? h("p", { class: "verdict-src mono", text: note }) : null,
       h("div", { class: "tally" },
         h("div", { class: "today" }, h("b", { text: String(groups.today.length) }), h("span", { text: "Fix today" })),
@@ -791,6 +790,7 @@
     box.hidden = !open;
     button.setAttribute("aria-expanded", open ? "true" : "false");
     button.textContent = open ? "Hide details" : "Show details";
+    $("#layer-" + n).setAttribute("data-open", open ? "true" : "false");
   }
 
   function layerSummary(n) {
@@ -847,6 +847,9 @@
       var engine = n === 1 && S.kind === "website" ? "code · page fetch + parse" : scripted() && DEMO_ENGINE[n] ? DEMO_ENGINE[n] : ENGINE[n];
       $(".lengine", section).textContent = engine;
     }
+    var art = $(".stack-cell");
+    art.setAttribute("data-scan", S.mode === "idle" ? "idle" : S.failed ? "failed" : S.finished ? "done" : "running");
+    art.setAttribute("data-found", S.finished && groupsOf(findingsSorted()).today.length ? "1" : "0");
     renderRun();
     renderNotices();
   }
