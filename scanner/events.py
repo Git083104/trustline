@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from collections import Counter
 from typing import Any, Callable
 
 from scanner.extract import is_bucket_ref
@@ -74,7 +75,9 @@ def classified_public(pairs: list[tuple[Reference, Classification]]) -> dict[str
         for ref, cl in pairs
         if ref.filter_reason is None
     ]
-    return {"items": items[:LIST_LIMIT], "total": len(items)}
+    # the page lists the first LIST_LIMIT items; its summary counts all of them
+    runs_in = dict(Counter(item["runs_in"] for item in items))
+    return {"items": items[:LIST_LIMIT], "total": len(items), "runs_in": runs_in}
 
 
 def emit(on_event: OnEvent | None, payload: dict[str, Any]) -> None:

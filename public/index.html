@@ -13,25 +13,16 @@
 <body>
 <main class="sheet">
   <header class="row">
-    <div class="cell title-cell span-3">
+    <div class="cell title-cell span-5">
       <h1>Trustline</h1>
-      <p class="tag">A title check for everything your code trusts.</p>
-    </div>
-    <div class="cell">
-      <span class="k">AI model:</span>
-      <span class="v">Muse Spark 1.3 via the Meta Model API</span>
-    </div>
-    <div class="cell">
-      <span class="k">Evidence:</span>
-      <span class="v">DNS, RDAP, bucket probes, GitHub, platform fingerprints, crt.sh, Wayback, live fetch, Tranco</span>
     </div>
   </header>
 
   <form class="row form-row" id="scan-form" autocomplete="off" novalidate>
     <label class="cell" for="target"><span class="big-label">Target</span></label>
     <div class="cell input-cell span-3">
-      <input id="target" name="target" type="text" inputmode="url" spellcheck="false" placeholder="github.com/owner/repo or https://site.com" aria-describedby="target-hint">
-      <p class="hint mono" id="target-hint">A public GitHub repository (default branch) or a live website. No key needed for the demo: <button type="button" class="demo-link" data-demo>Watch the demo scan</button></p>
+      <input id="target" name="target" type="text" inputmode="url" spellcheck="false" placeholder="github.com/owner/repo or https://site.com" aria-describedby="run">
+      <p class="run" id="run" role="status" hidden><span class="k">Run:</span> <span id="run-text"></span></p>
     </div>
     <div class="cell scan-cell">
       <button class="scan" id="scan-btn" type="submit"><span id="scan-label">Scan</span><svg viewBox="0 0 30 30" aria-hidden="true"><path d="M6 24 24 6M10 6h14v14" fill="none" stroke="currentColor" stroke-width="2"/></svg></button>
@@ -39,7 +30,7 @@
   </form>
 
   <section class="row" aria-label="Layers">
-    <div class="cell stack-cell span-3">
+    <div class="cell stack-cell span-5">
       <span class="k">Layers:</span>
       <div class="stack">
         <svg viewBox="0 0 300 452" role="img" aria-label="Five stacked layers: Gather, Classify, Investigate, Reason, Report">
@@ -75,21 +66,12 @@
           <line class="leader" x1="250" y1="383" x2="300" y2="383"/>
         </svg>
         <ol class="stack-list" id="stack-list">
-          <li data-layer="1" data-state="pending" style="top:71px"><a href="#layer-1"><span class="sl-n">01</span><span class="sl-name">Gather</span><span class="sl-what">Find every external reference</span><span class="sl-st">Waiting</span></a></li>
-          <li data-layer="2" data-state="pending" style="top:149px"><a href="#layer-2"><span class="sl-n">02</span><span class="sl-name">Classify</span><span class="sl-what">What it is and where it runs</span><span class="sl-st">Waiting</span></a></li>
-          <li data-layer="3" data-state="pending" style="top:227px"><a href="#layer-3"><span class="sl-n">03</span><span class="sl-name">Investigate</span><span class="sl-what">Who owns each one now</span><span class="sl-st">Waiting</span></a></li>
-          <li data-layer="4" data-state="pending" style="top:305px"><a href="#layer-4"><span class="sl-n">04</span><span class="sl-name">Reason</span><span class="sl-what">Weigh the evidence in context</span><span class="sl-st">Waiting</span></a></li>
-          <li data-layer="5" data-state="pending" style="top:383px"><a href="#layer-5"><span class="sl-n">05</span><span class="sl-name">Report</span><span class="sl-what">Fix today, review, safe</span><span class="sl-st">Waiting</span></a></li>
+          <li data-layer="1" data-state="pending" style="top:71px"><a href="#layer-1"><span class="sl-n">01</span><span class="sl-name">Gather</span><span class="sl-st">Waiting</span></a></li>
+          <li data-layer="2" data-state="pending" style="top:149px"><a href="#layer-2"><span class="sl-n">02</span><span class="sl-name">Classify</span><span class="sl-st">Waiting</span></a></li>
+          <li data-layer="3" data-state="pending" style="top:227px"><a href="#layer-3"><span class="sl-n">03</span><span class="sl-name">Investigate</span><span class="sl-st">Waiting</span></a></li>
+          <li data-layer="4" data-state="pending" style="top:305px"><a href="#layer-4"><span class="sl-n">04</span><span class="sl-name">Reason</span><span class="sl-st">Waiting</span></a></li>
+          <li data-layer="5" data-state="pending" style="top:383px"><a href="#layer-5"><span class="sl-n">05</span><span class="sl-name">Report</span><span class="sl-st">Waiting</span></a></li>
         </ol>
-      </div>
-    </div>
-    <div class="cell brief-cell span-2">
-      <span class="big-label">Brief</span>
-      <p class="mono justify">An AI agent that scans your codebase or website, finds every outside domain, script, and cloud bucket your software depends on, and tells you which ones have expired or changed owners, so a stranger can’t quietly take over something your app already trusts.</p>
-      <p class="mono justify">Facts come from deterministic tools. Judgment comes from Muse Spark. The model never looks anything up and never does date math; it decides what each reference is, which check to run next, and what the evidence means. Code rules keep a claimable bucket or domain from being talked down.</p>
-      <div class="run" id="run" hidden>
-        <span class="k">Run:</span>
-        <span class="v" id="run-text"></span>
       </div>
     </div>
   </section>
@@ -102,9 +84,10 @@
       <h2 id="l1">Gather</h2>
       <dl class="lmeta"><div><dt>Engine: </dt><dd class="lengine">code · file walk + patterns</dd></div><div><dt>Status: </dt><dd class="lstatus">Waiting</dd></div></dl>
     </div></div>
-    <div class="cell span-4">
-      <p class="desc mono justify">Walk every file, or fetch the page and the scripts it loads, and pull out each outside address: script tags, API base URLs, CDN links, webhooks, config, CI workflows and their <code>uses:</code> actions, Dockerfiles, even documentation. Set aside what can’t change hands: example domains, IP literals, placeholders, well-known infrastructure.</p>
-      <div class="content" id="c1"></div>
+    <div class="cell span-4 layer-body">
+      <div class="result" id="r1"></div>
+      <button class="toggle" type="button" data-toggle="1" aria-expanded="false" aria-controls="c1" hidden>Show details</button>
+      <div class="content" id="c1" hidden></div>
     </div>
   </section>
 
@@ -114,9 +97,10 @@
       <h2 id="l2">Classify</h2>
       <dl class="lmeta"><div><dt>Engine: </dt><dd class="lengine">Muse Spark 1.3</dd></div><div><dt>Status: </dt><dd class="lstatus">Waiting</dd></div></dl>
     </div></div>
-    <div class="cell span-4">
-      <p class="desc mono justify">A regex finds strings but has no idea what they mean. Muse Spark reads the code around each hit and decides what it is, where it runs, and how much damage a hostile owner could do from there, as a blast radius from 0 to 3. The answer is JSON checked against a schema.</p>
-      <div class="content" id="c2"></div>
+    <div class="cell span-4 layer-body">
+      <div class="result" id="r2"></div>
+      <button class="toggle" type="button" data-toggle="2" aria-expanded="false" aria-controls="c2" hidden>Show details</button>
+      <div class="content" id="c2" hidden></div>
     </div>
   </section>
 
@@ -126,9 +110,10 @@
       <h2 id="l3">Investigate</h2>
       <dl class="lmeta"><div><dt>Engine: </dt><dd class="lengine">code lookups + Muse Spark agent</dd></div><div><dt>Status: </dt><dd class="lstatus">Waiting</dd></div></dl>
     </div></div>
-    <div class="cell span-4">
-      <p class="desc mono justify">Code asks who owns each address now: DNS, registration and expiry (RDAP), bucket probes, GitHub accounts and repos, platform takeover fingerprints, Tranco popularity. Then a Muse Spark agent picks the next check, such as certificate history, Wayback, or a live fetch, and stops when the evidence is enough. The model chooses tools; it never invents their results.</p>
-      <div class="content" id="c3"></div>
+    <div class="cell span-4 layer-body">
+      <div class="result" id="r3"></div>
+      <button class="toggle" type="button" data-toggle="3" aria-expanded="false" aria-controls="c3" hidden>Show details</button>
+      <div class="content" id="c3" hidden></div>
     </div>
   </section>
 
@@ -138,9 +123,10 @@
       <h2 id="l4">Reason</h2>
       <dl class="lmeta"><div><dt>Engine: </dt><dd class="lengine">Muse Spark 1.3 + code rules</dd></div><div><dt>Status: </dt><dd class="lstatus">Waiting</dd></div></dl>
     </div></div>
-    <div class="cell span-4">
-      <p class="desc mono justify">Muse Spark weighs how exposed each position is against the evidence and writes the risk in one sentence. Code checks every claim in that sentence against the evidence and sends it back if anything is not there. Severity floors keep a claimable bucket or an unregistered domain from being talked down.</p>
-      <div class="content" id="c4"></div>
+    <div class="cell span-4 layer-body">
+      <div class="result" id="r4"></div>
+      <button class="toggle" type="button" data-toggle="4" aria-expanded="false" aria-controls="c4" hidden>Show details</button>
+      <div class="content" id="c4" hidden></div>
     </div>
   </section>
 
@@ -150,18 +136,13 @@
       <h2 id="l5">Report</h2>
       <dl class="lmeta"><div><dt>Engine: </dt><dd class="lengine">code · ranked list</dd></div><div><dt>Status: </dt><dd class="lstatus">Waiting</dd></div></dl>
     </div></div>
-    <div class="cell span-4">
-      <p class="desc mono justify">Turn dozens of mixed signals into a short ranked list a developer will act on: fix today, review, or safe, each with a plain explanation and a specific fix.</p>
-      <div class="content" id="c5"></div>
+    <div class="cell span-4 layer-body">
+      <div class="result" id="r5"></div>
+      <button class="toggle" type="button" data-toggle="5" aria-expanded="false" aria-controls="c5" hidden>Show details</button>
+      <div class="content" id="c5" hidden></div>
     </div>
   </section>
 
-  <footer class="row foot">
-    <div class="cell span-2"><p class="mono">Trustline finds what your software depends on, checks who owns it now, and warns you before a stranger moves in. Detection only: it never registers or claims anything.</p></div>
-    <div class="cell"><span class="k">Facts:</span><span class="v">deterministic tools, cached</span></div>
-    <div class="cell"><span class="k">Judgment:</span><span class="v">Muse Spark via Meta Model API</span></div>
-    <div class="cell"><span class="k">Scope:</span><span class="v">point-in-time public records</span></div>
-  </footer>
 </main>
 
 <button class="dr-tab" id="targets-tab" type="button" aria-controls="targets" aria-expanded="false">Repos to try</button>

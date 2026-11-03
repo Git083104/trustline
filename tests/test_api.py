@@ -58,7 +58,7 @@ def _fixture_app(**kwargs):
     )
 
 
-def test_placeholder_home_and_demo_button():
+def test_home_page_and_demo_replay():
     app = create_app(model_client=FakeModelClient(handler=lambda r: {}))
     with TestClient(app) as client:
         home = client.get("/")
@@ -66,7 +66,7 @@ def test_placeholder_home_and_demo_button():
         body = home.text
         assert "<title>Trustline</title>" in body
         assert 'id="target"' in body
-        assert "Watch the demo scan" in body
+        assert 'id="targets-tab"' in body
         css = client.get("/static/app.css")
         js = client.get("/static/app.js")
         assert css.status_code == 200
@@ -583,3 +583,27 @@ def test_app_starts_without_the_public_folder(monkeypatch):
     with TestClient(app) as client:
         assert client.get("/api/health").json() == {"ok": True}
         assert client.get("/api/scan/demo").status_code == 200
+
+
+
+def test_page_shows_results_not_product_copy():
+    # the demo video explains the product; the page keeps to inputs and results
+    markup = (PUBLIC / "index.html").read_text()
+    for copy in ("A title check for everything", "AI model:", "Evidence:", "Brief", "No key needed for the demo",
+                 "Facts:", "Judgment:", "Scope:", 'class="desc'):
+        assert copy not in markup, copy
+    assert 'id="run"' in markup and 'id="run-text"' in markup
+
+
+def test_each_layer_collapses_to_its_result():
+    markup = (PUBLIC / "index.html").read_text()
+    for n in range(1, 6):
+        assert re.search(rf'id="r{n}"[^>]*>\s*</div>', markup), n
+        assert f'data-toggle="{n}" aria-expanded="false" aria-controls="c{n}" hidden' in markup
+        assert re.search(rf'id="c{n}" hidden>', markup), n
+    script = (STATIC / "app.js").read_text()
+    assert "var OPEN = { 1: false, 2: false, 3: false, 4: false, 5: false };" in script
+    for name in ("summaryGather", "summaryClassify", "summaryInvestigate", "summaryReason", "summaryReport"):
+        assert f"function {name}()" in script
+    assert "function showDetails(n)" in script
+    assert '"Hide details" : "Show details"' in script

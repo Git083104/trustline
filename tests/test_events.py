@@ -102,3 +102,20 @@ def test_classified_public_lists_only_actionable_references():
     assert out["total"] == 1
     assert out["items"][0]["target"] == "acme.dev"
     assert out["items"][0]["blast_radius"] == 3
+
+
+def test_classified_public_counts_where_every_reference_runs():
+    # the page lists the first LIST_LIMIT references, but its summary counts all of them
+    from scanner.events import LIST_LIMIT, classified_public
+    from scanner.models import Classification
+
+    pairs = []
+    for i in range(LIST_LIMIT + 20):
+        ref = _ref(line=i + 1)
+        runs = "ci" if i < LIST_LIMIT else "browser"
+        pairs.append((ref, Classification(id=str(i), file=ref.file, line=ref.line, host_or_bucket=ref.host_or_bucket,
+                                          type="script", runs_in=runs, blast_radius=2, confidence=0.9, reason="x")))
+    out = classified_public(pairs)
+    assert len(out["items"]) == LIST_LIMIT
+    assert out["total"] == LIST_LIMIT + 20
+    assert out["runs_in"] == {"ci": LIST_LIMIT, "browser": 20}

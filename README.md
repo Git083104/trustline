@@ -10,7 +10,9 @@ anything.
 
 ![Trustline after the demo scan](docs/screenshot.png)
 
-The page shows the scan as five layers, each filled in live from the scan's event stream:
+The page shows the scan as five layers, each filled in live from the scan's event stream.
+Each layer shows its result; **Show details** opens the tables, lookups and agent steps
+behind it:
 
 | Layer | Engine | Code |
 |---|---|---|
@@ -48,8 +50,8 @@ uv sync --group dev
 uv run uvicorn api.main:app --factory --host 127.0.0.1 --port 8000
 ```
 
-Open http://127.0.0.1:8000/. **Watch the demo scan** replays a recorded scan and needs no
-key. Live scans need `MODEL_API_KEY` in a `.env` file next to this README or in the
+Open http://127.0.0.1:8000/. http://127.0.0.1:8000/?demo=1 replays a recorded scan and
+needs no key. Live scans need `MODEL_API_KEY` in a `.env` file next to this README or in the
 environment:
 
 ```

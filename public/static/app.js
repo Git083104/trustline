@@ -41,6 +41,9 @@
     3: "stubbed lookups + scripted agent",
     4: "scripted stand-in + code rules"
   };
+  // Each layer shows its result; details open on request and stay open across
+  // live updates and later scans.
+  var OPEN = { 1: false, 2: false, 3: false, 4: false, 5: false };
 
   /* ---------- DOM helpers (textContent only) ---------- */
 
@@ -429,7 +432,7 @@
 
   /* ---------- layer 01: gather ---------- */
 
-  function renderGather() {
+  function summaryGather() {
     var g = S.gather;
     if (!g) {
       if (S.fromReport) { return pending("Not part of the saved report. Run the scan again to see every reference."); }
@@ -441,11 +444,19 @@
     var cov = g.coverage || {};
     var site = S.kind === "website";
     var total = g.targets_total != null ? g.targets_total : (g.targets || []).length;
-    var out = [h("div", { class: "stats" },
+    return h("div", { class: "stats" },
       stat(fmt(cov.files_scanned), site ? plural(cov.files_scanned, "page") + " read" : cov.truncated ? "of " + fmt(cov.files_total) + " files read" : "files read"),
       stat(fmt(g.references), "outside references"),
       stat(fmt(total), "targets that could change hands"),
-      stat(fmt(g.filtered), "set aside as inert"))];
+      stat(fmt(g.filtered), "set aside as inert"));
+  }
+
+  function renderGather() {
+    var g = S.gather;
+    if (!g) { return null; }
+    var cov = g.coverage || {};
+    var total = g.targets_total != null ? g.targets_total : (g.targets || []).length;
+    var out = [];
     var rows = (g.targets || []).map(function (t) {
       var first = t.first || {};
       return h("tr", null,
@@ -482,7 +493,13 @@
 
   /* ---------- layer 02: classify ---------- */
 
-  function renderClassify() {
+  function countBy(list, key) {
+    var out = {};
+    list.forEach(function (item) { out[item[key]] = (out[item[key]] || 0) + 1; });
+    return out;
+  }
+
+  function summaryClassify() {
     var c = S.classified;
     if (!c) {
       if (S.fromReport) { return pending("Not part of the saved report."); }
@@ -493,7 +510,23 @@
       return layer(2).state === "done" ? pending("No classification details were sent.") : null;
     }
     var items = c.items || [];
-    if (!items.length) { return h("p", { class: "mono", text: "Nothing to classify." }); }
+    var total = c.total != null ? c.total : items.length;
+    if (!total) { return h("p", { class: "mono", text: "Nothing to classify." }); }
+    // counts over every reference; an older recording only has the listed ones
+    var runs = c.runs_in || countBy(items, "runs_in");
+    function count(keys) { return keys.reduce(function (sum, key) { return sum + (runs[key] || 0); }, 0); }
+    return h("div", { class: "stats" },
+      stat(fmt(total), plural(total, "reference") + " labeled"),
+      stat(fmt(count(["browser"])), "load in a visitor’s browser"),
+      stat(fmt(count(["server", "build", "deploy", "ci"])), "run on servers, builds or CI"),
+      stat(fmt(count(["test", "docs_only"])), "only in tests or docs"));
+  }
+
+  function renderClassify() {
+    var c = S.classified;
+    if (!c) { return null; }
+    var items = c.items || [];
+    if (!items.length) { return null; }
     var groups = {};
     var keys = [];
     items.forEach(function (item) {
@@ -550,15 +583,40 @@
     return JSON.stringify(typeof value === "string" ? value : String(value));
   }
 
-  function renderInvestigate() {
-    var state = layer(3).state;
-    var keys = S.order.filter(function (key) {
+  function investigated() {
+    return S.order.filter(function (key) {
       return S.pre[key] || S.turns[key] || (S.fromReport && S.ranked[key]);
     });
+  }
+
+  function evidenceFor(key) {
+    var finding = S.ranked[key];
+    return (finding && finding.evidence) || (S.pre[key] || {}).evidence || {};
+  }
+
+  function summaryInvestigate() {
+    var state = layer(3).state;
+    var keys = investigated();
     if (!keys.length) {
       if (state === "running") { return pending("Looking up who owns each target now…"); }
       return state === "done" ? h("p", { class: "mono", text: "Nothing to look up." }) : null;
     }
+    var agent = keys.filter(function (key) {
+      return (S.pre[key] || {}).next === "agent" || (S.turns[key] || []).length;
+    }).length;
+    var flagged = keys.filter(function (key) {
+      return facts(evidenceFor(key)).some(function (item) { return item[0] === "alert"; });
+    }).length;
+    return h("div", { class: "stats" },
+      stat(fmt(keys.length), plural(keys.length, "target") + " checked"),
+      stat(fmt(agent), "sent to the agent"),
+      stat(fmt(S.calls), "agent " + plural(S.calls, "call")),
+      stat(fmt(flagged), "with a red flag"));
+  }
+
+  function renderInvestigate() {
+    var keys = investigated();
+    if (!keys.length) { return null; }
     var legend = h("div", { class: "legend", "aria-hidden": "true" },
       ["alert", "notice", "ok", "info"].map(function (level) {
         return h("span", null, h("i", { class: "sq sq-" + level }), level);
@@ -566,7 +624,7 @@
     var blocks = keys.map(function (key) {
       var pre = S.pre[key] || {};
       var finding = S.ranked[key];
-      var evidence = (finding && finding.evidence) || pre.evidence || {};
+      var evidence = evidenceFor(key);
       var list = facts(evidence);
       var turns = S.turns[key] || [];
       var kind = (finding && finding.kind) || pre.kind;
@@ -586,14 +644,28 @@
 
   /* ---------- layer 04: reason ---------- */
 
-  function renderReason() {
+  function raisedByRule(f) { return Boolean(f.floor_applied && f.model_severity && f.model_severity !== f.severity); }
+
+  function summaryReason() {
     var list = findingsSorted();
     if (!list.length) {
       if (layer(4).state === "running") { return pending("Muse Spark is weighing exposure against the evidence…"); }
       return layer(4).state === "done" ? h("p", { class: "mono", text: "Nothing to rank." }) : null;
     }
+    var serious = list.filter(function (f) { return f.severity === "critical" || f.severity === "high"; }).length;
+    var review = list.filter(function (f) { return f.needs_review; }).length;
+    return h("div", { class: "stats" },
+      stat(fmt(list.length), plural(list.length, "target") + " ranked"),
+      stat(fmt(serious), "critical or high"),
+      stat(fmt(list.filter(raisedByRule).length), "raised by code rules"),
+      stat(fmt(review), "failed the evidence check"));
+  }
+
+  function renderReason() {
+    var list = findingsSorted();
+    if (!list.length) { return null; }
     return list.map(function (f) {
-      var raised = f.floor_applied && f.model_severity && f.model_severity !== f.severity;
+      var raised = raisedByRule(f);
       var blast = "";
       if (typeof f.blast_radius === "number" && typeof f.classified_blast_radius === "number" && f.classified_blast_radius !== f.blast_radius) {
         var why = /versus classify/.test(f.blast_override_reason || "") ? "" : f.blast_override_reason;
@@ -646,6 +718,23 @@
       h("div", { class: "sevcol" }, sev(f.severity)));
   }
 
+  function summaryReport() {
+    if (layer(5).state !== "done") { return null; }
+    var list = findingsSorted();
+    var groups = groupsOf(list);
+    var budget = (S.done && S.done.budget_targets) || [];
+    var note = budget.length ? budget.length + " lower-priority " + plural(budget.length, "target was", "targets were") + " not investigated (model budget)." : "";
+    if (!list.length && S.gather && !S.gather.actionable) { note = "Nothing in this target could change hands."; }
+    return [
+      h("p", { class: "verdict", text: verdict(groups) }),
+      note ? h("p", { class: "verdict-src mono", text: note }) : null,
+      h("div", { class: "tally" },
+        h("div", { class: "today" }, h("b", { text: String(groups.today.length) }), h("span", { text: "Fix today" })),
+        h("div", null, h("b", { text: String(groups.review.length) }), h("span", { text: "Review" })),
+        h("div", null, h("b", { text: String(groups.safe.length) }), h("span", { text: "Checked and safe" })))
+    ];
+  }
+
   function renderReport() {
     if (layer(5).state !== "done") { return null; }
     var list = findingsSorted();
@@ -658,22 +747,12 @@
         ? h("div", { class: "group" }, h("h3", null, title, h("span", { text: String(items.length) })), body)
         : h("div", { class: "group" }, more("r-" + key, title + " · " + items.length, body));
     }
-    var budget = (S.done && S.done.budget_targets) || [];
-    var source = "Plain summary from the ranked findings.";
-    if (budget.length) { source += " " + budget.length + " lower-priority " + plural(budget.length, "target was", "targets were") + " not investigated (model budget)."; }
-    if (!list.length && S.gather && !S.gather.actionable) { source = "Nothing in this target could change hands."; }
     var actions = [
       S.scanId && S.mode !== "demo" && S.shareable ? h("button", { class: "btn", type: "button", onclick: copyShare, text: "Copy share link" }) : null,
       h("button", { class: "btn", type: "button", onclick: copyMarkdown, text: "Copy as Markdown" }),
       h("button", { class: "btn", type: "button", onclick: downloadJson, text: "Download JSON" })
     ];
     return [
-      h("p", { class: "verdict", text: verdict(groups) }),
-      h("p", { class: "verdict-src mono", text: source }),
-      h("div", { class: "tally" },
-        h("div", { class: "today" }, h("b", { text: String(groups.today.length) }), h("span", { text: "Fix today" })),
-        h("div", null, h("b", { text: String(groups.review.length) }), h("span", { text: "Review" })),
-        h("div", null, h("b", { text: String(groups.safe.length) }), h("span", { text: "Checked and safe" }))),
       section("today", "Fix today", groups.today, true),
       section("review", "Review", groups.review, true),
       section("safe", "Checked and safe", groups.safe, false),
@@ -683,18 +762,35 @@
 
   /* ---------- rendering ---------- */
 
+  var SUMMARY = [null, summaryGather, summaryClassify, summaryInvestigate, summaryReason, summaryReport];
   var RENDER = [null, renderGather, renderClassify, renderInvestigate, renderReason, renderReport];
 
   function renderLayer(n) {
+    var result = $("#r" + n);
     var box = $("#c" + n);
     var open = $$("details[open]", box).map(function (d) { return d.getAttribute("data-key"); });
+    var summary = SUMMARY[n]();
     var made = RENDER[n]();
-    var nodes = made == null ? [wait(S.failed ? "Not run." : WAITING[n])] : [].concat(made);
+    var details = made == null ? [] : [].concat(made).filter(function (node) { return node != null && node !== false; });
+    result.replaceChildren();
+    add(result, summary != null ? [].concat(summary) : details.length ? [] : [wait(S.failed ? "Not run." : WAITING[n])]);
     box.replaceChildren();
-    add(box, nodes);
+    add(box, details);
     $$("details", box).forEach(function (d) {
       if (open.indexOf(d.getAttribute("data-key")) !== -1) { d.open = true; }
     });
+    showDetails(n);
+  }
+
+  function showDetails(n) {
+    var box = $("#c" + n);
+    var button = $('[data-toggle="' + n + '"]');
+    var has = box.childNodes.length > 0;
+    var open = has && OPEN[n];
+    button.hidden = !has;
+    box.hidden = !open;
+    button.setAttribute("aria-expanded", open ? "true" : "false");
+    button.textContent = open ? "Hide details" : "Show details";
   }
 
   function layerSummary(n) {
@@ -836,7 +932,7 @@
     $("#scan-btn").disabled = on;
     $("#scan-label").textContent = on ? "Scanning…" : "Scan";
     $("#target").readOnly = on;
-    $$("[data-demo], .dr-scan").forEach(function (btn) { btn.disabled = on; });
+    $$(".dr-scan").forEach(function (btn) { btn.disabled = on; });
     if (timer) { clearInterval(timer); timer = null; }
     if (on) { timer = setInterval(function () { renderRun(); }, 1000); }
   }
@@ -1312,7 +1408,13 @@
     if (!value) { $("#target").focus(); return; }
     startScan(value);
   });
-  $$("[data-demo]").forEach(function (btn) { btn.addEventListener("click", startDemo); });
+  $$("[data-toggle]").forEach(function (button) {
+    button.addEventListener("click", function () {
+      var n = Number(button.getAttribute("data-toggle"));
+      OPEN[n] = !OPEN[n];
+      showDetails(n);
+    });
+  });
 
   mark();
 
