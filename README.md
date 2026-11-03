@@ -36,8 +36,8 @@ process.
 
 ### Render (the checked-in blueprint)
 
-`render.yaml` describes the whole service: Docker runtime, free plan, and a health check
-on `/api/health`.
+`render.yaml` describes the whole service: Docker runtime, Starter plan, a 1GB disk at
+`/var/data` for the lookup cache and spend ledger, and a health check on `/api/health`.
 
 1. Push this repository to GitHub.
 2. In Render: **New → Blueprint**, pick the repository, apply `render.yaml`.
@@ -56,19 +56,5 @@ Jobs live in process memory. `GET /api/scan/{id}` and the `?scan=<id>` share lin
 until the process restarts; after that the id is gone (404) and the scan has to be run
 again. The demo is a checked-in fixture and always works.
 
-On the free plan there are two more consequences, because a free web service cannot
-mount a disk and sleeps after 15 minutes without traffic:
-
-- The SQLite cache at `TRUSTMAP_CACHE_DB` holds both network lookups and model
-  responses, so losing it means a repeat scan of the same target pays full price
-  again rather than being nearly free.
-- A sleeping service takes about a minute to answer the first request.
-
-For a cache that survives, set `plan: starter` in `render.yaml` and add a disk back:
-
-```yaml
-    disk:
-      name: trustline-data
-      mountPath: /var/data
-      sizeGB: 1
-```
+The Starter disk at `/var/data` keeps the SQLite cache and spend ledger across
+restarts.

@@ -1,7 +1,12 @@
 import json
 from pathlib import Path
 
-from scanner.classify import classify, runs_in_mismatch_table, type_mismatch_table
+from scanner.classify import (
+    classify,
+    classify_by_rule,
+    runs_in_mismatch_table,
+    type_mismatch_table,
+)
 from scanner.extract import actionable, extract
 from scanner.llm import FakeModelClient, RawCompletion
 from scanner.lookups import LookupCache
@@ -35,16 +40,66 @@ def _handler_from_expected(request):
     return {"items": items}
 
 
+def test_classify_by_rule_covers_obvious_shapes():
+    bucket = Reference(
+        file="deploy/infra.yaml",
+        line=3,
+        raw="s3://missing",
+        host_or_bucket="missing",
+        context="bucket: s3://missing",
+    )
+    uses = Reference(
+        file=".github/workflows/ci.yml",
+        line=7,
+        raw="actions/checkout@v4",
+        host_or_bucket="github.com/actions/checkout",
+        context="        uses: actions/checkout@v4",
+        action_owner="actions",
+        action_repo="checkout",
+        action_ref="v4",
+    )
+    docker = Reference(
+        file="Dockerfile",
+        line=2,
+        raw="https://bootstrap.install.example.com/get-pip.py",
+        host_or_bucket="bootstrap.install.example.com",
+        context="ADD https://bootstrap.install.example.com/get-pip.py /tmp/get-pip.py",
+    )
+    script = Reference(
+        file="index.html",
+        line=7,
+        raw="https://cdn.example.net/lib.js",
+        host_or_bucket="cdn.example.net",
+        context='<script src="https://cdn.example.net/lib.js">',
+        tag="script",
+    )
+    assert classify_by_rule(bucket).type == "bucket"
+    assert classify_by_rule(uses).runs_in == "ci"
+    assert classify_by_rule(docker).runs_in == "build"
+    assert classify_by_rule(script).type == "script"
+    ambiguous = Reference(
+        file="backend/settings.py",
+        line=2,
+        raw="https://billing.vendor.example.net/api",
+        host_or_bucket="billing.vendor.example.net",
+        context="BILLING_URL = 'https://billing.vendor.example.net/api'",
+    )
+    assert classify_by_rule(ambiguous) is None
+
+
 def test_classify_defaults_to_actionable_only(tmp_path):
     refs = extract(str(FIXTURE_ROOT))
     client = FakeModelClient(_handler_from_expected)
     got = classify(refs, client=client, cache=LookupCache(tmp_path / "c.db"))
     assert len(got) == len(actionable(refs))
-    payload = json.loads(client.calls[0]["user"].split("\n", 1)[1])
-    assert len(payload["references"]) == len(actionable(refs))
     assert {item.host_or_bucket for item in got} <= {
         ref.host_or_bucket for ref in actionable(refs)
     }
+    # obvious buckets, Actions uses:, and script URLs are classified in code
+    for call in client.calls:
+        payload = json.loads(call["user"].split("\n", 1)[1])
+        for item in payload["references"]:
+            assert not str(item["raw"]).lower().startswith("s3://")
 
 
 def test_include_filtered_fixture_type_accuracy(tmp_path):
@@ -70,7 +125,8 @@ def test_include_filtered_fixture_type_accuracy(tmp_path):
     matched = len(expected) - len(mismatches)
     assert matched / len(expected) >= 0.9
     assert len(runs_m) == 0
-    assert logs and logs[0].api_usage is not None
+    if logs:
+        assert logs[0].api_usage is not None
 
 
 def test_wrong_ids_are_retried(tmp_path):
@@ -160,10 +216,10 @@ def test_fake_client_never_needs_api_key(tmp_path):
     )
     refs = [
         Reference(
-            file="deploy.yaml",
+            file="settings.py",
             line=3,
-            raw="s3://demo",
-            host_or_bucket="demo",
+            raw="https://billing.vendor.example.net/api",
+            host_or_bucket="billing.vendor.example.net",
         )
     ]
     logs = []

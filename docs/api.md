@@ -71,7 +71,7 @@ Replay buffered events, then live ones, then close on `done` or `error`.
 | `precheck` | after lookups for one target | `target`, `kind` (bucket/domain), `hard_signal` |
 | `plan` / `act` / `observe` | each agent turn | `target`, `tool`, `args`, `result_summary`, `tokens`, `cost_usd` |
 | `ranked` | each finding after rank | public finding fields (see report JSON) |
-| `done` | finished | `finding_count`, `cost_usd`, `classify_cost_usd`, `agent_cost_usd`, `rank_cost_usd`, `budget_targets` |
+| `done` | finished | `finding_count`, `cost_usd`, `classify_cost_usd`, `agent_cost_usd`, `rank_cost_usd`, `budget_targets`, `partial`, `skipped_targets` |
 | `error` | failure | `message` (no secrets) |
 
 Live scans are not paced. Demo replay is (see below).
@@ -91,6 +91,8 @@ Final report. **409** if still running, **404** if unknown, **500** if the job f
   "agent_cost_usd": 0.06,
   "rank_cost_usd": 0.02,
   "budget_targets": [],
+  "partial": false,
+  "skipped_targets": [],
   "coverage": {
     "files_scanned": 12,
     "files_total": 12,

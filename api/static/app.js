@@ -926,6 +926,13 @@
       ? coverage.files_scanned + " of " + coverage.files_total + " files scanned"
       : "all files scanned";
     el.resMeta.appendChild(metaItem("Coverage:", coverageText, false));
+    if (report.partial) {
+      el.resMeta.appendChild(metaItem("Scan", "partial", false));
+    }
+    var skipped = report.skipped_targets || [];
+    if (skipped.length) {
+      el.resMeta.appendChild(metaItem("Skipped", skipped.join(", "), true));
+    }
   }
 
   function renderAllTargets(findings) {

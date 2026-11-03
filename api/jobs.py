@@ -63,6 +63,9 @@ class Job:
             "agent_cost_usd": outcome.agent_cost_usd,
             "rank_cost_usd": outcome.rank_cost_usd,
             "budget_targets": outcome.budget_targets,
+            "skipped_targets": outcome.skipped_targets,
+            "partial": outcome.partial,
+            "stage_seconds": outcome.stage_seconds,
             "coverage": outcome.coverage,
             "findings": [finding_public(item) for item in outcome.findings],
         }
@@ -76,6 +79,8 @@ class Job:
                 "agent_cost_usd": outcome.agent_cost_usd,
                 "rank_cost_usd": outcome.rank_cost_usd,
                 "budget_targets": outcome.budget_targets,
+                "skipped_targets": outcome.skipped_targets,
+                "partial": outcome.partial,
             }
         )
 

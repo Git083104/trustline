@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import os
 from pathlib import Path
 from collections.abc import AsyncIterator, Awaitable, Callable
@@ -27,6 +28,27 @@ from scanner.tools import ToolContext
 ScanRunner = Callable[..., Awaitable[ScanOutcome]]
 STATIC = Path(__file__).resolve().parent / "static"
 LIVE_UNCONFIGURED = "Live scans aren't configured; try the demo"
+log = logging.getLogger("trustline")
+
+
+def warn_ephemeral_ledger(path: Path) -> None:
+    serverless = bool(
+        os.environ.get("VERCEL")
+        or os.environ.get("AWS_LAMBDA_FUNCTION_NAME")
+        or os.environ.get("NETLIFY")
+    )
+    resolved = str(path.resolve())
+    in_tmp = (
+        resolved.startswith("/tmp")
+        or resolved.startswith("/private/tmp")
+        or "/tmp/" in resolved
+    )
+    if serverless and in_tmp:
+        log.warning(
+            "Running serverless with the spend ledger at %s; "
+            "limits reset between invocations",
+            path,
+        )
 
 
 def _load_local_env() -> None:
@@ -79,6 +101,7 @@ def create_app(
     client_holder: dict[str, ModelClient | None] = {"client": model_client}
     lookup_default = cache or default_cache()
     limit_store = limits or LimitsStore(lookup_default.path)
+    warn_ephemeral_ledger(limit_store.path)
 
     def client() -> ModelClient:
         held = client_holder["client"]

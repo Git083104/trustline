@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import json
+import re
+from pathlib import Path
 
 from scanner.config import (
     CLASSIFY_BATCH_SIZE,
     CLASSIFY_MODEL,
     CLASSIFY_REASONING_EFFORT,
 )
-from scanner.extract import actionable
+from scanner.deadline import ScanClock
+from scanner.extract import actionable, is_bucket_ref, is_github_action_ref
 from scanner.llm import ModelClient, call_json, redact_secrets
 from scanner.lookups import LookupCache
 from scanner.models import (
@@ -70,6 +73,101 @@ CLASSIFY_JSON_SCHEMA = {
     "additionalProperties": False,
 }
 
+_SCRIPT_SUFFIXES = (
+    ".js",
+    ".mjs",
+    ".cjs",
+    ".jsx",
+    ".ts",
+    ".tsx",
+    ".sh",
+    ".bash",
+    ".py",
+)
+_ASSET_SUFFIXES = (
+    ".css",
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".gif",
+    ".webp",
+    ".svg",
+    ".ico",
+    ".woff",
+    ".woff2",
+    ".ttf",
+    ".eot",
+    ".otf",
+)
+_DOCKER_INSTR = re.compile(r"(?i)\b(FROM|ADD|COPY)\b")
+_SCRIPT_TAG = re.compile(r"(?i)<script\b")
+SKIPPED_CLASSIFY = "not classified (deadline)"
+
+
+def classify_by_rule(ref: Reference) -> Classification | None:
+    path = ref.file.replace("\\", "/")
+    lowered = path.lower()
+    name = Path(path).name.lower()
+    context = ref.context or ""
+    raw_l = (ref.raw or "").lower()
+    url_path = raw_l.split("?", 1)[0]
+
+    if is_bucket_ref(ref) or raw_l.startswith("s3://"):
+        runs = "ci" if ".github/workflows/" in lowered else "deploy"
+        return _rule(ref, "bucket", runs, 3, "object storage URL")
+    if is_github_action_ref(ref) or (
+        ".github/workflows/" in lowered and "uses:" in context.lower()
+    ):
+        return _rule(ref, "script", "ci", 2, "GitHub Actions uses:")
+    if name == "dockerfile" and _DOCKER_INSTR.search(context):
+        return _rule(ref, "script", "build", 2, "Dockerfile FROM/ADD")
+    if ".github/workflows/" in lowered:
+        if any(url_path.endswith(suffix) for suffix in _SCRIPT_SUFFIXES):
+            return _rule(ref, "script", "ci", 2, "CI script URL")
+        if "raw.githubusercontent.com" in raw_l:
+            return _rule(ref, "script", "ci", 2, "CI script URL")
+    if ref.tag == "script" or _SCRIPT_TAG.search(context):
+        return _rule(ref, "script", "browser", 2, "script tag")
+    html = name.endswith(".html") or name.endswith(".htm")
+    if html and any(url_path.endswith(suffix) for suffix in _SCRIPT_SUFFIXES):
+        return _rule(ref, "script", "browser", 2, "script tag")
+    if html and (
+        ref.tag in {"img", "source", "link"}
+        or any(url_path.endswith(suffix) for suffix in _ASSET_SUFFIXES)
+    ):
+        return _rule(ref, "asset", "browser", 1, "static asset URL")
+    return None
+
+
+def _rule(
+    ref: Reference, type_: str, runs_in: str, blast: int, reason: str
+) -> Classification:
+    return Classification(
+        id="0",
+        file=ref.file,
+        line=ref.line,
+        host_or_bucket=ref.host_or_bucket,
+        type=type_,  # type: ignore[arg-type]
+        runs_in=runs_in,  # type: ignore[arg-type]
+        blast_radius=blast,
+        confidence=1.0,
+        reason=reason,
+    )
+
+
+def _deadline_classification(ref: Reference) -> Classification:
+    return Classification(
+        id="0",
+        file=ref.file,
+        line=ref.line,
+        host_or_bucket=ref.host_or_bucket,
+        type="other",
+        runs_in="server",
+        blast_radius=2,
+        confidence=0.0,
+        reason=SKIPPED_CLASSIFY,
+    )
+
 
 def classify(
     refs: list[Reference],
@@ -78,13 +176,52 @@ def classify(
     include_filtered: bool = False,
     cache: LookupCache | None = None,
     logs: list[CallLog] | None = None,
+    clock: ScanClock | None = None,
+    skipped: list[str] | None = None,
 ) -> list[Classification]:
     chosen = refs if include_filtered else actionable(refs)
-    results: list[Classification] = []
-    for start in range(0, len(chosen), CLASSIFY_BATCH_SIZE):
-        batch = chosen[start : start + CLASSIFY_BATCH_SIZE]
-        results.extend(_classify_batch(batch, client=client, cache=cache, logs=logs))
-    return results
+    results: list[Classification | None] = [None] * len(chosen)
+    pending: list[int] = []
+    for index, ref in enumerate(chosen):
+        if clock is not None and clock.expired():
+            results[index] = _deadline_classification(ref)
+            if skipped is not None:
+                skipped.append(ref.host_or_bucket)
+            continue
+        ruled = classify_by_rule(ref)
+        if ruled is not None:
+            results[index] = ruled
+        else:
+            pending.append(index)
+    for start in range(0, len(pending), CLASSIFY_BATCH_SIZE):
+        chunk = pending[start : start + CLASSIFY_BATCH_SIZE]
+        if clock is not None and clock.expired():
+            for index in chunk:
+                ref = chosen[index]
+                results[index] = _deadline_classification(ref)
+                if skipped is not None:
+                    skipped.append(ref.host_or_bucket)
+            continue
+        batch = [chosen[index] for index in chunk]
+        timeout_s = clock.request_timeout() if clock is not None else None
+        try:
+            classified = _classify_batch(
+                batch,
+                client=client,
+                cache=cache,
+                logs=logs,
+                timeout_s=timeout_s,
+            )
+        except TimeoutError:
+            for index in chunk:
+                ref = chosen[index]
+                results[index] = _deadline_classification(ref)
+                if skipped is not None:
+                    skipped.append(ref.host_or_bucket)
+            continue
+        for index, item in zip(chunk, classified, strict=True):
+            results[index] = item
+    return [item for item in results if item is not None]
 
 
 def _classify_batch(
@@ -93,6 +230,7 @@ def _classify_batch(
     client: ModelClient,
     cache: LookupCache | None,
     logs: list[CallLog] | None,
+    timeout_s: float | None = None,
 ) -> list[Classification]:
     items = []
     expected_ids: list[str] = []
@@ -133,6 +271,7 @@ def _classify_batch(
         schema_name="classification_batch",
         cache=cache,
         extra_check=check_ids,
+        timeout_s=timeout_s,
     )
     if logs is not None:
         logs.append(log)

@@ -154,7 +154,7 @@ class Investigation(BaseModel):
     file: str
     line: int
     host_or_bucket: str
-    status: Literal["done", "budget"]
+    status: Literal["done", "budget", "deadline"]
     summary: str = ""
     evidence: dict[str, Any] = Field(default_factory=dict)
     trace: list[TraceEvent] = Field(default_factory=list)

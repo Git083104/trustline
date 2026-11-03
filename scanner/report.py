@@ -8,6 +8,7 @@ from typing import Any
 
 from scanner.agent import investigate, should_investigate, tranco_checked_safe
 from scanner.classify import classify
+from scanner.deadline import ScanClock
 from dataclasses import dataclass, field
 
 from scanner.config import (
@@ -59,6 +60,9 @@ class ScanOutcome:
     agent_cost_usd: float = 0.0
     rank_cost_usd: float = 0.0
     budget_targets: list[str] = field(default_factory=list)
+    skipped_targets: list[str] = field(default_factory=list)
+    partial: bool = False
+    stage_seconds: dict[str, float] = field(default_factory=dict)
     coverage: dict[str, object] = field(default_factory=lambda: empty_coverage().as_dict())
 
     @property
@@ -365,6 +369,51 @@ def is_claimable(evidence: dict[str, Any]) -> bool:
         str(platform.get("status", "")).lower() == "unclaimed"
         and str(platform.get("takeover") or "") == "vulnerable"
     )
+
+
+def skip_model_rank(group: dict[str, Any]) -> bool:
+    evidence = group["evidence"]
+    ref0 = group["rows"][0][0]
+    if compromised_status(ref0.host_or_bucket, ref0.domain):
+        return True
+    if is_claimable(evidence):
+        return True
+    repo = evidence.get("github_repo") or {}
+    return str(repo.get("status", "")).lower() == "missing"
+
+
+def template_risk(group: dict[str, Any]) -> str:
+    line = evidence_line(group)
+    floor, why = floor_decision(group)
+    if why:
+        return f"{line} {why}".strip()
+    if skip_model_rank(group):
+        return f"{line} Claimable or listed as compromised; no model rank.".strip()
+    return f"{line} Ranking skipped; using lookup facts.".strip()
+
+
+def _template_finding(group: dict[str, Any], *, deadline: bool) -> Finding:
+    payload = finding_payload(group)
+    floor, floor_why = floor_decision(group)
+    parsed = RankModelOut(
+        severity="info",
+        risk=template_risk(group),
+        fix="remove dead reference",
+        uncertain_about="",
+        blast_radius=payload["classified_blast_radius"],
+        blast_override_reason="",
+    )
+    finding = _finding_from_rank(
+        group=group,
+        payload=payload,
+        parsed=parsed,
+        floor=floor,
+        floor_why=floor_why,
+        cost_total=0.0,
+    )
+    if deadline:
+        finding = finding.model_copy(update={"needs_review": True})
+    return finding
 
 
 def has_risk_signal(evidence: dict[str, Any]) -> bool:
@@ -786,6 +835,8 @@ def rank(
     cache: LookupCache | None = None,
     logs: list[CallLog] | None = None,
     on_event: OnEvent | None = None,
+    clock: ScanClock | None = None,
+    skipped: list[str] | None = None,
 ) -> list[Finding]:
     groups = group_by_target(rows)
     if not groups:
@@ -796,15 +847,38 @@ def rank(
     group_logs: list[list[CallLog]] = [[] for _ in groups]
 
     def rank_one(index: int) -> None:
-        finding = _rank_group(
-            groups[index], client=client, cache=cache, logs=group_logs[index]
+        group = groups[index]
+        known = skip_model_rank(group) or (
+            tranco_checked_safe(group["rows"][0][0], group["evidence"])
+            and floor_decision(group)[0] is None
         )
+        if not known and clock is not None and clock.expired():
+            finding = _template_finding(group, deadline=True)
+            if skipped is not None:
+                skipped.append(group["target"])
+        else:
+            timeout_s = (
+                None if known else (clock.request_timeout() if clock is not None else None)
+            )
+            try:
+                finding = _rank_group(
+                    group,
+                    client=client,
+                    cache=cache,
+                    logs=group_logs[index],
+                    timeout_s=timeout_s,
+                )
+            except TimeoutError:
+                finding = _template_finding(group, deadline=True)
+                if skipped is not None:
+                    skipped.append(group["target"])
         results[index] = finding
         # Tell the page as each target is ranked, not after all of them.
         emit(on_event, {"type": "ranked", **finding_public(finding)})
 
-    if len(groups) == 1:
-        rank_one(0)
+    if clock is not None or len(groups) == 1:
+        for index in range(len(groups)):
+            rank_one(index)
     else:
         workers = min(RANK_CONCURRENCY, len(groups))
         with ThreadPoolExecutor(max_workers=workers) as pool:
@@ -822,6 +896,7 @@ def _rank_group(
     client: ModelClient,
     cache: LookupCache | None,
     logs: list[CallLog] | None,
+    timeout_s: float | None = None,
 ) -> Finding:
     payload = finding_payload(group)
     floor, floor_why = floor_decision(group)
@@ -844,6 +919,8 @@ def _rank_group(
             floor_why=floor_why,
             cost_total=0.0,
         )
+    if skip_model_rank(group):
+        return _template_finding(group, deadline=False)
     body = json.dumps(payload, sort_keys=True, default=str)
     user = "Rank this target. Cite only facts from the provided evidence and finding.\n" + body
     cost_total = 0.0
@@ -876,6 +953,7 @@ def _rank_group(
                 cache=cache,
                 extra_check=check,
                 retries=0,
+                timeout_s=timeout_s,
             )
             if logs is not None:
                 logs.append(log)
@@ -986,6 +1064,7 @@ async def scan(
     hydrate_only: bool = True,
     cost_cap: float = SCAN_COST_CAP_USD,
     on_event: OnEvent | None = None,
+    clock: ScanClock | None = None,
 ) -> list[Finding]:
     outcome = await run_scan(
         source,
@@ -995,6 +1074,7 @@ async def scan(
         hydrate_only=hydrate_only,
         cost_cap=cost_cap,
         on_event=on_event,
+        clock=clock,
     )
     return outcome.findings
 
@@ -1009,7 +1089,11 @@ async def run_scan(
     allow_partial_cache: bool = False,
     cost_cap: float = SCAN_COST_CAP_USD,
     on_event: OnEvent | None = None,
+    clock: ScanClock | None = None,
 ) -> ScanOutcome:
+    clock = clock or ScanClock()
+    skipped: list[str] = []
+    clock.begin_stage("extract")
     if is_website_source(source):
         refs = await extract_website(source)
         coverage = website_coverage().as_dict()
@@ -1031,8 +1115,16 @@ async def run_scan(
         },
     )
     class_logs: list[CallLog] = []
+    clock.begin_stage("classify")
     classified = await asyncio.to_thread(
-        classify, refs, client=client, include_filtered=True, cache=cache, logs=class_logs
+        classify,
+        refs,
+        client=client,
+        include_filtered=True,
+        cache=cache,
+        logs=class_logs,
+        clock=clock,
+        skipped=skipped,
     )
     pairs = list(zip(refs, classified, strict=True))
     if is_website_source(source):
@@ -1044,6 +1136,7 @@ async def run_scan(
         if hydrate_only
         else None
     )
+    clock.begin_stage("agent")
     if cached_rows is not None:
         rows = cached_rows
     else:
@@ -1053,6 +1146,8 @@ async def run_scan(
             ctx=ctx,
             cost_cap=cost_cap,
             on_event=on_event,
+            clock=clock,
+            skipped_hosts=skipped,
         )
         inv_by_loc = {(item.file, item.line): item for item in investigations}
         rows = [
@@ -1061,9 +1156,18 @@ async def run_scan(
             if (ref.file, ref.line) in inv_by_loc
         ]
     rank_logs: list[CallLog] = []
+    clock.begin_stage("rank")
     findings = await asyncio.to_thread(
-        rank, rows, client=client, cache=cache, logs=rank_logs, on_event=on_event
+        rank,
+        rows,
+        client=client,
+        cache=cache,
+        logs=rank_logs,
+        on_event=on_event,
+        clock=clock,
+        skipped=skipped,
     )
+    clock.end_stage()
     budget = sorted(
         {
             item.host_or_bucket
@@ -1071,6 +1175,7 @@ async def run_scan(
             if item.status == "budget"
         }
     )
+    unique_skipped = sorted(set(skipped))
     return ScanOutcome(
         findings=findings,
         investigations=investigations,
@@ -1078,6 +1183,9 @@ async def run_scan(
         agent_cost_usd=sum(item.cost_usd for item in investigations),
         rank_cost_usd=sum(log.cost_usd for log in rank_logs),
         budget_targets=budget,
+        skipped_targets=unique_skipped,
+        partial=bool(unique_skipped),
+        stage_seconds=dict(clock.stage_seconds),
         coverage=coverage,
     )
 

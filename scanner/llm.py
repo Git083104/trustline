@@ -5,6 +5,8 @@ import json
 import os
 import re
 import time
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FuturesTimeout
 from dataclasses import dataclass, field
 from typing import Any, Callable, Protocol, TypeVar
 
@@ -12,7 +14,9 @@ from pydantic import BaseModel, ValidationError
 
 from scanner.config import (
     CLASSIFY_MODEL,
+    LLM_HTTP_MAX_RETRIES,
     LLM_MAX_RETRIES,
+    LLM_REQUEST_TIMEOUT_S,
     META_BASE_URL,
     MODEL_PRICES,
 )
@@ -36,6 +40,7 @@ class ModelClient(Protocol):
         schema_name: str,
         schema: dict[str, Any],
         reasoning_effort: str,
+        timeout_s: float | None = None,
     ) -> "RawCompletion": ...
 
     def complete_turn(
@@ -46,6 +51,7 @@ class ModelClient(Protocol):
         messages: list[dict[str, Any]],
         tools: list[dict[str, Any]],
         reasoning_effort: str,
+        timeout_s: float | None = None,
     ) -> "ToolTurn": ...
 
 
@@ -85,6 +91,7 @@ class FakeModelClient:
         schema_name: str,
         schema: dict[str, Any],
         reasoning_effort: str,
+        timeout_s: float | None = None,
     ) -> RawCompletion:
         request = {
             "model": model,
@@ -93,6 +100,7 @@ class FakeModelClient:
             "schema_name": schema_name,
             "schema": schema,
             "reasoning_effort": reasoning_effort,
+            "timeout_s": timeout_s,
         }
         self.calls.append(request)
         payload = self.handler(request)
@@ -115,6 +123,7 @@ class FakeModelClient:
         messages: list[dict[str, Any]],
         tools: list[dict[str, Any]],
         reasoning_effort: str,
+        timeout_s: float | None = None,
     ) -> ToolTurn:
         request = {
             "model": model,
@@ -122,6 +131,7 @@ class FakeModelClient:
             "messages": messages,
             "tools": tools,
             "reasoning_effort": reasoning_effort,
+            "timeout_s": timeout_s,
         }
         self.calls.append(request)
         if self.tool_handler is None:
@@ -144,7 +154,19 @@ class LiveModelClient:
         key = api_key or os.environ.get("MODEL_API_KEY")
         if not key:
             raise RuntimeError("MODEL_API_KEY is not set")
-        self._client = OpenAI(base_url=META_BASE_URL, api_key=key)
+        self._client = OpenAI(
+            base_url=META_BASE_URL,
+            api_key=key,
+            timeout=LLM_REQUEST_TIMEOUT_S,
+            max_retries=LLM_HTTP_MAX_RETRIES,
+        )
+
+    def _api(self, timeout_s: float | None):
+        if timeout_s is None:
+            return self._client
+        return self._client.with_options(
+            timeout=timeout_s, max_retries=LLM_HTTP_MAX_RETRIES
+        )
 
     def complete_json(
         self,
@@ -155,8 +177,9 @@ class LiveModelClient:
         schema_name: str,
         schema: dict[str, Any],
         reasoning_effort: str,
+        timeout_s: float | None = None,
     ) -> RawCompletion:
-        response = self._client.chat.completions.create(
+        response = self._api(timeout_s).chat.completions.create(
             model=model,
             messages=[
                 {"role": "system", "content": system},
@@ -183,8 +206,9 @@ class LiveModelClient:
         messages: list[dict[str, Any]],
         tools: list[dict[str, Any]],
         reasoning_effort: str,
+        timeout_s: float | None = None,
     ) -> ToolTurn:
-        response = self._client.chat.completions.create(
+        response = self._api(timeout_s).chat.completions.create(
             model=model,
             messages=[{"role": "system", "content": system}, *messages],
             tools=tools,
@@ -230,6 +254,7 @@ def call_json(
     cache: LookupCache | None = None,
     extra_check: Callable[[T], None] | None = None,
     retries: int | None = None,
+    timeout_s: float | None = None,
 ) -> tuple[T, CallLog]:
     cache = cache or default_cache()
     key = f"llm:{prompt_hash(model, system, user)}"
@@ -253,14 +278,22 @@ def call_json(
     attempts = (LLM_MAX_RETRIES if retries is None else retries) + 1
     for _ in range(attempts):
         started = time.perf_counter()
-        raw = client.complete_json(
-            model=model,
-            system=system,
-            user=user,
-            schema_name=schema_name,
-            schema=json_schema,
-            reasoning_effort=reasoning_effort,
-        )
+        try:
+            raw = _run_timed(
+                lambda: client.complete_json(
+                    model=model,
+                    system=system,
+                    user=user,
+                    schema_name=schema_name,
+                    schema=json_schema,
+                    reasoning_effort=reasoning_effort,
+                    timeout_s=timeout_s,
+                ),
+                timeout_s,
+            )
+        except TimeoutError as exc:
+            last_error = exc
+            break
         latency_ms = (time.perf_counter() - started) * 1000
         in_tok, out_tok, usage = _tokens(raw.usage)
         log = CallLog(
@@ -282,7 +315,25 @@ def call_json(
         except (json.JSONDecodeError, ValidationError, ValueError) as exc:
             last_error = exc
             continue
+    if isinstance(last_error, TimeoutError):
+        raise last_error
     raise ValueError(f"model returned invalid JSON after retries: {last_error}")
+
+
+def _run_timed(fn: Callable[[], T], timeout_s: float | None) -> T:
+    if timeout_s is None:
+        return fn()
+    if timeout_s <= 0:
+        raise TimeoutError("llm request timeout")
+    pool = ThreadPoolExecutor(max_workers=1)
+    future = pool.submit(fn)
+    try:
+        return future.result(timeout=timeout_s)
+    except FuturesTimeout as exc:
+        future.cancel()
+        raise TimeoutError(f"llm request exceeded {timeout_s}s") from exc
+    finally:
+        pool.shutdown(wait=False, cancel_futures=True)
 
 
 def _tokens(usage: dict[str, Any]) -> tuple[int, int, dict[str, Any]]:

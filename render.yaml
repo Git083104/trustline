@@ -2,11 +2,11 @@ services:
   - type: web
     name: trustline
     runtime: docker
-    # Free web services cannot mount a disk, so there is no `disk:` block here
-    # and /var/data lives in the container: the lookup and model-response cache
-    # is lost on every restart. For a persistent cache, switch to `starter` and
-    # add back a disk of 1GB at /var/data.
-    plan: free
+    plan: starter
+    disk:
+      name: trustline-data
+      mountPath: /var/data
+      sizeGB: 1
     dockerfilePath: ./Dockerfile
     healthCheckPath: /api/health
     envVars:

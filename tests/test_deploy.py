@@ -58,9 +58,11 @@ def test_dockerfile_installs_git_for_repo_scans():
 def test_render_yaml_plan_and_disk_agree():
     # a persistent cache needs a disk, and only a paid plan can mount one
     text = (ROOT / "render.yaml").read_text()
-    has_disk = "mountPath:" in text
+    has_disk = "mountPath: /var/data" in text
     on_free = "plan: free" in text
-    assert has_disk != on_free, (
+    assert "plan: starter" in text
+    assert "sizeGB: 1" in text
+    assert has_disk and not on_free, (
         "free plans cannot mount a disk; a paid plan without one silently "
         "loses the cache on every restart"
     )

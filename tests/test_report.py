@@ -109,25 +109,30 @@ def test_unavailable_lookup_is_unknown_not_evidence(tmp_path):
         host_or_bucket=gone,
     )
     evidence = {
-        "bucket_probe": {"status": "NoSuchBucket", "http_status": 404, "provider": "s3"},
+        "bucket_probe": {"status": "exists", "http_status": 403, "provider": "s3"},
         "wayback": {"status": "unavailable", "url": "https://example"},
     }
     usable = usable_evidence(evidence)
     assert "wayback" not in usable
-    assert usable["bucket_probe"]["status"] == "NoSuchBucket"
+    assert usable["bucket_probe"]["status"] == "exists"
     group = group_by_target([(ref, _cl(ref), _inv(ref, evidence))])[0]
     payload = finding_payload(group)
     assert "wayback" not in payload["evidence"]
     line = evidence_line(group)
     assert "unavailable" not in line.lower()
     assert "wayback" not in line.lower()
-    assert "does not exist" in line
+    assert "exists" in line.lower() or "access" in line.lower() or "403" in line
     users: list[str] = []
 
     def handler(request):
         users.append(request["user"])
         if "unknown lookups cited" in request["user"]:
-            return _rank_ok()
+            return _rank_ok(
+                risk="This bucket already exists at deploy/infra.yaml:3.",
+                blast_radius=2,
+                override="",
+                severity="info",
+            )
         return _rank_ok(
             risk="The archive is unavailable so this bucket was abandoned."
         )
@@ -512,42 +517,49 @@ def test_s3_path_style_groups_as_bucket_even_if_classified_ci():
 
 def test_rank_overrides_blast_and_applies_floor(tmp_path):
     ref = Reference(
-        file="deploy/infra.yaml",
+        file="index.html",
         line=3,
-        raw="s3://missing",
-        host_or_bucket="missing",
+        raw="https://cdn.vendor.example.net/app.js",
+        host_or_bucket="cdn.vendor.example.net",
+        domain="vendor.example.net",
     )
     client = FakeModelClient(
         handler=lambda request: _rank_ok(
             severity="low",
             blast_radius=3,
-            override="claimable bucket in deploy",
+            override="NXDOMAIN in the browser",
+                risk="The host is NXDOMAIN at index.html:3.",
         )
     )
     findings = rank(
         [
             (
                 ref,
-                _cl(ref, blast_radius=0),
-                _inv(ref, {"bucket_probe": {"status": "NoSuchBucket", "http_status": 404}}),
+                _cl(ref, type="script", runs_in="browser", blast_radius=0),
+                _inv(
+                    ref,
+                    {
+                        "dns": {"status": "nxdomain"},
+                        "rdap": {"status": "registered"},
+                    },
+                ),
             )
         ],
         client=client,
         cache=LookupCache(tmp_path / "c.db"),
     )
-    assert findings[0].severity == "critical"
+    assert findings[0].severity == "high"
     assert findings[0].model_severity == "low"
-    assert findings[0].final_severity == "critical"
-    assert findings[0].floor_applied == "critical"
-    assert "NoSuchBucket" in findings[0].floor_reason
-    assert findings[0].fix == CLAIMABLE_FIX
+    assert findings[0].final_severity == "high"
+    assert findings[0].floor_applied == "high"
+    assert "NXDOMAIN" in findings[0].floor_reason
     assert findings[0].classified_blast_radius == 0
     assert findings[0].ranked_blast_radius == 3
-    assert findings[0].blast_override_reason == "claimable bucket in deploy"
-    assert findings[0].references == ["deploy/infra.yaml:3"]
+    assert findings[0].blast_override_reason == "NXDOMAIN in the browser"
+    assert findings[0].references == ["index.html:3"]
     table = format_table(findings)
     assert "model=low" in table
-    assert "final=critical" in table
+    assert "final=high" in table
     assert "override:" in table
     assert "Evidence:" in table
 
@@ -586,9 +598,9 @@ def test_no_override_line_when_blast_unchanged(tmp_path):
 def test_self_check_retries_then_needs_review(tmp_path):
     ref = Reference(
         file="deploy/infra.yaml",
-        line=3,
-        raw="s3://missing",
-        host_or_bucket="missing",
+        line=4,
+        raw="s3://live",
+        host_or_bucket="live",
     )
     users: list[str] = []
 
@@ -596,14 +608,16 @@ def test_self_check_retries_then_needs_review(tmp_path):
         users.append(request["user"])
         if "Self-check rejected these tokens" in request["user"]:
             assert "777" in request["user"]
-            return _rank_ok()
+            return _rank_ok(
+                risk="Nobody else can take this bucket; it already exists at deploy/infra.yaml:4."
+            )
         return _rank_ok(risk="invented 777 status")
 
     rows = [
         (
             ref,
-            _cl(ref),
-            _inv(ref, {"bucket_probe": {"status": "NoSuchBucket", "http_status": 404}}),
+            _cl(ref, blast_radius=2),
+            _inv(ref, {"bucket_probe": {"status": "exists", "http_status": 403}}),
         )
     ]
     ok = rank(rows, client=FakeModelClient(handler), cache=LookupCache(tmp_path / "a.db"))
@@ -615,10 +629,9 @@ def test_self_check_retries_then_needs_review(tmp_path):
     always = FakeModelClient(handler=lambda request: _rank_ok(risk="invented 777 status"))
     bad = rank(rows, client=always, cache=LookupCache(tmp_path / "b.db"))
     assert bad[0].needs_review is True
-    assert bad[0].severity == "critical"
+    assert bad[0].severity == "info"
     assert bad[0].model_severity == "info"
-    assert bad[0].final_severity == "critical"
-    assert bad[0].fix == CLAIMABLE_FIX
+    assert bad[0].final_severity == "info"
 
 
 def _fixture_handler():
@@ -777,14 +790,14 @@ def test_rank_runs_targets_in_parallel_and_streams_each_one(tmp_path):
         ref = Reference(
             file="deploy/infra.yaml",
             line=index + 1,
-            raw=f"s3://missing-bucket-{index}",
-            host_or_bucket=f"missing-bucket-{index}",
+            raw=f"s3://live-bucket-{index}",
+            host_or_bucket=f"live-bucket-{index}",
         )
         rows.append(
             (
                 ref,
-                _cl(ref),
-                _inv(ref, {"bucket_probe": {"status": "NoSuchBucket", "http_status": 404}}),
+                _cl(ref, blast_radius=2),
+                _inv(ref, {"bucket_probe": {"status": "exists", "http_status": 403}}),
             )
         )
 
@@ -792,7 +805,12 @@ def test_rank_runs_targets_in_parallel_and_streams_each_one(tmp_path):
 
     def slow(request):
         time.sleep(delay)
-        return _rank_ok()
+        return _rank_ok(
+            severity="info",
+            risk="This bucket already exists.",
+            blast_radius=2,
+            override="",
+        )
 
     seen: list[str] = []
     started = time.perf_counter()

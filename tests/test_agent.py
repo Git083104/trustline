@@ -161,10 +161,7 @@ async def test_prerun_dns_and_bucket_always_in_evidence(tmp_path):
     )
     gone = bucket_ref.host_or_bucket
     assert by_host[gone].evidence["bucket_probe"]["status"] == "NoSuchBucket"
-    assert any(
-        "precomputed" in json.loads(call["messages"][0]["content"])
-        for call in client.calls
-    )
+    assert client.calls == []
 
 
 @pytest.mark.asyncio
@@ -350,9 +347,9 @@ async def test_trace_is_plan_act_observe(tmp_path):
     ref = Reference(
         file="index.html",
         line=7,
-        raw="https://cdn-assets-trustmap-7f3k2.com/lib.js",
-        host_or_bucket="cdn-assets-trustmap-7f3k2.com",
-        domain="cdn-assets-trustmap-7f3k2.com",
+        raw="https://cdn.vendor.example.net/lib.js",
+        host_or_bucket="cdn.vendor.example.net",
+        domain="vendor.example.net",
     )
     results = await investigate(
         [(ref, _classification(ref, type="script"))],
@@ -374,9 +371,9 @@ async def test_one_agent_run_per_target_not_per_reference(tmp_path):
         Reference(
             file=f"src/page{index}.html",
             line=index + 1,
-            raw="https://cdn-assets-trustmap-7f3k2.com/lib.js",
-            host_or_bucket="cdn-assets-trustmap-7f3k2.com",
-            domain="cdn-assets-trustmap-7f3k2.com",
+            raw="https://cdn.vendor.example.net/lib.js",
+            host_or_bucket="cdn.vendor.example.net",
+            domain="vendor.example.net",
         )
         for index in range(12)
     ]
@@ -411,9 +408,9 @@ async def test_targets_with_different_context_are_investigated_apart(tmp_path):
     first = Reference(
         file="index.html",
         line=1,
-        raw="https://cdn-assets-trustmap-7f3k2.com/lib.js",
-        host_or_bucket="cdn-assets-trustmap-7f3k2.com",
-        domain="cdn-assets-trustmap-7f3k2.com",
+        raw="https://cdn.vendor.example.net/lib.js",
+        host_or_bucket="cdn.vendor.example.net",
+        domain="vendor.example.net",
     )
     second = first.model_copy(update={"file": "docs/page.html", "line": 9})
     pairs = [

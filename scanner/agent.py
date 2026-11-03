@@ -13,8 +13,9 @@ from scanner.config import (
     PRECHECK_CONCURRENCY,
     SCAN_COST_CAP_USD,
 )
+from scanner.deadline import ScanClock
 from scanner.llm import CallLog, ModelClient, ToolTurn, cost_usd
-from scanner.llm import _tokens
+from scanner.llm import _run_timed, _tokens
 from scanner.lookups import consistent_evidence
 from scanner.models import (
     Classification,
@@ -45,6 +46,8 @@ AGENT_SYSTEM_PROMPT = (
 )
 
 BUDGET_NOTE = "not investigated (budget)"
+DEADLINE_NOTE = "not investigated (deadline)"
+PRECHECK_NOTE = "precheck conclusive"
 
 
 def _bucket_provider(raw: str) -> str:
@@ -80,6 +83,29 @@ def has_hard_signal(evidence: dict[str, Any]) -> bool:
     if isinstance(days, int) and days <= EXPIRY_INVESTIGATE_DAYS:
         return True
     return False
+
+
+def precheck_conclusive(ref: Reference, evidence: dict[str, Any]) -> bool:
+    if compromised_status(ref.host_or_bucket, ref.domain):
+        return True
+    evidence = consistent_evidence(evidence)
+    bucket = evidence.get("bucket_probe") or {}
+    if bucket.get("status") == "NoSuchBucket":
+        return True
+    owner = evidence.get("github_owner") or {}
+    if str(owner.get("status", "")).lower() == "missing":
+        return True
+    repo = evidence.get("github_repo") or {}
+    if str(repo.get("status", "")).lower() == "missing":
+        return True
+    platform = evidence.get("platform_takeover") or {}
+    if str(platform.get("status", "")).lower() == "unclaimed":
+        return True
+    dns = evidence.get("dns") or {}
+    if str(dns.get("status", "")).lower() == "nxdomain":
+        return True
+    rdap = evidence.get("rdap") or {}
+    return str(rdap.get("status", "")).lower() == "unregistered"
 
 
 def _attach_tranco(ref: Reference, evidence: dict[str, Any]) -> dict[str, Any]:
@@ -208,6 +234,8 @@ async def investigate(
     cost_cap: float = SCAN_COST_CAP_USD,
     max_concurrent: int = MAX_INVESTIGATION_CONCURRENCY,
     on_event: OnEvent | None = None,
+    clock: ScanClock | None = None,
+    skipped_hosts: list[str] | None = None,
 ) -> list[Investigation]:
     actionable = [(ref, cl) for ref, cl in pairs if ref.filter_reason is None]
     evidence_by_key = await _precheck_all(actionable, ctx)
@@ -225,11 +253,11 @@ async def investigate(
             },
         )
     eligible: list[tuple[Reference, Classification, dict[str, Any]]] = []
-    skipped: list[Investigation] = []
+    held: list[Investigation] = []
     for ref, cl, evidence in checked:
         if tranco_checked_safe(ref, evidence):
             rank = evidence["tranco_rank"]
-            skipped.append(
+            held.append(
                 Investigation(
                     file=ref.file,
                     line=ref.line,
@@ -240,10 +268,22 @@ async def investigate(
                 )
             )
             continue
+        if precheck_conclusive(ref, evidence) and should_investigate(ref, cl, evidence):
+            held.append(
+                Investigation(
+                    file=ref.file,
+                    line=ref.line,
+                    host_or_bucket=ref.host_or_bucket,
+                    status="done",
+                    summary=PRECHECK_NOTE,
+                    evidence=evidence,
+                )
+            )
+            continue
         if should_investigate(ref, cl, evidence):
             eligible.append((ref, cl, evidence))
     if not eligible:
-        return skipped
+        return held
 
     results: list[Investigation | None] = [None] * len(eligible)
     spent = 0.0
@@ -269,6 +309,13 @@ async def investigate(
         ref, cl, evidence = eligible[lead]
         async with sem:
             async with lock:
+                if clock is not None and clock.expired():
+                    for index in members:
+                        other_ref, other_cl, other_ev = eligible[index]
+                        results[index] = _deadline_skip(other_ref, other_cl, other_ev)
+                        if skipped_hosts is not None:
+                            skipped_hosts.append(other_ref.host_or_bucket)
+                    return
                 if spent >= cost_cap:
                     for index in members:
                         other_ref, other_cl, _ = eligible[index]
@@ -281,6 +328,7 @@ async def investigate(
                 ctx=ctx,
                 evidence=evidence,
                 on_event=on_event,
+                clock=clock,
             )
             async with lock:
                 spent += inv.cost_usd
@@ -289,7 +337,7 @@ async def investigate(
                 results[index] = share(inv, index)
 
     await asyncio.gather(*(worker(members) for members in groups.values()))
-    return skipped + [item for item in results if item is not None]
+    return held + [item for item in results if item is not None]
 
 
 async def investigate_one(
@@ -300,11 +348,21 @@ async def investigate_one(
     ctx: ToolContext,
     evidence: dict[str, Any] | None = None,
     on_event: OnEvent | None = None,
+    clock: ScanClock | None = None,
 ) -> Investigation:
     if evidence is None:
         evidence = await precheck(ref, cl, ctx)
     else:
         evidence = dict(evidence)
+    if precheck_conclusive(ref, evidence):
+        return Investigation(
+            file=ref.file,
+            line=ref.line,
+            host_or_bucket=ref.host_or_bucket,
+            status="done",
+            summary=PRECHECK_NOTE,
+            evidence=evidence,
+        )
 
     messages: list[dict[str, Any]] = [
         {
@@ -333,7 +391,15 @@ async def investigate_one(
     tools = definitions()
 
     for _ in range(MAX_AGENT_TOOL_CALLS):
-        turn, log = await asyncio.to_thread(_model_turn, client, messages, tools)
+        if clock is not None and clock.expired():
+            break
+        timeout_s = clock.request_timeout() if clock is not None else None
+        try:
+            turn, log = await asyncio.to_thread(
+                _model_turn, client, messages, tools, timeout_s
+            )
+        except TimeoutError:
+            break
         cost_total += log.cost_usd
         trace.append(
             TraceEvent(
@@ -454,17 +520,35 @@ def _budget_skip(ref: Reference, cl: Classification) -> Investigation:
     )
 
 
+def _deadline_skip(
+    ref: Reference, cl: Classification, evidence: dict[str, Any]
+) -> Investigation:
+    return Investigation(
+        file=ref.file,
+        line=ref.line,
+        host_or_bucket=ref.host_or_bucket,
+        status="deadline",
+        summary=DEADLINE_NOTE,
+        evidence=evidence,
+    )
+
+
 def _model_turn(
     client: ModelClient,
     messages: list[dict[str, Any]],
     tools: list[dict[str, Any]],
+    timeout_s: float | None = None,
 ) -> tuple[ToolTurn, CallLog]:
-    turn = client.complete_turn(
-        model=AGENT_MODEL,
-        system=AGENT_SYSTEM_PROMPT,
-        messages=messages,
-        tools=tools,
-        reasoning_effort=AGENT_REASONING_EFFORT,
+    turn = _run_timed(
+        lambda: client.complete_turn(
+            model=AGENT_MODEL,
+            system=AGENT_SYSTEM_PROMPT,
+            messages=messages,
+            tools=tools,
+            reasoning_effort=AGENT_REASONING_EFFORT,
+            timeout_s=timeout_s,
+        ),
+        timeout_s,
     )
     in_tok, out_tok, usage = _tokens(turn.usage)
     log = CallLog(
