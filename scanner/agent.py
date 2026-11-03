@@ -108,21 +108,37 @@ def precheck_conclusive(ref: Reference, evidence: dict[str, Any]) -> bool:
     return str(rdap.get("status", "")).lower() == "unregistered"
 
 
+def _tranco_domain(ref: Reference) -> str:
+    if ref.domain:
+        return ref.domain
+    # Action refs keep domain empty so github.com is not allowlist-filtered.
+    if is_github_action_ref(ref) or is_github_owner_ref(ref):
+        return "github.com"
+    return ""
+
+
 def _attach_tranco(ref: Reference, evidence: dict[str, Any]) -> dict[str, Any]:
-    evidence["tranco_rank"] = tranco_rank(ref.domain or "")
+    evidence["tranco_rank"] = tranco_rank(_tranco_domain(ref))
     return evidence
 
 
 def tranco_checked_safe(ref: Reference, evidence: dict[str, Any]) -> bool:
     rank = evidence.get("tranco_rank")
+    if not isinstance(rank, int):
+        rank = tranco_rank(_tranco_domain(ref))
     if not isinstance(rank, int) or rank > TOP_SAFE_RANK:
         return False
     dns = evidence.get("dns") or {}
-    if str(dns.get("status", "")).lower() != "resolves":
+    repo = evidence.get("github_repo") or {}
+    dns_ok = str(dns.get("status", "")).lower() == "resolves"
+    repo_live = str(repo.get("status", "")).lower() == "exists"
+    # GitHub Action precheck records the repo, not DNS; a live repo on a
+    # Tranco-listed host is still a code verdict.
+    if not dns_ok and not repo_live:
         return False
     if has_hard_signal(evidence):
         return False
-    if compromised_status(ref.host_or_bucket, ref.domain):
+    if compromised_status(ref.host_or_bucket, ref.domain or _tranco_domain(ref)):
         return False
     return True
 
@@ -310,11 +326,18 @@ async def investigate(
         async with sem:
             async with lock:
                 if clock is not None and clock.expired():
+                    hosts = []
                     for index in members:
                         other_ref, other_cl, other_ev = eligible[index]
                         results[index] = _deadline_skip(other_ref, other_cl, other_ev)
+                        hosts.append(other_ref.host_or_bucket)
                         if skipped_hosts is not None:
                             skipped_hosts.append(other_ref.host_or_bucket)
+                    clock.note_skip(
+                        "agent",
+                        "stage budget exhausted before tool loop",
+                        hosts,
+                    )
                     return
                 if spent >= cost_cap:
                     for index in members:
@@ -336,7 +359,29 @@ async def investigate(
             for index in members[1:]:
                 results[index] = share(inv, index)
 
-    await asyncio.gather(*(worker(members) for members in groups.values()))
+    coros = [worker(members) for members in groups.values()]
+    if clock is not None:
+        left = max(0.05, clock.remaining_stage())
+        try:
+            await asyncio.wait_for(asyncio.gather(*coros), timeout=left)
+        except asyncio.TimeoutError:
+            hosts = []
+            for index, item in enumerate(results):
+                if item is not None:
+                    continue
+                other_ref, other_cl, other_ev = eligible[index]
+                results[index] = _deadline_skip(other_ref, other_cl, other_ev)
+                hosts.append(other_ref.host_or_bucket)
+                if skipped_hosts is not None:
+                    skipped_hosts.append(other_ref.host_or_bucket)
+            if hosts:
+                clock.note_skip(
+                    "agent",
+                    "stage budget exhausted during tool loop",
+                    hosts,
+                )
+    else:
+        await asyncio.gather(*coros)
     return held + [item for item in results if item is not None]
 
 

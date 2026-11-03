@@ -173,7 +173,13 @@ async def attach_changed_hands(
     flagged = [group for group in groups if _flagged_group(group)]
     started = time.monotonic()
     for group in flagged:
-        await _fill_lookups(group, ctx)
+        remaining = budget_s - (time.monotonic() - started)
+        if remaining <= 0.05:
+            break
+        try:
+            await asyncio.wait_for(_fill_lookups(group, ctx), timeout=remaining)
+        except asyncio.TimeoutError:
+            break
         remaining = budget_s - (time.monotonic() - started)
         seen = None
         if github_owner and github_repo and remaining > 0.05:

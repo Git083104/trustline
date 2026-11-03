@@ -2,6 +2,7 @@ import pytest
 
 from scanner.agent import investigate, precheck, tranco_checked_safe
 from scanner.llm import FakeModelClient
+from scanner.lookups import LookupCache
 from scanner.models import Reference
 from scanner.report import floor_decision, rank
 from scanner.tranco import TOP_SAFE_RANK, tranco_rank
@@ -125,3 +126,42 @@ async def test_popular_nxdomain_keeps_floor(tmp_path):
     )
     assert findings[0].severity == "high"
     assert findings[0].model_severity == "info"
+
+
+def test_live_github_action_skips_rank_without_dns(tmp_path):
+    rank_value = tranco_rank("github.com")
+    assert rank_value is not None and rank_value <= TOP_SAFE_RANK
+    ref = Reference(
+        file=".github/workflows/deploy.yml",
+        line=8,
+        raw="actions/checkout@v4",
+        host_or_bucket="github.com/actions/checkout",
+        domain="",
+        action_owner="actions",
+        action_repo="checkout",
+    )
+    evidence = {
+        "github_owner": {"status": "exists"},
+        "github_repo": {"status": "exists", "exists": True, "http_status": 200},
+        "tranco_rank": rank_value,
+    }
+    assert tranco_checked_safe(ref, evidence)
+    client = FakeModelClient(
+        handler=lambda request: (_ for _ in ()).throw(
+            AssertionError("ranker must not run for a live GitHub Action")
+        )
+    )
+    findings = rank(
+        [
+            (
+                ref,
+                _cl(ref, type="other", runs_in="ci", blast_radius=2),
+                _inv(ref, evidence),
+            )
+        ],
+        client=client,
+        cache=LookupCache(tmp_path / "action-rank.db"),
+    )
+    assert client.calls == []
+    assert findings[0].severity == "info"
+    assert findings[0].cost_usd == 0

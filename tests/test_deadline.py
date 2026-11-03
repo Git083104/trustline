@@ -125,6 +125,23 @@ def test_partial_scan_reports_skipped_targets(tmp_path):
     assert gone.cost_usd == 0
 
 
+def test_unused_stage_time_flows_forward():
+    clock = ScanClock(
+        total_s=40.0,
+        report_reserve_s=10.0,
+        agent_reserve_s=8.0,
+        rank_reserve_s=12.0,
+        request_cap_s=20.0,
+    )
+    clock.begin_stage("classify")
+    assert clock.stage_limit == pytest.approx(10.0, abs=0.2)
+    clock.begin_stage("agent")
+    assert clock.stage_limit == pytest.approx(18.0, abs=0.2)
+    clock.begin_stage("rank")
+    assert clock.stage_limit == pytest.approx(30.0, abs=0.2)
+    assert clock.request_timeout() == pytest.approx(20.0, abs=0.2)
+
+
 def test_claimable_floor_skips_rank_call(tmp_path):
     ref = Reference(
         file="deploy/infra.yaml",

@@ -1,16 +1,25 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from scanner.config import (
+    ALLOWLIST_DOMAINS,
     CLASSIFY_BATCH_SIZE,
+    CLASSIFY_CONCURRENCY,
     CLASSIFY_MODEL,
     CLASSIFY_REASONING_EFFORT,
 )
 from scanner.deadline import ScanClock
-from scanner.extract import actionable, is_bucket_ref, is_github_action_ref
+from scanner.extract import (
+    actionable,
+    is_bucket_ref,
+    is_github_action_ref,
+    is_github_owner_ref,
+)
 from scanner.llm import ModelClient, call_json, redact_secrets
 from scanner.lookups import LookupCache
 from scanner.models import (
@@ -99,9 +108,93 @@ _ASSET_SUFFIXES = (
     ".eot",
     ".otf",
 )
-_DOCKER_INSTR = re.compile(r"(?i)\b(FROM|ADD|COPY)\b")
+_DOCKER_INSTR = re.compile(r"(?i)\b(FROM|ADD|COPY|curl|wget)\b")
 _SCRIPT_TAG = re.compile(r"(?i)<script\b")
+_LINK_TAG = re.compile(r"(?i)<link\b")
 SKIPPED_CLASSIFY = "not classified (deadline)"
+log = logging.getLogger("trustmap")
+_PACKAGE_HOSTS = (
+    "npmjs.com",
+    "npmjs.org",
+    "unpkg.com",
+    "jsdelivr.net",
+    "pypi.org",
+    "pythonhosted.org",
+    "rubygems.org",
+    "crates.io",
+    "nuget.org",
+    "maven.org",
+    "pkg.go.dev",
+    "proxy.golang.org",
+)
+_DOC_NAMES = (
+    "readme",
+    "changelog",
+    "changes",
+    "license",
+    "copying",
+    "authors",
+    "contributing",
+    "security",
+    "code_of_conduct",
+)
+
+
+def _docs_only_file(path: str, name: str) -> bool:
+    stem = name.split(".", 1)[0]
+    if any(stem.startswith(prefix) for prefix in _DOC_NAMES):
+        return True
+    return "/docs/" in path or path.startswith("docs/")
+
+
+def _package_registry(host: str) -> bool:
+    host = host.lower().rstrip(".")
+    return any(host == item or host.endswith("." + item) for item in _PACKAGE_HOSTS)
+
+
+def _allowlisted_host(host: str, domain: str) -> bool:
+    names = {host.lower().rstrip("."), domain.lower().rstrip(".")}
+    for item in ALLOWLIST_DOMAINS:
+        if item in names:
+            return True
+        if any(name.endswith("." + item) for name in names if name):
+            return True
+    return False
+
+
+def _cloud_object_url(raw: str, host: str) -> bool:
+    blob = f"{raw} {host}".lower()
+    return (
+        "s3.amazonaws.com" in blob
+        or ".s3." in blob
+        or "storage.googleapis.com" in blob
+        or "blob.core.windows.net" in blob
+        or blob.startswith("gs://")
+        or blob.startswith("az://")
+    )
+
+
+def _url_in_comment(context: str, raw: str) -> bool:
+    if not context or not raw:
+        return False
+    for line in context.splitlines():
+        if raw not in line:
+            continue
+        before = line.split(raw, 1)[0].strip()
+        return before.startswith(("//", "#", "/*", "*"))
+    return False
+
+
+def _config_source(name: str) -> bool:
+    stem, _, suffix = name.partition(".")
+    return stem == "config" and suffix in {
+        "js",
+        "mjs",
+        "cjs",
+        "ts",
+        "tsx",
+        "json",
+    }
 
 
 def classify_by_rule(ref: Reference) -> Classification | None:
@@ -111,8 +204,13 @@ def classify_by_rule(ref: Reference) -> Classification | None:
     context = ref.context or ""
     raw_l = (ref.raw or "").lower()
     url_path = raw_l.split("?", 1)[0]
+    host = (ref.domain or ref.host_or_bucket or "").lower()
 
-    if is_bucket_ref(ref) or raw_l.startswith("s3://"):
+    if _docs_only_file(lowered, name):
+        return _rule(ref, "docs_link", "docs_only", 0, "docs-only file")
+    if _url_in_comment(context, ref.raw):
+        return _rule(ref, "docs_link", "docs_only", 0, "comment URL")
+    if is_bucket_ref(ref) or raw_l.startswith("s3://") or _cloud_object_url(raw_l, host):
         runs = "ci" if ".github/workflows/" in lowered else "deploy"
         return _rule(ref, "bucket", runs, 3, "object storage URL")
     if is_github_action_ref(ref) or (
@@ -121,14 +219,39 @@ def classify_by_rule(ref: Reference) -> Classification | None:
         return _rule(ref, "script", "ci", 2, "GitHub Actions uses:")
     if name == "dockerfile" and _DOCKER_INSTR.search(context):
         return _rule(ref, "script", "build", 2, "Dockerfile FROM/ADD")
+    if _package_registry(host):
+        runs = "build" if name in {
+            "package.json",
+            "requirements.txt",
+            "pyproject.toml",
+            "go.mod",
+            "cargo.toml",
+            "gemfile",
+        } else "docs_only"
+        return _rule(ref, "other", runs, 0 if runs == "docs_only" else 1, "package registry")
+    html = name.endswith(".html") or name.endswith(".htm")
+    if is_github_owner_ref(ref) or "raw.githubusercontent.com" in raw_l:
+        if ".github/workflows/" in lowered:
+            return _rule(ref, "script", "ci", 2, "GitHub URL")
+        return _rule(ref, "script", "server", 2, "GitHub URL")
+    if host.endswith("github.io"):
+        runs = "browser" if html or ref.tag == "script" else "server"
+        return _rule(ref, "script", runs, 2, "GitHub Pages URL")
+    if _allowlisted_host(host, ref.domain or "") or ref.filter_reason == "allowlisted":
+        return _rule(ref, "docs_link", "docs_only", 0, "allowlisted host")
     if ".github/workflows/" in lowered:
         if any(url_path.endswith(suffix) for suffix in _SCRIPT_SUFFIXES):
             return _rule(ref, "script", "ci", 2, "CI script URL")
-        if "raw.githubusercontent.com" in raw_l:
-            return _rule(ref, "script", "ci", 2, "CI script URL")
-    if ref.tag == "script" or _SCRIPT_TAG.search(context):
+        if "curl" in context.lower() or "wget" in context.lower():
+            return _rule(ref, "script", "ci", 2, "CI curl")
+    if ref.tag == "script" or (
+        html and _SCRIPT_TAG.search(context) and ref.tag not in {"link", "img", "source"}
+    ):
         return _rule(ref, "script", "browser", 2, "script tag")
-    html = name.endswith(".html") or name.endswith(".htm")
+    if ref.tag == "link" or (
+        html and _LINK_TAG.search(context) and ref.tag not in {"script", "img", "source"}
+    ):
+        return _rule(ref, "asset", "browser", 1, "link tag")
     if html and any(url_path.endswith(suffix) for suffix in _SCRIPT_SUFFIXES):
         return _rule(ref, "script", "browser", 2, "script tag")
     if html and (
@@ -136,6 +259,12 @@ def classify_by_rule(ref: Reference) -> Classification | None:
         or any(url_path.endswith(suffix) for suffix in _ASSET_SUFFIXES)
     ):
         return _rule(ref, "asset", "browser", 1, "static asset URL")
+    if _config_source(name):
+        if any(url_path.endswith(suffix) for suffix in _SCRIPT_SUFFIXES):
+            return _rule(ref, "script", "browser", 2, "config script URL")
+        if any(url_path.endswith(suffix) for suffix in _ASSET_SUFFIXES):
+            return _rule(ref, "asset", "server", 1, "config asset URL")
+        return _rule(ref, "api", "server", 2, "config URL")
     return None
 
 
@@ -169,6 +298,18 @@ def _deadline_classification(ref: Reference) -> Classification:
     )
 
 
+def _fallback_classification(ref: Reference) -> Classification:
+    name = Path(ref.file.replace("\\", "/")).name.lower()
+    suffix = Path(name).suffix
+    if suffix in {".js", ".mjs", ".cjs", ".ts", ".tsx", ".py", ".go", ".rb"}:
+        return _rule(ref, "api", "server", 2, "source URL (model timeout fallback)")
+    if suffix in {".json", ".yml", ".yaml", ".toml", ".env"}:
+        return _rule(ref, "api", "server", 2, "config URL (model timeout fallback)")
+    if suffix in {".html", ".htm"}:
+        return _rule(ref, "script", "browser", 2, "html URL (model timeout fallback)")
+    return _deadline_classification(ref)
+
+
 def classify(
     refs: list[Reference],
     *,
@@ -183,25 +324,43 @@ def classify(
     results: list[Classification | None] = [None] * len(chosen)
     pending: list[int] = []
     for index, ref in enumerate(chosen):
-        if clock is not None and clock.expired():
-            results[index] = _deadline_classification(ref)
-            if skipped is not None:
-                skipped.append(ref.host_or_bucket)
-            continue
         ruled = classify_by_rule(ref)
         if ruled is not None:
             results[index] = ruled
         else:
             pending.append(index)
-    for start in range(0, len(pending), CLASSIFY_BATCH_SIZE):
-        chunk = pending[start : start + CLASSIFY_BATCH_SIZE]
+    rule_n = len(chosen) - len(pending)
+    model_n = len(pending)
+    if clock is not None:
+        clock.classify_rule_n = rule_n
+        clock.classify_model_n = model_n
+    log.info("classify rules=%s model=%s", rule_n, model_n)
+    if not pending:
+        return [item for item in results if item is not None]
+
+    chunks = [
+        pending[start : start + CLASSIFY_BATCH_SIZE]
+        for start in range(0, len(pending), CLASSIFY_BATCH_SIZE)
+    ]
+    batch_logs: list[list[CallLog]] = [[] for _ in chunks]
+
+    def work(batch_index: int) -> None:
+        chunk = chunks[batch_index]
         if clock is not None and clock.expired():
+            hosts = []
             for index in chunk:
                 ref = chosen[index]
                 results[index] = _deadline_classification(ref)
+                hosts.append(ref.host_or_bucket)
                 if skipped is not None:
                     skipped.append(ref.host_or_bucket)
-            continue
+            if clock is not None:
+                clock.note_skip(
+                    "classify",
+                    "stage budget exhausted before model batch",
+                    hosts,
+                )
+            return
         batch = [chosen[index] for index in chunk]
         timeout_s = clock.request_timeout() if clock is not None else None
         try:
@@ -209,18 +368,44 @@ def classify(
                 batch,
                 client=client,
                 cache=cache,
-                logs=logs,
+                logs=batch_logs[batch_index],
                 timeout_s=timeout_s,
             )
         except TimeoutError:
+            hosts = []
             for index in chunk:
                 ref = chosen[index]
-                results[index] = _deadline_classification(ref)
-                if skipped is not None:
-                    skipped.append(ref.host_or_bucket)
-            continue
+                guessed = _fallback_classification(ref)
+                results[index] = guessed
+                if guessed.reason == SKIPPED_CLASSIFY:
+                    hosts.append(ref.host_or_bucket)
+                    if skipped is not None:
+                        skipped.append(ref.host_or_bucket)
+            if hosts and clock is not None:
+                clock.note_skip(
+                    "classify",
+                    f"model batch exceeded {timeout_s}s timeout",
+                    hosts,
+                )
+            else:
+                log.warning(
+                    "classify model batch exceeded %ss; used file-shape fallback",
+                    timeout_s,
+                )
+            return
         for index, item in zip(chunk, classified, strict=True):
             results[index] = item
+
+    workers = min(CLASSIFY_CONCURRENCY, len(chunks))
+    if workers <= 1:
+        work(0)
+    else:
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            for future in [pool.submit(work, i) for i in range(len(chunks))]:
+                future.result()
+    if logs is not None:
+        for bundle in batch_logs:
+            logs.extend(bundle)
     return [item for item in results if item is not None]
 
 

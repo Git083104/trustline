@@ -85,6 +85,88 @@ def test_classify_by_rule_covers_obvious_shapes():
         context="BILLING_URL = 'https://billing.vendor.example.net/api'",
     )
     assert classify_by_rule(ambiguous) is None
+    docs = Reference(
+        file="README.md",
+        line=3,
+        raw="https://handbook.acme-demo.example.org/setup",
+        host_or_bucket="handbook.acme-demo.example.org",
+        context="See https://handbook.acme-demo.example.org/setup",
+    )
+    assert classify_by_rule(docs).runs_in == "docs_only"
+    npm = Reference(
+        file="package.json",
+        line=4,
+        raw="https://registry.npmjs.org/left-pad/-/left-pad-1.0.0.tgz",
+        host_or_bucket="registry.npmjs.org",
+        domain="npmjs.org",
+    )
+    assert classify_by_rule(npm) is not None
+    allowlisted = Reference(
+        file="public/index.html",
+        line=1,
+        raw="http://www.w3.org/1999/xhtml",
+        host_or_bucket="www.w3.org",
+        domain="w3.org",
+    )
+    assert classify_by_rule(allowlisted).runs_in == "docs_only"
+    config_api = Reference(
+        file="src/config.js",
+        line=4,
+        raw="https://api.stripe.com",
+        host_or_bucket="api.stripe.com",
+        domain="stripe.com",
+        context="STRIPE_API = 'https://api.stripe.com'",
+    )
+    assert classify_by_rule(config_api).type == "api"
+    s3_url = Reference(
+        file="deploy/infra.yaml",
+        line=9,
+        raw="https://my-bucket.s3.amazonaws.com/app.zip",
+        host_or_bucket="my-bucket.s3.amazonaws.com",
+        domain="amazonaws.com",
+    )
+    assert classify_by_rule(s3_url).type == "bucket"
+
+
+def test_classify_model_batches_are_at_most_five(tmp_path):
+    refs = [
+        Reference(
+            file="app.py",
+            line=i + 1,
+            raw=f"https://api{i}.vendor.example.net/v1",
+            host_or_bucket=f"api{i}.vendor.example.net",
+        )
+        for i in range(12)
+    ]
+    sizes: list[int] = []
+
+    def handler(request):
+        payload = json.loads(request["user"].split("\n", 1)[1])
+        sizes.append(len(payload["references"]))
+        return {
+            "items": [
+                {
+                    "id": item["id"],
+                    "type": "api",
+                    "runs_in": "server",
+                    "blast_radius": 1,
+                    "confidence": 0.5,
+                    "reason": "api",
+                }
+                for item in payload["references"]
+            ]
+        }
+
+    got = classify(
+        refs,
+        client=FakeModelClient(handler),
+        include_filtered=True,
+        cache=LookupCache(tmp_path / "c.db"),
+    )
+    assert len(got) == 12
+    assert sizes
+    assert max(sizes) <= 5
+    assert len(sizes) >= 3
 
 
 def test_classify_defaults_to_actionable_only(tmp_path):

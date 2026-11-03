@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import re
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
@@ -60,6 +61,8 @@ from scanner.models import (
 )
 from scanner.tools import ToolContext
 
+log = logging.getLogger("trustmap")
+
 
 @dataclass
 class ScanOutcome:
@@ -70,6 +73,9 @@ class ScanOutcome:
     rank_cost_usd: float = 0.0
     budget_targets: list[str] = field(default_factory=list)
     skipped_targets: list[str] = field(default_factory=list)
+    skip_reasons: list[str] = field(default_factory=list)
+    classify_rule_n: int = 0
+    classify_model_n: int = 0
     partial: bool = False
     stage_seconds: dict[str, float] = field(default_factory=dict)
     coverage: dict[str, object] = field(default_factory=lambda: empty_coverage().as_dict())
@@ -389,10 +395,13 @@ def skip_model_rank(group: dict[str, Any]) -> bool:
         return True
     if is_proven_ownership(evidence):
         return True
-    if supporting_facts(evidence) and not is_claimable(evidence):
-        return True
     repo = evidence.get("github_repo") or {}
-    return str(repo.get("status", "")).lower() == "missing"
+    repo_status = str(repo.get("status", "")).lower()
+    if repo_status == "missing":
+        return True
+    if repo_status == "exists" and is_github_action_ref(ref0):
+        return True
+    return tranco_checked_safe(ref0, evidence)
 
 
 def template_risk(group: dict[str, Any]) -> str:
@@ -891,14 +900,16 @@ def rank(
 
     def rank_one(index: int) -> None:
         group = groups[index]
-        known = skip_model_rank(group) or (
-            tranco_checked_safe(group["rows"][0][0], group["evidence"])
-            and floor_decision(group)[0] is None
-        )
+        known = skip_model_rank(group)
         if not known and clock is not None and clock.expired():
             finding = _template_finding(group, deadline=True)
             if skipped is not None:
                 skipped.append(group["target"])
+            clock.note_skip(
+                "rank",
+                "stage budget exhausted before model call",
+                [group["target"]],
+            )
         else:
             timeout_s = (
                 None if known else (clock.request_timeout() if clock is not None else None)
@@ -915,15 +926,20 @@ def rank(
                 finding = _template_finding(group, deadline=True)
                 if skipped is not None:
                     skipped.append(group["target"])
+                if clock is not None:
+                    clock.note_skip(
+                        "rank",
+                        f"model call exceeded {timeout_s}s timeout",
+                        [group["target"]],
+                    )
         results[index] = finding
         # Tell the page as each target is ranked, not after all of them.
         emit(on_event, {"type": "ranked", **finding_public(finding)})
 
-    if clock is not None or len(groups) == 1:
-        for index in range(len(groups)):
-            rank_one(index)
+    workers = min(RANK_CONCURRENCY, len(groups))
+    if workers <= 1:
+        rank_one(0)
     else:
-        workers = min(RANK_CONCURRENCY, len(groups))
         with ThreadPoolExecutor(max_workers=workers) as pool:
             for future in [pool.submit(rank_one, i) for i in range(len(groups))]:
                 future.result()
@@ -1067,7 +1083,7 @@ def _finding_from_rank(
         uncertain = parsed.uncertain_about
     uncertain = _github_owner_note(uncertain, evidence)
     level = finding_evidence_level(group)
-    if level == "likely":
+    if parsed is None and level == "likely":
         risk = likely_risk(group)
         model_severity = "medium"
     elif level == "proven" and is_proven_ownership(evidence) and not is_claimable(evidence):
@@ -1212,8 +1228,10 @@ async def run_scan(
             if (ref.file, ref.line) in inv_by_loc
         ]
     rank_logs: list[CallLog] = []
-    clock.begin_stage("rank")
-    budget = min(OWNERSHIP_BLAME_BUDGET_S, max(0.0, clock.remaining_total()))
+    # Blame is investigation, not ranking. Keep it on the agent clock so unused
+    # classify/agent time can pay for it without starving the rank wave.
+    blame_left = clock.remaining_stage() if clock.stage == "agent" else clock.remaining_total()
+    budget = min(OWNERSHIP_BLAME_BUDGET_S, max(0.0, blame_left))
     await attach_changed_hands(
         rows,
         github_owner=origin_owner,
@@ -1221,6 +1239,7 @@ async def run_scan(
         ctx=ctx,
         budget_s=budget,
     )
+    clock.begin_stage("rank")
     findings = await asyncio.to_thread(
         rank,
         rows,
@@ -1240,6 +1259,17 @@ async def run_scan(
         }
     )
     unique_skipped = sorted(set(skipped))
+    if unique_skipped:
+        log.warning(
+            "scan skipped %s because %s",
+            unique_skipped,
+            clock.skip_events or ["unknown stage ran out of time"],
+        )
+    log.info(
+        "classify split rules=%s model=%s",
+        clock.classify_rule_n,
+        clock.classify_model_n,
+    )
     return ScanOutcome(
         findings=findings,
         investigations=investigations,
@@ -1248,6 +1278,9 @@ async def run_scan(
         rank_cost_usd=sum(log.cost_usd for log in rank_logs),
         budget_targets=budget,
         skipped_targets=unique_skipped,
+        skip_reasons=list(clock.skip_events),
+        classify_rule_n=clock.classify_rule_n,
+        classify_model_n=clock.classify_model_n,
         partial=bool(unique_skipped),
         stage_seconds=dict(clock.stage_seconds),
         coverage=coverage,

@@ -165,7 +165,9 @@ class LiveModelClient:
         if timeout_s is None:
             return self._client
         return self._client.with_options(
-            timeout=timeout_s, max_retries=LLM_HTTP_MAX_RETRIES
+            timeout=timeout_s,
+            # A retry would double the wall clock past the per-call cap.
+            max_retries=0,
         )
 
     def complete_json(

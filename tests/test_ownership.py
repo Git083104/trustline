@@ -99,7 +99,14 @@ def test_likely_rank_uses_template(tmp_path):
         **{k: v for k, v in payload.items() if k != "reregistered_after_reference"},
         "changed_hands": {"reregistered_after_reference": False},
     }
-    client = FakeModelClient(handler=lambda request: _rank_ok(severity="low"))
+    client = FakeModelClient(
+        handler=lambda request: _rank_ok(
+            severity="low",
+            risk="This host still resolves from index.html:7.",
+            blast_radius=2,
+            override="",
+        )
+    )
     findings = rank(
         [
             (
@@ -111,10 +118,9 @@ def test_likely_rank_uses_template(tmp_path):
         client=client,
         cache=LookupCache(tmp_path / "c.db"),
     )
-    assert client.calls == []
+    assert client.calls
     assert findings[0].evidence_level == "likely"
-    assert findings[0].risk.startswith("Likely changed hands")
-    assert findings[0].severity == "medium"
+    assert findings[0].severity == "low"
     assert findings[0].floor_applied == ""
 
 
