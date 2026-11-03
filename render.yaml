@@ -1,10 +1,10 @@
 services:
   - type: web
-    name: trustline
+    name: tether
     runtime: docker
     plan: starter
     disk:
-      name: trustline-data
+      name: tether-data
       mountPath: /var/data
       sizeGB: 1
     dockerfilePath: ./Dockerfile

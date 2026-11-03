@@ -1,6 +1,6 @@
-# Trustline
+# Tether
 
-Code name: trustmap.
+Code name: trustmap. Formerly Trustline.
 
 Finds abandoned outside infrastructure a repository or website still trusts (expired
 domains, claimable buckets, dangling hosts). Detection only: it never registers or
@@ -19,7 +19,7 @@ uv run pytest -q -m 'not slow'
 uv run uvicorn api.main:app --factory --host 127.0.0.1 --port 8000
 ```
 
-Open http://127.0.0.1:8000/ — **Watch the demo scan** streams `/api/scan/demo/events` (no
+Open http://127.0.0.1:8000/ — **Watch the demo** streams `/api/scan/demo/events` (no
 model key). Live scans need `MODEL_API_KEY` in a local `.env` or the environment. Keep
 `TRUSTMAP_ALLOW_LOCAL_SCAN` unset or `0`.
 
@@ -47,7 +47,7 @@ Everything else — the spend and rate caps, `TRUSTMAP_TRUSTED_PROXY_HOPS=1`, th
 path — is already in the blueprint. Check the build locally first with:
 
 ```bash
-docker build -t trustline . && docker run --rm -p 8000:8000 trustline
+docker build -t tether . && docker run --rm -p 8000:8000 tether
 ```
 
 ### What does not survive a restart

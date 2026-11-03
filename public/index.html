@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tether</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+
+<div id="page-home" class="screen-home">
+  <nav id="top-nav" class="top-nav">
+    <div class="top-nav-inner">
+      <a class="brand" href="#top">
+        <svg width="20" height="20" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round" aria-hidden="true"><path d="M24 4 40 10v12c0 11-7 19-16 22C15 41 8 33 8 22V10Z"></path><rect x="14" y="20" width="12" height="8" rx="4"></rect><rect x="22" y="20" width="12" height="8" rx="4"></rect></svg>
+        <span class="brand-name">Tether</span>
+      </a>
+    </div>
+  </nav>
+
+  <header id="hero" class="hero">
+    <div class="hero-rails" aria-hidden="true"></div>
+    <div id="hero-glow" class="hero-glow" aria-hidden="true">
+      <div id="hero-haze" class="hero-haze"></div>
+      <div class="hero-bloom"></div>
+    </div>
+    <div id="top" class="hero-inner">
+      <div class="hero-mark" aria-hidden="true">
+        <svg width="36" height="36" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"><path d="M24 4 40 10v12c0 11-7 19-16 22C15 41 8 33 8 22V10Z"></path><rect x="14" y="20" width="12" height="8" rx="4"></rect><rect x="22" y="20" width="12" height="8" rx="4"></rect></svg>
+      </div>
+      <h1>Find the parts of your code a stranger could take over.</h1>
+      <form id="scan-form" class="hero-form" novalidate>
+        <div class="scan-row">
+          <label class="sr-only" for="target">Paste a GitHub repo or website URL</label>
+          <input id="target" class="input scan-input" name="target" type="text" inputmode="url" autocomplete="off" spellcheck="false" placeholder="Paste a GitHub repo or website URL">
+          <span id="kind-chip" class="tag tag-accent kind-chip" hidden></span>
+          <button id="scan-btn" class="btn btn-primary scan-btn" type="submit" disabled>Scan</button>
+        </div>
+        <div class="hero-actions">
+          <button type="button" class="btn btn-demo" data-demo>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4v16l13-8z"></path></svg>
+            Watch the demo
+          </button>
+        </div>
+        <div class="try-row" aria-label="Try a public repository">
+          <span class="try-k">Try</span>
+          <button type="button" class="try-chip" data-try="https://github.com/jwang2007/paperplane-shop">jwang2007/paperplane-shop</button>
+          <button type="button" class="try-chip" data-try="https://github.com/pallets/flask">pallets/flask</button>
+          <button type="button" class="try-chip" data-try="https://github.com/encode/httpx">encode/httpx</button>
+        </div>
+        <p id="home-error" class="inline-error" role="alert" hidden></p>
+      </form>
+    </div>
+  </header>
+</div>
+
+<div id="page-app" class="screen-app" hidden>
+  <nav class="app-nav">
+    <button type="button" class="brand brand-btn" data-home>
+      <svg width="20" height="20" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round" aria-hidden="true"><path d="M24 4 40 10v12c0 11-7 19-16 22C15 41 8 33 8 22V10Z"></path><rect x="14" y="20" width="12" height="8" rx="4"></rect><rect x="22" y="20" width="12" height="8" rx="4"></rect></svg>
+      <span class="brand-name">Tether</span>
+    </button>
+    <button type="button" class="btn btn-secondary app-nav-btn" data-home>New scan</button>
+  </nav>
+
+  <p id="app-error" class="inline-error app-error" role="alert" hidden></p>
+
+  <section id="screen-scanning" hidden>
+    <div class="app-head">
+      <div class="app-head-inner">
+        <div class="scan-top">
+          <span id="scan-target" class="scan-target mono"></span>
+          <span id="scan-kind" class="tag tag-accent mono" hidden></span>
+          <span id="scan-recorded" class="scan-recorded" hidden></span>
+          <span class="scan-status">
+            <span class="pulse-dot" aria-hidden="true"></span>
+            <span id="scan-clock" aria-live="polite">0:00</span>
+          </span>
+        </div>
+      </div>
+    </div>
+    <div class="light app-body">
+      <div class="app-body-inner scan-stage">
+        <div class="layers-stage scan-layers" aria-label="Scan stages">
+          <svg class="layers-svg" width="200" height="376" viewBox="0 0 200 376" aria-hidden="true">
+            <g class="layer-solid" data-solid="4"><polygon class="l-left" points="8,322 90,366 90,375 8,331"></polygon><polygon class="l-right" points="90,366 172,322 172,331 90,375"></polygon><polygon class="l-top" points="90,278 172,322 90,366 8,322"></polygon></g>
+            <g class="layer-solid" data-solid="3"><polygon class="l-left" points="8,256 90,300 90,309 8,265"></polygon><polygon class="l-right" points="90,300 172,256 172,265 90,309"></polygon><polygon class="l-top" points="90,212 172,256 90,300 8,256"></polygon></g>
+            <g class="layer-solid" data-solid="2"><polygon class="l-left" points="8,190 90,234 90,243 8,199"></polygon><polygon class="l-right" points="90,234 172,190 172,199 90,243"></polygon><polygon class="l-top" points="90,146 172,190 90,234 8,190"></polygon></g>
+            <g class="layer-solid" data-solid="1"><polygon class="l-left" points="8,124 90,168 90,177 8,133"></polygon><polygon class="l-right" points="90,168 172,124 172,133 90,177"></polygon><polygon class="l-top" points="90,80 172,124 90,168 8,124"></polygon></g>
+            <g class="layer-solid" data-solid="0"><polygon class="l-left" points="8,58 90,102 90,111 8,67"></polygon><polygon class="l-right" points="90,102 172,58 172,67 90,111"></polygon><polygon class="l-top" points="90,14 172,58 90,102 8,58"></polygon></g>
+            <line class="l-line" data-line="0" x1="182" y1="58" x2="208" y2="58"></line>
+            <line class="l-line" data-line="1" x1="182" y1="124" x2="208" y2="124"></line>
+            <line class="l-line" data-line="2" x1="182" y1="190" x2="208" y2="190"></line>
+            <line class="l-line" data-line="3" x1="182" y1="256" x2="208" y2="256"></line>
+            <line class="l-line" data-line="4" x1="182" y1="322" x2="208" y2="322"></line>
+          </svg>
+          <div class="layer-label" data-layer="0" style="--layer-top:44px"><span class="layer-n mono">01</span><span class="layer-text"><span class="layer-name">Find</span><span class="layer-count mono" data-count="find">0</span></span></div>
+          <div class="layer-label" data-layer="1" style="--layer-top:110px"><span class="layer-n mono">02</span><span class="layer-text"><span class="layer-name">Check</span><span class="layer-count mono" data-count="check">0</span></span></div>
+          <div class="layer-label" data-layer="2" style="--layer-top:176px"><span class="layer-n mono">03</span><span class="layer-text"><span class="layer-name">Investigate</span><span class="layer-count mono" data-count="investigate">0</span></span></div>
+          <div class="layer-label" data-layer="3" style="--layer-top:242px"><span class="layer-n mono">04</span><span class="layer-text"><span class="layer-name">Rank</span><span class="layer-count mono" data-count="rank">0</span></span></div>
+          <div class="layer-label" data-layer="4" style="--layer-top:308px"><span class="layer-n mono">05</span><span class="layer-text"><span class="layer-name">Report</span><span class="layer-count mono" data-count="report">0</span></span></div>
+        </div>
+        <div class="scan-live">
+          <div class="scan-live-meta">
+            <span id="calls-used" class="mono">0</span>
+            <span class="side-unit">Agent calls <span id="calls-total" class="sr-only">0</span></span>
+            <span class="scan-model">Muse Spark</span>
+            <button type="button" id="skip-report" class="btn btn-primary skip-btn" disabled>Skip to report</button>
+          </div>
+          <div class="panel feed-panel compact-feed">
+            <div class="panel-head">
+              <span class="panel-title">Agent</span>
+              <span class="panel-note mono">plan → tool → result</span>
+            </div>
+            <div id="feed" class="feed"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="screen-results" hidden>
+    <div class="app-head">
+      <div class="app-head-inner results-head">
+        <div class="res-top mono">
+          <span id="res-target" class="res-target"></span>
+          <span id="res-kind" class="tag tag-accent" hidden></span>
+          <span id="res-recorded" class="scan-recorded" hidden></span>
+        </div>
+        <h1 id="res-headline"></h1>
+        <div id="res-chips" class="res-chips"></div>
+        <div id="res-meta" class="res-meta"></div>
+        <p id="partial-banner" class="partial-banner" hidden></p>
+      </div>
+    </div>
+    <div class="light app-body">
+      <div class="app-body-inner results-body">
+        <div id="tab-fix" class="tab-panel findings-list" role="tabpanel" aria-labelledby="tab-btn-fix"></div>
+        <button type="button" id="work-toggle" class="btn btn-secondary work-toggle" aria-expanded="false" aria-controls="work-panel">Show the work</button>
+        <div id="work-panel" hidden>
+          <div class="tablist" role="tablist" aria-label="Report views">
+            <button type="button" class="tab" role="tab" id="tab-btn-fix" data-tab="fix" aria-selected="true" aria-controls="tab-fix">Fix first <span id="tab-n-fix" class="tab-n mono"></span></button>
+            <button type="button" class="tab" role="tab" id="tab-btn-all" data-tab="all" aria-selected="false" aria-controls="tab-all">All targets <span id="tab-n-all" class="tab-n mono"></span></button>
+            <button type="button" class="tab" role="tab" id="tab-btn-trace" data-tab="trace" aria-selected="false" aria-controls="tab-trace">Agent trace <span id="tab-n-trace" class="tab-n mono"></span></button>
+            <button type="button" class="tab" role="tab" id="tab-btn-raw" data-tab="raw" aria-selected="false" aria-controls="tab-raw">Raw JSON</button>
+          </div>
+          <div id="tab-all" class="tab-panel" role="tabpanel" aria-labelledby="tab-btn-all" hidden></div>
+          <div id="tab-trace" class="tab-panel" role="tabpanel" aria-labelledby="tab-btn-trace" hidden></div>
+          <div id="tab-raw" class="tab-panel" role="tabpanel" aria-labelledby="tab-btn-raw" hidden></div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

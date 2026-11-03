@@ -67,6 +67,7 @@ class Job:
             "partial": outcome.partial,
             "stage_seconds": outcome.stage_seconds,
             "coverage": outcome.coverage,
+            "agent_runs": outcome.agent_runs,
             "findings": [finding_public(item) for item in outcome.findings],
         }
         self.status = "done"
@@ -81,6 +82,7 @@ class Job:
                 "budget_targets": outcome.budget_targets,
                 "skipped_targets": outcome.skipped_targets,
                 "partial": outcome.partial,
+                "agent_runs": outcome.agent_runs,
             }
         )
 

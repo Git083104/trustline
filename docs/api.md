@@ -1,4 +1,4 @@
-# Trustline scan API
+# Tether scan API
 
 Base URL is the FastAPI app (`uvicorn api.main:app --factory`). All JSON events are
 SSE frames `data: {json}\n\n`. Every event object has `type`, `scan_id`, and `ts`.
@@ -31,6 +31,12 @@ POST /api/scan
 
 {"scan_id": "7c2e1a9b", "kind": "website", "target": "https://example.com"}
 ```
+
+Blocked loopback and link-local IPs are refused with HTTP 400 before a job is created.
+
+## `POST /api/scan/stream`
+
+Same admit rules as `POST /api/scan`, then Server-Sent Events until `done` or `error`.
 
 Public-safety limits (demo routes are exempt):
 

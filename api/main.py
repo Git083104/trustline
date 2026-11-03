@@ -15,11 +15,14 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+import ipaddress
+
 from api.classify_target import TargetError, classify_target
-from api.demo import demo_gap_ms, demo_report, load_demo
+from api.demo import demo_report, demo_waits_ms, load_demo
 from api.jobs import Job, JobStore
 from api.limits import LimitsStore, client_ip
 from scanner.config import SCAN_COST_CAP_USD
+from scanner.ssrf import SCAN_BLOCKED, ScanBlockedError, parse_public_url, refuse_blocked_ips
 from scanner.llm import LiveModelClient, ModelClient, redact_secrets
 from scanner.lookups import LookupCache, default_cache
 from scanner.report import ScanOutcome, run_scan
@@ -74,6 +77,20 @@ def _sse(event: dict[str, Any]) -> str:
     return f"data: {json.dumps(event)}\n\n"
 
 
+def _refuse_blocked_website(target: str) -> None:
+    try:
+        _scheme, host, _port, _path = parse_public_url(target)
+        try:
+            ipaddress.ip_address(host)
+        except ValueError:
+            if host.lower() in {"localhost", "metadata.google.internal"}:
+                raise ScanBlockedError() from None
+        else:
+            refuse_blocked_ips([host])
+    except ScanBlockedError as exc:
+        raise TargetError(400, {"error": SCAN_BLOCKED}) from exc
+
+
 def create_app(
     *,
     model_client: ModelClient | None = None,
@@ -85,7 +102,7 @@ def create_app(
 ) -> FastAPI:
     _load_local_env()
     app = FastAPI(
-        title="Trustline",
+        title="Tether",
         description="Find abandoned outside infrastructure a repository or website still trusts.",
     )
     app.add_middleware(
@@ -128,17 +145,17 @@ def create_app(
     async def demo_events(
         speed: str | None = Query(default=None),
     ) -> StreamingResponse:
-        try:
-            gap_ms = demo_gap_ms(speed)
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
         payload = load_demo()
         events = list(payload["events"])
+        try:
+            waits = demo_waits_ms(events, speed)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
         async def gen() -> AsyncIterator[str]:
             for index, event in enumerate(events):
-                if index and gap_ms:
-                    await asyncio.sleep(gap_ms / 1000)
+                if waits[index]:
+                    await asyncio.sleep(waits[index] / 1000)
                 yield _sse(event)
 
         return StreamingResponse(gen(), media_type="text/event-stream")
@@ -152,6 +169,8 @@ def create_app(
     async def start_scan(body: ScanIn, request: Request):
         try:
             kind, target = classify_target(body.target, body.kind)
+            if kind == "website":
+                _refuse_blocked_website(target)
         except TargetError as exc:
             return JSONResponse(status_code=exc.status_code, content=exc.body)
         if not live_ready():
@@ -174,6 +193,21 @@ def create_app(
         running.add(task)
         task.add_done_callback(running.discard)
         return {"scan_id": job.scan_id, "kind": kind, "target": target}
+
+    @app.post("/api/scan/stream")
+    async def start_scan_stream(body: ScanIn, request: Request):
+        started = await start_scan(body, request)
+        if isinstance(started, JSONResponse):
+            return started
+        job = store.get(started["scan_id"])
+        if job is None:
+            raise HTTPException(status_code=500, detail="scan job missing")
+
+        async def gen() -> AsyncIterator[str]:
+            async for event in job.stream():
+                yield _sse(event)
+
+        return StreamingResponse(gen(), media_type="text/event-stream")
 
     async def _run_job(job: Job) -> None:
         def on_event(payload: dict[str, Any]) -> None:

@@ -1,4 +1,4 @@
-/* Trustline frontend. Every number and label comes from the API; nothing is mocked.
+/* Tether frontend. Every number and label comes from the API; nothing is mocked.
    Report text is attacker-controlled, so it only ever reaches the DOM as textContent. */
 (function () {
   "use strict";
@@ -43,26 +43,22 @@
     target: $("target"),
     chip: $("kind-chip"),
     scanBtn: $("scan-btn"),
-    howTool: $("how-tool"),
     scanTarget: $("scan-target"),
     scanKind: $("scan-kind"),
+    scanRecorded: $("scan-recorded"),
     clock: $("scan-clock"),
-    progress: document.querySelector(".progress"),
-    progressFill: $("progress-fill"),
-    stepper: $("stepper"),
     feed: $("feed"),
-    foundCount: $("found-count"),
-    foundBar: $("found-bar"),
-    foundLegend: $("found-legend"),
     callsUsed: $("calls-used"),
-    callsTotal: $("calls-total"),
-    pips: $("call-pips"),
     skip: $("skip-report"),
     resTarget: $("res-target"),
     resKind: $("res-kind"),
+    resRecorded: $("res-recorded"),
     headline: $("res-headline"),
     resChips: $("res-chips"),
     resMeta: $("res-meta"),
+    partial: $("partial-banner"),
+    workToggle: $("work-toggle"),
+    workPanel: $("work-panel"),
     tabFix: $("tab-fix"),
     tabAll: $("tab-all"),
     tabTrace: $("tab-trace"),
@@ -91,7 +87,8 @@
     turns: [],
     rows: {},
     buckets: {},
-    targetsSeen: 0
+    targetsSeen: 0,
+    counts: { find: 0, check: 0, rank: 0, report: 0 }
   };
 
   /* ---------- small DOM helpers (textContent only) ---------- */
@@ -246,70 +243,48 @@
 
   function tick() {
     state.elapsedMs = Date.now() - state.startedAt;
-    el.clock.textContent = "Scanning · " + clock(state.elapsedMs);
+    el.clock.textContent = clock(state.elapsedMs);
   }
 
   /* ---------- scanning screen ---------- */
 
-  function renderStepper() {
-    el.stepper.replaceChildren();
-    STAGES.forEach(function (name, index) {
-      var li = make("li");
-      var done = index < state.stage;
-      var current = index === state.stage;
-      if (done) { li.className = "is-done"; }
-      if (current) { li.className = "is-current"; }
-      li.appendChild(make("span", "step-mark", done ? "✓" : String(index + 1)));
-      li.appendChild(make("span", null, name));
-      el.stepper.appendChild(li);
+  function renderLayers() {
+    Array.prototype.forEach.call(document.querySelectorAll(".scan-layers .layer-label"), function (node) {
+      var index = Number(node.getAttribute("data-layer"));
+      node.classList.toggle("is-on", index === state.stage);
+      node.classList.toggle("is-done", index < state.stage);
     });
+    Array.prototype.forEach.call(document.querySelectorAll(".scan-layers .layer-solid"), function (group) {
+      var index = Number(group.getAttribute("data-solid"));
+      group.classList.toggle("is-on", index === state.stage);
+      group.classList.toggle("is-done", index < state.stage);
+    });
+    Array.prototype.forEach.call(document.querySelectorAll(".scan-layers .l-line"), function (line) {
+      var index = Number(line.getAttribute("data-line"));
+      line.classList.toggle("is-on", index === state.stage);
+    });
+    var counts = {
+      find: state.counts.find,
+      check: state.counts.check,
+      investigate: state.calls,
+      rank: state.counts.rank,
+      report: state.counts.report
+    };
+    Object.keys(counts).forEach(function (key) {
+      var node = document.querySelector('[data-count="' + key + '"]');
+      if (node) { node.textContent = String(counts[key]); }
+    });
+    if (el.callsUsed) { el.callsUsed.textContent = "Agent calls " + state.calls; }
   }
 
-  function setProgress(pct) {
-    var value = Math.max(0, Math.min(100, pct));
-    el.progressFill.style.width = value + "%";
-    el.progress.setAttribute("aria-valuenow", String(Math.round(value)));
-  }
+  function setProgress() {}
 
   function renderPips() {
-    var total = Math.max(state.targetsSeen, state.calls, 1);
-    el.callsUsed.textContent = String(state.calls);
-    el.callsTotal.textContent = "of " + total + (total === 1 ? " target" : " targets");
-    el.pips.style.gridTemplateColumns = "repeat(" + total + ", 1fr)";
-    el.pips.replaceChildren();
-    for (var i = 0; i < total; i += 1) {
-      var pip = make("span");
-      if (i < state.calls) { pip.className = "is-on"; }
-      else if (i === state.calls) { pip.className = "is-next"; }
-      el.pips.appendChild(pip);
-    }
+    renderLayers();
   }
 
   function renderFound() {
-    var counts = {};
-    Object.keys(state.buckets).forEach(function (key) {
-      var bucket = state.buckets[key];
-      counts[bucket] = (counts[bucket] || 0) + 1;
-    });
-    // The headline number is the legend's own total, so the two always agree.
-    el.foundCount.textContent = String(Object.keys(state.buckets).length);
-    el.foundBar.replaceChildren();
-    el.foundLegend.replaceChildren();
-    FOUND_BUCKETS.forEach(function (bucket) {
-      var n = counts[bucket.key] || 0;
-      var bar = make("span");
-      bar.style.flex = String(n);
-      bar.style.background = "var(--sev-" + bucket.sev + "-bar)";
-      el.foundBar.appendChild(bar);
-
-      var row = make("div", "legend-row");
-      var swatch = make("span", "legend-sw");
-      swatch.style.background = "var(--sev-" + bucket.sev + "-bar)";
-      row.appendChild(swatch);
-      row.appendChild(make("span", "legend-label", bucket.label));
-      row.appendChild(make("span", "legend-n", String(n)));
-      el.foundLegend.appendChild(row);
-    });
+    renderLayers();
   }
 
   function parseSummary(raw) {
@@ -489,12 +464,13 @@
     state.rows = {};
     state.buckets = {};
     state.targetsSeen = 0;
+    state.counts = { find: 0, check: 0, rank: 0, report: 0 };
     state.startedAt = Date.now();
     state.elapsedMs = 0;
     el.feed.replaceChildren();
     setTargetLabels();
-    renderStepper();
-    setProgress(6);
+    setRecordedLabel(el.scanRecorded, null);
+    renderLayers();
     renderPips();
     renderFound();
     el.skip.disabled = true;
@@ -543,6 +519,10 @@
         // Never received a frame: the stream itself is the problem, not the
         // scan. A buffering proxy looks exactly like this.
         waitWithoutStream();
+        return;
+      }
+      if (state.demo && state.report) {
+        showResults(state.report);
         return;
       }
       showError("The live scan connection dropped.", function () {
@@ -597,7 +577,7 @@
     var next = stageFor(event.type);
     if (next > state.stage) {
       state.stage = next;
-      renderStepper();
+      renderLayers();
       setProgress((state.stage + 1) / STAGES.length * 100);
     }
     if (event.type === "started") {
@@ -605,9 +585,16 @@
       state.target = event.target || state.target;
       setTargetLabels();
     }
+    if (event.type === "extracted") {
+      var extracted = event.actionable != null ? event.actionable : event.count;
+      if (extracted != null) { state.counts.find = Number(extracted) || 0; }
+      renderLayers();
+    }
     if (event.type === "precheck" && event.target) {
       if (!state.buckets[event.target]) { state.targetsSeen += 1; }
       state.buckets[event.target] = event.hard_signal ? "claimable" : "checking";
+      state.counts.check += 1;
+      if (state.counts.find < state.targetsSeen) { state.counts.find = state.targetsSeen; }
       renderFound();
       renderPips();
     }
@@ -616,6 +603,7 @@
     }
     if (event.type === "ranked" && event.target) {
       state.buckets[event.target] = bucketFor(event);
+      state.counts.rank += 1;
       applyRanked(event);
       renderFound();
     }
@@ -628,6 +616,8 @@
     if (event.type === "done") {
       closeSource();
       state.elapsedMs = Date.now() - state.startedAt;
+      state.counts.report = 1;
+      renderLayers();
       loadReport();
     }
   }
@@ -654,8 +644,16 @@
   function httpMessage(status, body) {
     var message = (body && (body.error || body.message || body.detail)) || "";
     if (status === 503) { return message || "Live scans aren't configured; try the demo"; }
-    if (status === 429) { return message || "Too many scans right now; try the demo"; }
-    if (status === 400) { return message || "That target can't be scanned"; }
+    if (status === 429) {
+      if (/daily/i.test(message)) { return message; }
+      return message || "Too many scans right now; try the demo";
+    }
+    if (status === 400) {
+      if (/can't be scanned|cannot be scanned/i.test(message)) {
+        return message || "This address can't be scanned";
+      }
+      return message || "Paste a GitHub repository or website URL.";
+    }
     return message || "The scan could not be started.";
   }
 
@@ -709,6 +707,10 @@
       .then(function (report) {
         state.report = report;
         el.skip.disabled = false;
+        if (report.recorded_at) {
+          window.__tetherRecordedAt = report.recorded_at;
+          setRecordedLabel(el.scanRecorded, report);
+        }
       })
       .catch(function () {});
   }
@@ -808,10 +810,9 @@
     if (item.evidence_level === "proven") {
       top.appendChild(make("span", "finding-where", "Proven"));
     } else if (item.evidence_level === "likely") {
-      top.appendChild(make("span", "finding-where", "Likely changed hands"));
+      top.appendChild(make("span", "finding-where", "Likely"));
     }
     var where = whereUsed(item);
-    if (where) { top.appendChild(make("span", "finding-where", where)); }
     main.appendChild(top);
 
     if (item.risk) { main.appendChild(make("p", "finding-risk", item.risk)); }
@@ -839,6 +840,9 @@
     details.hidden = true;
     addDetail(details, "Evidence", evidenceText(item), false);
     addDetail(details, "Found in", where, false);
+    evidenceDates(item).forEach(function (line) {
+      addDetail(details, "Date", line, false);
+    });
     if (item.floor_reason) { addDetail(details, "Rule note", item.floor_reason, true); }
     if (item.tranco_rank != null) { addDetail(details, "Tranco", "rank " + item.tranco_rank, false); }
     if (item.for_sale || item.parked) {
@@ -864,6 +868,16 @@
     article.appendChild(main);
     article.appendChild(details);
     return article;
+  }
+
+  function evidenceDates(item) {
+    var evidence = item.evidence || {};
+    var rdap = evidence.rdap || {};
+    var lines = [];
+    ["expiration", "expiry", "expires", "updated", "created", "event_date"].forEach(function (key) {
+      if (rdap[key]) { lines.push(key + ": " + rdap[key]); }
+    });
+    return lines;
   }
 
   function addDetail(grid, label, value, isRule) {
@@ -1016,6 +1030,25 @@
       : fix.length + (fix.length === 1 ? " thing to fix today" : " things to fix today");
     renderChips(findings);
     renderMeta(report);
+    setRecordedLabel(el.resRecorded, report);
+    if (el.partial) {
+      var skipped = report.skipped_targets || [];
+      if (report.partial && skipped.length) {
+        el.partial.hidden = false;
+        el.partial.textContent = "Partial scan. Skipped: " + skipped.join(", ");
+      } else if (report.partial) {
+        el.partial.hidden = false;
+        el.partial.textContent = "Partial scan. Some targets were skipped.";
+      } else {
+        el.partial.hidden = true;
+        el.partial.textContent = "";
+      }
+    }
+    if (el.workPanel) { el.workPanel.hidden = true; }
+    if (el.workToggle) {
+      el.workToggle.setAttribute("aria-expanded", "false");
+      el.workToggle.textContent = "Show the work";
+    }
 
     el.tabNFix.textContent = String(fix.length);
     el.tabNAll.textContent = String(findings.length);
@@ -1027,12 +1060,12 @@
       el.tabFix.appendChild(make("div", "empty-note", "No critical or high findings in this scan."));
     }
     if (later.length) {
-      el.tabFix.appendChild(collapsedGroup("Low", "low",
-        later.length + " to review later", later));
+      el.tabFix.appendChild(collapsedGroup("Later", "low",
+        "Review later (" + later.length + ")", later));
     }
     if (safe.length) {
       el.tabFix.appendChild(collapsedGroup("Safe", "safe",
-        safe.length + (safe.length === 1 ? " reference checked and safe" : " references checked and safe"), safe));
+        "Checked and safe (" + safe.length + ")", safe));
     }
 
     renderAllTargets(findings);
@@ -1048,7 +1081,26 @@
     Array.prototype.forEach.call(document.querySelectorAll(".tab"), function (btn) {
       btn.setAttribute("aria-selected", btn.getAttribute("data-tab") === name ? "true" : "false");
     });
-    Object.keys(panels).forEach(function (key) { panels[key].hidden = key !== name; });
+    Object.keys(panels).forEach(function (key) {
+      if (key === "fix") {
+        panels[key].hidden = false;
+        return;
+      }
+      panels[key].hidden = key !== name;
+    });
+  }
+
+  function setRecordedLabel(node, report) {
+    if (!node) { return; }
+    var stamp = (report && (report.recorded_at || report.recorded_live)) || "";
+    if (!stamp && state.demo) { stamp = demoRecordedAt(); }
+    if (!stamp) { node.hidden = true; node.textContent = ""; return; }
+    node.hidden = false;
+    node.textContent = "Recorded live scan · " + stamp;
+  }
+
+  function demoRecordedAt() {
+    return window.__tetherRecordedAt || "";
   }
 
   /* ---------- home: nav tint, hero clearance, layer picker ---------- */
@@ -1107,11 +1159,21 @@
   Array.prototype.forEach.call(document.querySelectorAll(".tab"), function (btn) {
     btn.addEventListener("click", function () { selectTab(btn.getAttribute("data-tab")); });
   });
-  Array.prototype.forEach.call(document.querySelectorAll(".layer-label"), function (btn) {
+  Array.prototype.forEach.call(document.querySelectorAll("[data-try]"), function (btn) {
     btn.addEventListener("click", function () {
-      selectLayer(Number(btn.getAttribute("data-layer")));
+      el.target.value = btn.getAttribute("data-try") || "";
+      syncInput();
+      el.target.focus();
     });
   });
+  if (el.workToggle) {
+    el.workToggle.addEventListener("click", function () {
+      var open = el.workToggle.getAttribute("aria-expanded") === "true";
+      el.workToggle.setAttribute("aria-expanded", open ? "false" : "true");
+      el.workToggle.textContent = open ? "Show the work" : "Hide the work";
+      el.workPanel.hidden = open;
+    });
+  }
   el.skip.addEventListener("click", function () {
     if (state.report) { showResults(state.report); }
   });
@@ -1121,7 +1183,6 @@
 
   syncInput();
   syncHeroClearance();
-  selectLayer(2);
   onScroll();
 
   var params = new URLSearchParams(window.location.search);

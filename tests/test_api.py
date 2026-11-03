@@ -9,7 +9,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from api.classify_target import classify_target, infer_kind
-from api.demo import demo_gap_ms, demo_report, load_demo
+from api.demo import DEMO_GAP_CAP_MS, demo_gap_ms, demo_report, demo_waits_ms, load_demo
 from api.jobs import Job
 from scanner.extract import CloneError
 from api.main import LIVE_UNCONFIGURED, create_app
@@ -63,9 +63,9 @@ def test_placeholder_home_and_demo_button():
         home = client.get("/")
         assert home.status_code == 200
         body = home.text
-        assert "<title>Trustline</title>" in body
+        assert "<title>Tether</title>" in body
         assert 'id="target"' in body
-        assert "Watch the demo scan" in body
+        assert "Watch the demo" in body
         css = client.get("/static/app.css")
         js = client.get("/static/app.js")
         assert css.status_code == 200
@@ -263,7 +263,8 @@ def test_frontend_has_the_three_screens_and_no_design_switcher():
     # the floating Home/Scanning/Results control is a design-tool affordance
     assert "showSwitcher" not in markup
     assert "Trustmap" not in markup
-    assert markup.count("Trustline") > 1
+    assert "Trustline" not in markup
+    assert markup.count("Tether") > 1
     assert "Inter" in markup and "JetBrains+Mono" in markup
 
 
@@ -385,6 +386,40 @@ def test_warns_when_serverless_ledger_is_in_tmp(monkeypatch, caplog):
     warn_ephemeral_ledger(Path("/tmp/trustmap.db"))
     assert "serverless" in caplog.text.lower()
     assert "/tmp" in caplog.text
+
+
+def test_blocked_literal_ips_never_create_a_job():
+    app = create_app(model_client=FakeModelClient(handler=lambda r: {}))
+    with TestClient(app) as client:
+        for url in ("http://169.254.169.254", "http://127.0.0.1"):
+            response = client.post("/api/scan", json={"target": url})
+            assert response.status_code == 400, url
+            assert "can't be scanned" in response.json()["error"]
+            stream = client.post("/api/scan/stream", json={"target": url})
+            assert stream.status_code == 400, url
+        assert app.state.store._jobs == {}
+
+
+def test_scan_stream_finishes_for_fixture(tmp_path):
+    app = _fixture_app(tmp_path=tmp_path)
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/scan/stream", json={"target": str(FIXTURE_ROOT)}
+        )
+        assert response.status_code == 200
+        events = _parse_sse(response.text)
+        assert events[0]["type"] == "started"
+        assert events[-1]["type"] == "done"
+        assert "agent_runs" in events[-1]
+
+
+def test_demo_waits_cap_gaps():
+    events = [{"ts": 1.0}, {"ts": 10.0}, {"ts": 10.2}]
+    waits = demo_waits_ms(events, None)
+    assert waits[0] == 0
+    assert waits[1] == DEMO_GAP_CAP_MS
+    assert waits[2] == 200
+    assert demo_waits_ms(events, "0") == [0, 0, 0]
 
 
 def test_frontend_falls_back_when_the_event_stream_cannot_open():
