@@ -141,6 +141,18 @@
     l.state = "done";
     l.t1 = ts;
   }
+  // A target's references add up to its strongest step; an older recording
+  // sent one per reference, so the last one is not always the target's.
+  var STEP_ORDER = ["agent", "facts", "popular", "low_exposure"];
+  function strongerStep(a, b) {
+    if (!a) { return b; }
+    if (!b) { return a; }
+    var ia = STEP_ORDER.indexOf(a), ib = STEP_ORDER.indexOf(b);
+    if (ia === -1) { return b; }
+    if (ib === -1) { return a; }
+    return ia <= ib ? a : b;
+  }
+
   function noteTarget(name) {
     var key = String(name || "");
     if (key && S.order.indexOf(key) === -1) { S.order.push(key); }
@@ -198,10 +210,18 @@
         row.refs += 1;
         row.kind = ev.kind || row.kind;
         row.hard = row.hard || !!ev.hard_signal;
-        row.next = ev.next || row.next;
+        row.next = strongerStep(row.next, ev.next);
         if (ev.evidence) { row.evidence = ev.evidence; }
+        if (ev.flags) { row.flags = ev.flags; }
+        if (ev.max_turns) { row.maxTurns = ev.max_turns; }
         S.pre[key] = row;
         mark(2, 3);
+        break;
+      case "checked":
+        // history from code (crt.sh, Wayback) for a target without a red flag
+        key = noteTarget(ev.target);
+        if (S.pre[key] && ev.evidence) { S.pre[key].evidence = ev.evidence; }
+        mark(3);
         break;
       case "plan":
       case "act":
@@ -331,6 +351,7 @@
       var repoStatus = String(repo.status || "").toLowerCase();
       var what = repo.owner && repo.repo ? "repo " + repo.owner + "/" + repo.repo : "repo";
       if (repoStatus === "missing" || repo.exists === false) { out.push(["alert", "GitHub", what + " does not exist"]); }
+      else if (repoStatus === "disabled") { out.push(["alert", "GitHub", what + " is disabled by GitHub"]); }
       else if (repoStatus === "exists" || repo.exists === true) { out.push(["ok", "GitHub", what + " exists"]); }
       else { out.push(["unknown", "GitHub", repoStatus || "no answer"]); }
     }
@@ -559,6 +580,12 @@
     var budget = (S.done && S.done.budget_targets) || [];
     if (budget.indexOf(key) !== -1) { return "Not investigated: the scan’s model budget ran out."; }
     if (pre.next === "popular") { return "No agent needed: a top-ranked domain that resolves."; }
+    if (pre.next === "facts") {
+      // say only what code actually ran for this target
+      var e = pre.evidence || {};
+      var ran = [e.live_fetch ? "the live page" : "", e.cert_history || e.wayback ? "its history" : ""].filter(Boolean);
+      return "No agent needed: no red flag." + (ran.length ? " Code also checked " + ran.join(" and ") + "." : "") + " Rank weighs these facts.";
+    }
     if (pre.next === "low_exposure") { return "No agent needed: low exposure and no hard signal."; }
     if (pre.next === "agent" && !turns.length) {
       return layer(3).state === "running" ? "Queued for the agent…" : "Agent skipped: the scan’s time budget ran out. Rank used the facts above.";
@@ -633,8 +660,9 @@
         tname(key, kindLabel(key, kind, evidence) + (pre.refs > 1 ? " · " + pre.refs + " refs" : "")),
         h("div", null,
           list.length ? h("ul", { class: "facts" }, list.map(fact)) : pending("Checking…"),
+          pre.next === "agent" && (pre.flags || []).length ? h("p", { class: "step", text: "Sent to the agent: " + pre.flags.join(", ") + "." }) : null,
           turns.length ? [
-            h("p", { class: "step", text: (scripted() ? "Scripted agent" : "Muse Spark agent") + ", " + turns.length + " " + plural(turns.length, "step") + ":" }),
+            h("p", { class: "step", text: (scripted() ? "Scripted agent" : "Muse Spark agent") + ", " + turns.length + " " + plural(turns.length, "step") + (pre.maxTurns ? " of " + pre.maxTurns : "") + ":" }),
             h("ol", { class: "trace" }, turns.map(traceLine))
           ] : null,
           note ? h("p", { class: "step", text: note }) : null));
@@ -678,6 +706,8 @@
           h("h3", { text: f.risk || "No explanation." }),
           raised ? h("p", { class: "rule" }, h("b", { text: "Rule" }),
             "Model said " + f.model_severity + ", raised to " + f.severity + (f.floor_reason ? ": " + f.floor_reason : ".")) : null,
+          !raised && f.floor_reason ? h("p", { class: "rule" }, h("b", { text: "Rule" }), f.floor_reason + ".") : null,
+          f.ceiling_note ? h("p", { class: "rule" }, h("b", { text: "Rule" }), f.ceiling_note) : null,
           f.uncertain_about ? h("p", { class: "unsure", text: "Unsure: " + f.uncertain_about }) : null,
           f.needs_review ? h("p", { class: "unsure", text: "Needs review: the model’s explanation failed the evidence check, so code rules set the severity." }) : null,
           blast ? h("p", { class: "unsure", text: blast }) : null,
@@ -707,12 +737,22 @@
     return "Nothing to fix today. Every outside target checked out.";
   }
 
+  // Fix today comes from a code rule; say which, so the model is never the only reason.
+  function whyLine(f) {
+    var text = f.floor_reason ? f.floor_reason + "." : f.ceiling_note || "";
+    if (!text) { return null; }
+    return h("p", { class: "fixline why" }, h("span", { class: "fixtype", text: "Why" }), text);
+  }
+
+  function modelHigh(f) { return f.model_severity === "critical" || f.model_severity === "high" ? 1 : 0; }
+
   function findingNode(f, rank) {
     return h("article", { class: "finding" },
       h("div", { class: "rank", text: pad(rank) }),
       h("div", { class: "body" },
         h("h4", { text: f.target }),
         h("p", { class: "head", text: f.risk }),
+        whyLine(f),
         h("p", { class: "fixline" }, h("span", { class: "fixtype", text: "Fix" }), f.fix),
         h("div", { class: "where", text: whereText(f) })),
       h("div", { class: "sevcol" }, sev(f.severity)));
@@ -746,6 +786,8 @@
         ? h("div", { class: "group" }, h("h3", null, title, h("span", { text: String(items.length) })), body)
         : h("div", { class: "group" }, more("r-" + key, title + " · " + items.length, body));
     }
+    // Muse Spark's own high calls lead Review, so a call without a rule behind it stays in sight
+    groups.review.sort(function (a, b) { return modelHigh(b) - modelHigh(a); });
     var actions = [
       S.scanId && S.mode !== "demo" && S.shareable ? h("button", { class: "btn", type: "button", onclick: copyShare, text: "Copy share link" }) : null,
       h("button", { class: "btn", type: "button", onclick: copyMarkdown, text: "Copy as Markdown" }),
@@ -927,6 +969,68 @@
   });
 
   var DEMO_ACTION = { label: "Watch demo", run: function () { startDemo(); } };
+
+  /* ---------- about, and the file tray's cards ---------- */
+
+  var aboutFocus = null;
+
+  function showAbout() {
+    aboutFocus = document.activeElement;
+    $("#about").hidden = false;
+    $("#about-ok").focus();
+  }
+
+  function hideAbout() {
+    $("#about").hidden = true;
+    var target = aboutFocus && aboutFocus.focus && document.body.contains(aboutFocus) ? aboutFocus : $("#target");
+    target.focus();
+  }
+
+  $("#about-ok").addEventListener("click", hideAbout);
+  $("#about").addEventListener("keydown", function (event) {
+    if (event.key === "Escape") { event.preventDefault(); hideAbout(); return; }
+    if (event.key === "Tab") { event.preventDefault(); $("#about-ok").focus(); }
+  });
+
+  function highlight(el) {
+    el.classList.remove("flash");
+    void el.offsetWidth;  // restart the animation on a second click
+    el.classList.add("flash");
+    window.setTimeout(function () { el.classList.remove("flash"); }, 1500);
+  }
+
+  function smooth() { return window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"; }
+
+  function goToLayer(n) {
+    var section = $("#layer-" + n);
+    section.scrollIntoView({ behavior: smooth(), block: "start" });
+    var heading = $("#l" + n);
+    heading.setAttribute("tabindex", "-1");
+    heading.focus({ preventScroll: true });
+    highlight(section);
+  }
+
+  function goToRun() {
+    var run = $("#run");
+    if (run.hidden) {
+      // no scan yet, so no run details: the box to start one
+      $("#target").focus();
+      highlight($(".input-cell"));
+      return;
+    }
+    run.open = true;
+    run.scrollIntoView({ behavior: smooth(), block: "nearest" });
+    $("summary", run).focus();
+  }
+
+  // cards back to front: layers 01 to 05, Run details, Repos to try, About
+  document.addEventListener("trustline:card", function (event) {
+    var index = Number(event.detail);
+    if (index >= 0 && index <= 4) { goToLayer(index + 1); }
+    else if (index === 5) { goToRun(); }
+    else if (index === 6) { openDrawer(); }
+    else if (index === 7) { showAbout(); }
+  });
 
   /* ---------- starting and following scans ---------- */
 
@@ -1291,6 +1395,8 @@
       lines.push("## " + pair[1], "");
       items.forEach(function (f) {
         lines.push("- **" + String(SEV_LABEL[f.severity] || f.severity).toUpperCase() + "** `" + f.target + "`: " + f.risk);
+        var why = f.floor_reason ? f.floor_reason + "." : f.ceiling_note || "";
+        if (why) { lines.push("  - Why: " + why); }
         lines.push("  - Fix: " + f.fix);
         var where = whereList(f);
         if (where.length) { lines.push("  - Where: " + where.join(", ")); }

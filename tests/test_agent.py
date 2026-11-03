@@ -10,8 +10,11 @@ from scanner.agent import BUDGET_NOTE, investigate, precheck
 from scanner.extract import extract
 from scanner.llm import FakeModelClient
 from scanner.lookups import LookupCache
+from datetime import date
+
 from scanner.models import (
     BucketProbeResult,
+    CertHistoryResult,
     Classification,
     DnsResult,
     GithubOwnerResult,
@@ -19,8 +22,10 @@ from scanner.models import (
     PlatformTakeoverResult,
     RdapResult,
     Reference,
+    WaybackResult,
 )
 from scanner.tools import ToolContext
+from scanner.website import FetchResult
 
 FIXTURE_ROOT = Path(__file__).parent / "fixtures" / "demo_repo"
 EXPECTED_PATH = Path(__file__).parent / "fixtures" / "expected.json"
@@ -94,6 +99,22 @@ def _ctx(tmp_path, **impls) -> ToolContext:
             http_status=404 if missing else 200,
         )
 
+    async def fake_certs(domain, cache=None, **kwargs):
+        return CertHistoryResult(
+            domain=domain,
+            status="ok",
+            issuers=["Let's Encrypt"],
+            first_seen=date(2019, 3, 2),
+            last_seen=date(2023, 5, 30),
+        )
+
+    async def fake_wayback(url, cache=None, **kwargs):
+        return WaybackResult(url=url, status="unavailable")
+
+    async def fake_fetch(url, max_bytes=0, timeout=0.0, **kwargs):
+        # a plain home page; tests about parked or for-sale pages pass their own
+        return FetchResult(url=url, status_code=200, body="<html><title>Home</title></html>")
+
     return ToolContext(
         cache=LookupCache(tmp_path / "c.db"),
         dns=impls.get("dns", fake_dns),
@@ -103,7 +124,9 @@ def _ctx(tmp_path, **impls) -> ToolContext:
         github_owner=impls.get("github_owner", fake_github_owner),
         github_repo=impls.get("github_repo", fake_github_repo),
         nameservers=impls.get("nameservers", fake_nameservers),
-        fetch=impls.get("fetch"),
+        cert_history=impls.get("cert_history", fake_certs),
+        wayback=impls.get("wayback", fake_wayback),
+        fetch=impls.get("fetch", fake_fetch),
     )
 
 
@@ -287,13 +310,14 @@ async def test_concurrency_caps_at_four(tmp_path):
             inflight -= 1
         return {"name": "done", "arguments": {"summary": "ok"}}
 
+    # eight separate targets, each with a red flag (the domain does not resolve)
     refs = [
         Reference(
             file=f"f{i}.py",
             line=1,
-            raw=f"https://host{i}.example.net/x",
-            host_or_bucket=f"host{i}.example.net",
-            domain="example.net",
+            raw=f"https://cdn{i}-7f3k2.net/x",
+            host_or_bucket=f"cdn{i}-7f3k2.net",
+            domain=f"cdn{i}-7f3k2.net",
         )
         for i in range(8)
     ]
@@ -325,9 +349,9 @@ async def test_cost_cap_finishes_inflight_and_skips_rest(tmp_path):
         Reference(
             file=f"f{i}.py",
             line=1,
-            raw="https://cdn-assets-trustmap-7f3k2.com/x",
-            host_or_bucket=f"host{i}.example.net",
-            domain="example.net",
+            raw=f"https://cdn{i}-7f3k2.net/x",
+            host_or_bucket=f"cdn{i}-7f3k2.net",
+            domain=f"cdn{i}-7f3k2.net",
         )
         for i in range(3)
     ]
@@ -343,6 +367,9 @@ async def test_cost_cap_finishes_inflight_and_skips_rest(tmp_path):
     assert statuses.count("done") == 2
     assert statuses.count("budget") == 1
     assert results[-1].summary == BUDGET_NOTE
+    # the free lookups survive a spent budget, so rank's floors still see them
+    assert results[-1].evidence["dns"]["status"] == "nxdomain"
+    assert results[-1].evidence["rdap"]["status"] == "unregistered"
 
 
 @pytest.mark.asyncio
@@ -406,23 +433,220 @@ async def test_one_agent_run_per_target_not_per_reference(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_targets_with_different_context_are_investigated_apart(tmp_path):
-    # same host, different blast radius: a genuinely different question
-    first = Reference(
-        file="index.html",
-        line=1,
+async def test_one_agent_run_per_target_even_when_labels_differ(tmp_path):
+    # The page shows one row per target. Two runs for one target (one per label
+    # or per subdomain) stacked under it and read as more checks than listed.
+    low = Reference(
+        file="docs/page.html",
+        line=9,
         raw="https://cdn-assets-trustmap-7f3k2.com/lib.js",
         host_or_bucket="cdn-assets-trustmap-7f3k2.com",
         domain="cdn-assets-trustmap-7f3k2.com",
     )
-    second = first.model_copy(update={"file": "docs/page.html", "line": 9})
+    high = low.model_copy(update={"file": "index.html", "line": 1})
+    sub = low.model_copy(
+        update={
+            "file": "app.js",
+            "line": 3,
+            "raw": "https://img.cdn-assets-trustmap-7f3k2.com/a.png",
+            "host_or_bucket": "img.cdn-assets-trustmap-7f3k2.com",
+        }
+    )
     pairs = [
-        (first, _classification(first, blast_radius=2)),
-        (second, _classification(second, blast_radius=1)),
+        (low, _classification(low, blast_radius=1, runs_in="docs_only")),
+        (high, _classification(high, blast_radius=3)),
+        (sub, _classification(sub, type="asset", blast_radius=1)),
     ]
-    found = await investigate(pairs, client=_scripted_client(), ctx=_ctx(tmp_path))
-    assert len(found) == 2
-    assert sum(1 for item in found if item.cost_usd > 0) == 2
+    client = _scripted_client()
+    found = await investigate(pairs, client=client, ctx=_ctx(tmp_path))
+    assert len(found) == 3
+    assert sum(1 for item in found if item.cost_usd > 0) == 1
+    # the agent is asked about the most exposed reference
+    first = json.loads(client.calls[0]["messages"][0]["content"])
+    assert first["reference"]["file"] == "index.html"
+    # every reference keeps its own host and lookups
+    by_file = {item.file: item for item in found}
+    assert by_file["app.js"].host_or_bucket == "img.cdn-assets-trustmap-7f3k2.com"
+
+
+@pytest.mark.asyncio
+async def test_clean_lookups_skip_the_agent_but_are_still_ranked(tmp_path):
+    from scanner.agent import FACTS_NOTE
+
+    ref = Reference(
+        file="index.html",
+        line=4,
+        raw="https://cdn.vendor-assets.net/app.js",
+        host_or_bucket="cdn.vendor-assets.net",
+        domain="vendor-assets.net",
+    )
+    client = _scripted_client()
+    events: list[dict] = []
+    found = await investigate(
+        [(ref, _classification(ref, blast_radius=3))],
+        client=client,
+        ctx=_ctx(tmp_path),
+        on_event=events.append,
+    )
+    assert client.calls == []
+    assert len(found) == 1
+    assert found[0].summary == FACTS_NOTE
+    evidence = found[0].evidence
+    assert evidence["dns"]["status"] == "resolves"
+    # the checks an agent used to pick for a clean target now run every time
+    assert evidence["live_fetch"]["url"] == "https://cdn.vendor-assets.net/"
+    assert evidence["cert_history"]["status"] == "ok"
+    assert evidence["wayback"]["url"] == "https://cdn.vendor-assets.net/app.js"
+    assert [item["next"] for item in events if item["type"] == "precheck"] == ["facts"]
+    checked = [item for item in events if item["type"] == "checked"]
+    assert checked and checked[0]["evidence"]["cert_history"]["status"] == "ok"
+
+
+@pytest.mark.asyncio
+async def test_a_parked_home_page_is_a_red_flag_found_every_time(tmp_path):
+    from scanner.agent import next_step
+
+    async def parked(url, max_bytes=0, timeout=0.0, **kwargs):
+        return FetchResult(url=url, status_code=200, body="<html>This domain is for sale! Buy this domain.</html>")
+
+    ref = Reference(
+        file="index.html",
+        line=4,
+        raw="https://cdn.vendor-assets.net/app.js",
+        host_or_bucket="cdn.vendor-assets.net",
+        domain="vendor-assets.net",
+    )
+    client = _scripted_client()
+    events: list[dict] = []
+    found = await investigate(
+        [(ref, _classification(ref, blast_radius=3))],
+        client=client,
+        ctx=_ctx(tmp_path, fetch=parked),
+        on_event=events.append,
+    )
+    assert found[0].evidence["live_fetch"]["for_sale"] is True
+    first = next(item for item in events if item["type"] == "precheck")
+    assert first["next"] == "agent"
+    assert "domain listed for sale" in first["flags"]
+    assert client.calls, "a red flag gets the agent"
+
+
+def test_renewal_alone_is_not_a_red_flag():
+    from scanner.agent import needs_agent, next_step, red_flags
+
+    ref = Reference(
+        file="index.html",
+        line=4,
+        raw="https://cdn.vendor-assets.net/app.js",
+        host_or_bucket="cdn.vendor-assets.net",
+        domain="vendor-assets.net",
+    )
+    cl = _classification(ref, blast_radius=2)
+    renewing = {
+        "dns": {"status": "resolves", "host": "cdn.vendor-assets.net"},
+        "rdap": {"status": "registered", "days_to_expiry": 30},
+    }
+    assert red_flags(ref, renewing) == []
+    assert not needs_agent(ref, cl, renewing)
+    assert next_step(ref, cl, renewing) == "facts"
+    dark = {**renewing, "dns": {"status": "nxdomain", "host": "cdn.vendor-assets.net"}}
+    assert "domain expires in 30 days" in red_flags(ref, dark)
+    assert next_step(ref, cl, dark) == "agent"
+
+
+@pytest.mark.asyncio
+async def test_agent_adds_facts_but_never_replaces_the_lookups(tmp_path):
+    ref = Reference(
+        file="index.html",
+        line=7,
+        raw="https://cdn-assets-trustmap-7f3k2.com/lib.js",
+        host_or_bucket="cdn-assets-trustmap-7f3k2.com",
+        domain="cdn-assets-trustmap-7f3k2.com",
+    )
+    asked: list[str] = []
+
+    async def counting_dns(host, cache=None, **kwargs):
+        asked.append(host)
+        status = "nxdomain" if "7f3k2" in host else "resolves"
+        return DnsResult(host=host, status=status, addresses=[] if status == "nxdomain" else ["203.0.113.9"])
+
+    offered: list[list[str]] = []
+    plan = [
+        {"name": "dns", "arguments": {"host": "cdn-assets-trustmap-7f3k2.com"}},  # a repeat
+        {"name": "dns", "arguments": {"host": "www.example.org"}},  # a new subject
+        {"name": "done", "arguments": {"summary": "checked"}},
+    ]
+
+    def tool_handler(request):
+        offered.append([tool["function"]["name"] for tool in request["tools"]])
+        turn = sum(1 for msg in request["messages"] if msg["role"] == "assistant")
+        return plan[turn]
+
+    found = await investigate(
+        [(ref, _classification(ref))],
+        client=FakeModelClient(tool_handler=tool_handler),
+        ctx=_ctx(tmp_path, dns=counting_dns),
+    )
+    evidence = found[0].evidence
+    # the code's NXDOMAIN stays; the other host's answer sits beside it
+    assert evidence["dns"]["status"] == "nxdomain"
+    assert evidence["agent_findings"] == [
+        {
+            "tool": "dns",
+            "args": {"host": "www.example.org"},
+            "result": {"host": "www.example.org", "status": "resolves", "addresses": ["203.0.113.9"], "cnames": []},
+        }
+    ]
+    # the repeat came from what was known: one lookup for the CDN host, by code
+    assert asked.count("cdn-assets-trustmap-7f3k2.com") == 1
+    # every tool stays on offer, as before
+    assert {"dns", "rdap", "wayback", "cert_history", "live_fetch", "done"} <= set(offered[0])
+
+
+@pytest.mark.asyncio
+async def test_every_reference_to_a_target_reports_the_same_next_step(tmp_path):
+    quiet = Reference(
+        file="docs/links.html",
+        line=2,
+        raw="https://www.cdn-assets-trustmap-7f3k2.com/",
+        host_or_bucket="www.cdn-assets-trustmap-7f3k2.com",
+        domain="cdn-assets-trustmap-7f3k2.com",
+    )
+    loud = Reference(
+        file="index.html",
+        line=7,
+        raw="https://cdn-assets-trustmap-7f3k2.com/lib.js",
+        host_or_bucket="cdn-assets-trustmap-7f3k2.com",
+        domain="cdn-assets-trustmap-7f3k2.com",
+    )
+    async def split_dns(host, cache=None, **kwargs):
+        # www still answers; the CDN host is gone
+        if host.startswith("www."):
+            return DnsResult(host=host, status="resolves", addresses=["203.0.113.9"])
+        return DnsResult(host=host, status="nxdomain", addresses=[])
+
+    from scanner.agent import next_step
+
+    ctx = _ctx(tmp_path, dns=split_dns)
+    quiet_cl = _classification(quiet, blast_radius=0, runs_in="docs_only")
+    alone = await precheck(quiet, quiet_cl, ctx)
+    # on its own the docs link would not even be ranked
+    assert next_step(quiet, quiet_cl, alone) == "low_exposure"
+    events: list[dict] = []
+    await investigate(
+        [
+            (quiet, quiet_cl),
+            (loud, _classification(loud, blast_radius=2)),
+        ],
+        client=_scripted_client(),
+        ctx=ctx,
+        on_event=events.append,
+    )
+    prechecks = [item for item in events if item["type"] == "precheck"]
+    assert [item["next"] for item in prechecks] == ["agent", "agent"]
+    first = next(item for item in prechecks if "evidence" in item)
+    assert first["max_turns"] >= 1
+    assert "DNS does not resolve" in first["flags"]
 
 
 @pytest.mark.asyncio

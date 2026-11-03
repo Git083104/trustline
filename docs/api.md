@@ -96,7 +96,8 @@ Replay buffered events, then live ones, then close on `done` or `error`.
 | `started` | job accepted | `kind`, `target`, `cost_cap_usd` |
 | `extracted` | after extract | `references`, `actionable`, `filtered`, `coverage` (`files_scanned`, `files_total`, `truncated`, `reason`), `targets` (first 300: `target`, `kind`, `platform`, `refs`, `files`, `first` {`file`, `line`, `raw`}), `targets_total`, `set_aside` ({reason: {`count`, `examples`}}) |
 | `classified` | after classify | `items` (first 300 actionable references: `target`, `file`, `line`, `type`, `runs_in`, `blast_radius`, `confidence`, `reason`), `total` |
-| `precheck` | after lookups for one reference | `target`, `kind` (bucket/domain), `hard_signal`, `next` (`agent`, `popular`, `low_exposure`), `evidence` (first event for each target only) |
+| `precheck` | after lookups for one reference | `target`, `kind` (bucket/domain), `hard_signal`, `next` for the whole target (`agent`: a red flag, one agent run; `facts`: clean lookups, ranked without the agent; `popular`; `low_exposure`: not ranked), and on the first event for each target only `evidence`, `flags` (the red flags in words) and `max_turns` (agent targets) |
+| `checked` | history from code for a target with no red flag | `target`, `evidence` (the target's facts, now with `cert_history` and `wayback`) |
 | `plan` / `act` / `observe` | each agent turn | `target`, `tool`, `args`, `result_summary`, `tokens`, `cost_usd` |
 | `ranked` | each finding after rank | public finding fields (see report JSON) |
 | `done` | finished | `finding_count`, `cost_usd`, `classify_cost_usd`, `agent_cost_usd`, `rank_cost_usd`, `budget_targets` |
@@ -164,10 +165,12 @@ Final report. **409** if still running, **404** if unknown, **500** if the job f
 Extra finding fields:
 
 - `tranco_rank`: int or null (popularity; never lowers a code floor)
-- `floor_reason` / `floor_applied`: UI floor note, e.g. "Domain is listed for sale → raised to high."
+- `floor_reason`: the code rule behind the severity, set whenever a rule applies; `floor_applied` is the level when that rule raised the model's call
+- `ceiling_note`: set when Muse Spark said high or critical with no code rule behind it, so the finding stays in Review
+- `evidence.agent_findings`: lookups the agent ran on another subject than the code did (another host, a CNAME target, another URL): `tool`, `args`, `result`. They never replace the code's facts
 - `evidence.live_fetch`: `final_url`, `http_status`, `redirect_chain`, `title`, `parked`, `for_sale`, `signal`
 - `action_ref` / `action_sha_pinned`: GitHub Actions `uses:` pin (full 40-char SHA or not)
-- `evidence.github_repo`: `exists` / `missing` for `owner/repo` actions
+- `evidence.github_repo`: `exists` / `missing` / `disabled` for `owner/repo` actions (`disabled`: GitHub blocked the repo; the owner still holds the name, so it is Review, not Fix today)
 - `uncertain_about`: what the ranker said it could not tell from the evidence
 - `needs_review`: true when the ranker's sentence failed the evidence check and code set the severity
 - `classified_blast_radius` / `blast_radius` / `blast_override_reason`: blast radius from

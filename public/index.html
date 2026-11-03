@@ -32,40 +32,40 @@
     </div>
   </form>
 
-  <section class="row" aria-label="Layers">
-    <div class="cell stack-cell span-5" data-scan="idle">
+  <section class="row art-row" aria-label="Layers">
+    <div class="cell stack-cell span-3" data-scan="idle">
       <div class="stack">
-        <svg viewBox="0 0 360 452" role="img" aria-label="Five stacked layers: Gather, Classify, Investigate, Reason, Report">
+        <svg viewBox="0 0 368 452" role="img" aria-label="Five stacked layers: Gather, Classify, Investigate, Reason, Report">
           <defs>
             <pattern id="dots" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="matrix(1 .5 -1 .5 0 0)">
               <circle cx="1.5" cy="1.5" r=".9" fill="#F3F2EE" opacity=".38"/>
             </pattern>
           </defs>
-          <g class="slab" data-layer="5" data-state="pending" transform="rotate(-1.5 130 383)">
+          <g class="slab" data-layer="5" data-state="pending">
             <polygon class="side" points="20,383 130,438 130,448 20,393"/><polygon class="side" points="130,438 240,383 240,393 130,448"/>
             <polygon class="top" points="130,328 240,383 130,438 20,383"/><polygon class="tex" points="130,328 240,383 130,438 20,383"/>
           </g>
-          <g class="slab" data-layer="4" data-state="pending" transform="rotate(2 130 305)">
+          <g class="slab" data-layer="4" data-state="pending">
             <polygon class="side" points="20,305 130,360 130,370 20,315"/><polygon class="side" points="130,360 240,305 240,315 130,370"/>
             <polygon class="top" points="130,250 240,305 130,360 20,305"/><polygon class="tex" points="130,250 240,305 130,360 20,305"/>
           </g>
-          <g class="slab" data-layer="3" data-state="pending" transform="rotate(-1 130 227)">
+          <g class="slab" data-layer="3" data-state="pending">
             <polygon class="side" points="20,227 130,282 130,292 20,237"/><polygon class="side" points="130,282 240,227 240,237 130,292"/>
             <polygon class="top" points="130,172 240,227 130,282 20,227"/><polygon class="tex" points="130,172 240,227 130,282 20,227"/>
           </g>
-          <g class="slab" data-layer="2" data-state="pending" transform="rotate(1.5 130 149)">
+          <g class="slab" data-layer="2" data-state="pending">
             <polygon class="side" points="20,149 130,204 130,214 20,159"/><polygon class="side" points="130,204 240,149 240,159 130,214"/>
             <polygon class="top" points="130,94 240,149 130,204 20,149"/><polygon class="tex" points="130,94 240,149 130,204 20,149"/>
           </g>
-          <g class="slab" data-layer="1" data-state="pending" transform="rotate(-2 130 71)">
+          <g class="slab" data-layer="1" data-state="pending">
             <polygon class="side" points="20,71 130,126 130,136 20,81"/><polygon class="side" points="130,126 240,71 240,81 130,136"/>
             <polygon class="top" points="130,16 240,71 130,126 20,71"/><polygon class="tex" points="130,16 240,71 130,126 20,71"/>
           </g>
-          <line class="leader" x1="250" y1="71" x2="350" y2="71"/>
-          <line class="leader" x1="250" y1="149" x2="350" y2="149"/>
-          <line class="leader" x1="250" y1="227" x2="350" y2="227"/>
-          <line class="leader" x1="250" y1="305" x2="350" y2="305"/>
-          <line class="leader" x1="250" y1="383" x2="350" y2="383"/>
+          <line class="leader" x1="252" y1="71" x2="364" y2="71"/>
+          <line class="leader" x1="252" y1="149" x2="364" y2="149"/>
+          <line class="leader" x1="252" y1="227" x2="364" y2="227"/>
+          <line class="leader" x1="252" y1="305" x2="364" y2="305"/>
+          <line class="leader" x1="252" y1="383" x2="364" y2="383"/>
         </svg>
         <ol class="stack-list" id="stack-list">
           <li data-layer="1" data-state="pending" style="top:71px"><a href="#layer-1"><span class="sl-n">01</span><span class="sl-name">Gather</span><span class="sl-st">Waiting</span></a></li>
@@ -75,7 +75,10 @@
           <li data-layer="5" data-state="pending" style="top:383px"><a href="#layer-5"><span class="sl-n">05</span><span class="sl-name">Report</span><span class="sl-st">Waiting</span></a></li>
         </ol>
       </div>
-      <div class="figure-wrap"><div class="riffle" id="riffle"></div></div>
+    </div>
+    <div class="cell tray-cell span-2">
+      <div class="files" id="files"></div>
+      <p class="files-cap mono" id="files-cap" aria-hidden="true"></p>
     </div>
   </section>
 
@@ -165,6 +168,20 @@
     <div><p class="win-msg" id="win-msg">The scan stopped.</p><p class="win-detail" id="win-detail"></p></div>
   </div>
   <div class="win-foot"><button class="win-ok" id="win-act" type="button" hidden>Retry</button><button class="win-ok" id="win-ok" type="button">OK</button></div>
+</div>
+
+<div class="win about" id="about" role="dialog" aria-modal="true" aria-labelledby="about-title" aria-describedby="about-body" hidden>
+  <div class="win-bar"><span id="about-title">ABOUT TRUSTLINE</span><span class="win-btns" aria-hidden="true"><i>_</i><i>□</i><i>×</i></span></div>
+  <div class="win-body">
+    <svg viewBox="0 0 34 34" aria-hidden="true"><circle cx="17" cy="17" r="15.5" fill="#1D3BD1" stroke="#13299A"/><circle cx="17" cy="10.5" r="2.1" fill="#fff"/><path d="M17 15v10" stroke="#fff" stroke-width="3.2"/></svg>
+    <div id="about-body">
+      <p class="win-msg">Trustline finds the outside things your code trusts and checks whether a stranger could take one over.</p>
+      <p class="win-detail">Paste a GitHub repo or a website. Trustline lists every outside domain, script, cloud bucket and GitHub account it loads, then looks up who owns each one now: dead domains, deleted accounts, missing buckets, parked or for-sale sites.</p>
+      <p class="win-detail">Code does every lookup. Muse Spark labels each reference, digs into red flags and explains the risk. Code rules decide what you fix today, so the same repo gives the same answer.</p>
+      <p class="win-detail">Detection only: Trustline never registers or claims anything.</p>
+    </div>
+  </div>
+  <div class="win-foot"><button class="win-ok" id="about-ok" type="button">OK</button></div>
 </div>
 
 <a id="download" class="sr" hidden tabindex="-1" aria-hidden="true"></a>

@@ -320,7 +320,13 @@ def test_floor_claimable_is_critical_other_hard_is_high():
         "rows": [(gone, _cl(gone, runs_in="docs_only"), _inv(gone, {}))],
         "evidence": {"bucket_probe": {"status": "NoSuchBucket"}},
     }
-    assert floor_severity(docs) is None
+    # only named in docs: never Fix today, but always in Review (matches the
+    # eval labels, which call a claimable docs-only target low)
+    level, reason = floor_decision(docs)
+    assert level == "low"
+    assert "docs" in reason
+    quiet = {**docs, "evidence": {"bucket_probe": {"status": "exists"}}}
+    assert floor_severity(quiet) is None
     severity, note = apply_floor("medium", "critical")
     assert severity == "critical"
     assert note == "critical"
@@ -888,3 +894,70 @@ def test_rank_past_its_deadline_keeps_code_severity_without_a_model_call(tmp_pat
     assert found[0].risk == RANK_TIME_NOTE
     assert found[0].needs_review is False
     assert client.calls == []
+
+
+def test_rules_cover_what_only_the_model_used_to_catch():
+    # Fix today needs a code rule now, so every pattern the model alone used to
+    # rank high has a rule of its own.
+    ci = Reference(
+        file=".github/workflows/build.yml",
+        line=12,
+        raw="curl -s https://cdn.polyfill.io/install.sh | sh",
+        host_or_bucket="cdn.polyfill.io",
+        domain="polyfill.io",
+    )
+    fetched = {
+        "target": "polyfill.io",
+        "rows": [(ci, _cl(ci, type="script", runs_in="ci"), _inv(ci, {}))],
+        "evidence": {"dns": {"status": "resolves"}, "rdap": {"status": "registered"}},
+    }
+    level, reason = floor_decision(fetched)
+    assert level == "high" and "compromised" in reason
+    api = ci.model_copy(update={"host_or_bucket": "api.bootcdn.net", "domain": "bootcdn.net"})
+    called = {
+        "target": "bootcdn.net",
+        "rows": [(api, _cl(api, type="api", runs_in="server"), _inv(api, {}))],
+        "evidence": {"dns": {"status": "resolves"}},
+    }
+    level, reason = floor_decision(called)
+    assert level == "medium" and "associated" in reason
+    doc = Reference(
+        file="README.md",
+        line=3,
+        raw="https://old-demo.example.net/",
+        host_or_bucket="old-demo.example.net",
+        domain="example.net",
+    )
+    sold = {
+        "target": "example.net",
+        "rows": [(doc, _cl(doc, type="docs_link", runs_in="docs_only"), _inv(doc, {}))],
+        "evidence": {"dns": {"status": "resolves"}, "live_fetch": {"status": "ok", "for_sale": True}},
+    }
+    level, reason = floor_decision(sold)
+    assert level == "low" and "for sale" in reason
+
+
+def test_a_disabled_action_repo_is_review_with_its_own_fix():
+    action = Reference(
+        file=".github/workflows/preview-deploy.yml",
+        line=38,
+        raw="actions-cool/maintain-one-comment@v1.2.1",
+        host_or_bucket="github.com/actions-cool/maintain-one-comment",
+        action_owner="actions-cool",
+        action_repo="maintain-one-comment",
+        action_ref="v1.2.1",
+        action_sha_pinned=False,
+    )
+    group = {
+        "target": "github.com/actions-cool/maintain-one-comment",
+        "rows": [(action, _cl(action, type="script", runs_in="ci"), _inv(action, {}))],
+        "evidence": {
+            "github_owner": {"status": "exists", "exists": True},
+            "github_repo": {"status": "disabled", "exists": True},
+        },
+    }
+    level, reason = floor_decision(group)
+    assert level == "medium" and "disabled" in reason
+    fix = choose_fix(group["evidence"], "remove dead reference", "medium", group["rows"])
+    assert "disabled" in fix and "commit SHA" in fix
+    assert "GitHub repo disabled" in evidence_line(group)

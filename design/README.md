@@ -13,3 +13,9 @@ for the layers, and a Win95-style dialog for errors.
 Every number and label on the page comes from the API. Report text is written by the
 scanned code and by the model, so it only reaches the page through `textContent`, and
 report targets never become links.
+
+The file tray next to the layers is Riffle from `@lucasmarkes/hairline` 0.5.1 (MIT,
+`public/static/vendor/hairline-LICENSE.txt`), rebuilt from `design/tray.ts`: no
+reflection, cards numbered back to front, and hooks so a layer can stand its card up and
+a card can be clicked. Cards 1 to 5 jump to the layers, 6 opens Run details, 7 Repos to
+try, 8 About.

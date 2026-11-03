@@ -395,3 +395,27 @@ def test_default_cache_moves_to_tmp_when_the_app_folder_is_read_only(monkeypatch
     monkeypatch.delenv("VERCEL", raising=False)
     monkeypatch.setattr(lookups.os, "access", lambda path, mode: False)
     assert lookups.default_cache() == "/tmp/trustmap.db"
+
+
+@pytest.mark.asyncio
+async def test_github_repo_disabled_reads_the_same_from_api_and_web(tmp_path, monkeypatch):
+    # Element's CI uses an Action whose repo GitHub has disabled. The API says
+    # "Repository access blocked"; the web page says "This repository has been
+    # disabled." Both must give one answer, or the same scan flips between runs.
+    def api(request: httpx.Request) -> httpx.Response:
+        if "api.github.com" in str(request.url):
+            return httpx.Response(403, json={"message": "Repository access blocked", "block": {"reason": "tos"}})
+        return httpx.Response(500)
+
+    def web(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, text="<html><h2>This repository has been disabled.</h2></html>")
+
+    answers = []
+    monkeypatch.setenv("GITHUB_TOKEN", "ghs_testtoken_not_a_secret_value")
+    async with httpx.AsyncClient(transport=httpx.MockTransport(api), follow_redirects=False) as client:
+        answers.append(await github_repo("actions-cool", "maintain-one-comment", client=client, cache=LookupCache(tmp_path / "a.db")))
+    monkeypatch.delenv("GITHUB_TOKEN")
+    async with httpx.AsyncClient(transport=httpx.MockTransport(web), follow_redirects=False) as client:
+        answers.append(await github_repo("actions-cool", "maintain-one-comment", client=client, cache=LookupCache(tmp_path / "b.db")))
+    assert [item.status for item in answers] == ["disabled", "disabled"]
+    assert all(item.exists is True for item in answers)

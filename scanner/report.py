@@ -7,7 +7,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
-from scanner.agent import investigate, should_investigate, tranco_checked_safe
+from scanner.agent import EXECUTING, investigate, should_investigate, tranco_checked_safe
 from scanner.classify import classify, set_aside
 from dataclasses import dataclass, field
 
@@ -46,7 +46,7 @@ from scanner.extract import (
 from scanner.tranco import tranco_rank
 from scanner.website import extract_website
 from scanner.llm import CallLog, ModelClient, call_json
-from scanner.lookups import LookupCache, consistent_evidence
+from scanner.lookups import LookupCache, consistent_evidence, merge_evidence
 from scanner.models import (
     Classification,
     Finding,
@@ -72,7 +72,6 @@ class ScanOutcome:
     def cost_usd(self) -> float:
         return self.classify_cost_usd + self.agent_cost_usd + self.rank_cost_usd
 
-EXECUTING = frozenset({"browser", "server", "build", "deploy", "ci"})
 CLAIMABLE_FIX = (
     "Remove or replace this reference. If this was yours, re-create it in your own "
     "account to reclaim the name."
@@ -82,6 +81,10 @@ RANK_TIME_NOTE = "Not ranked by the model: the scan ran out of time on this host
 ACTION_MISSING_FIX = (
     "Remove or replace this action. If this was yours, re-create it in your own "
     "account to reclaim the name. Pin to a full commit SHA."
+)
+ACTION_DISABLED_FIX = (
+    "Replace this action: GitHub has disabled its repository, so CI cannot read "
+    "what it runs. Pin the replacement to a full commit SHA."
 )
 NO_ACTION_FIX = "No action needed"
 FIX_SENTENCES = {
@@ -139,6 +142,9 @@ SEVERITY_ORDER: dict[str, int] = {
     "low": 3,
     "info": 4,
 }
+# Fix today is critical or high, and only a code rule puts a target there.
+FIX_TODAY = frozenset({"critical", "high"})
+MODEL_CEILING: Severity = "medium"
 DATE_RE = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
 NUM_RE = re.compile(r"\b\d+\b")
 REGION_RE = re.compile(r"\b[a-z]{2}-[a-z]+-\d+\b", re.IGNORECASE)
@@ -247,9 +253,7 @@ def group_by_target(
             }
             order.append(key)
         groups[key]["rows"].append((ref, cl, inv))
-        for name, value in inv.evidence.items():
-            groups[key]["evidence"][name] = value
-        groups[key]["evidence"] = consistent_evidence(groups[key]["evidence"])
+        groups[key]["evidence"] = merge_evidence([groups[key]["evidence"], inv.evidence])
     return [groups[key] for key in order]
 
 
@@ -384,7 +388,7 @@ def has_risk_signal(evidence: dict[str, Any]) -> bool:
     if str(platform.get("status", "")).lower() == "unclaimed":
         return True
     repo = usable.get("github_repo") or {}
-    if str(repo.get("status", "")).lower() == "missing":
+    if str(repo.get("status", "")).lower() in {"missing", "disabled"}:
         return True
     days = rdap.get("days_to_expiry")
     if isinstance(days, int) and days <= EXPIRY_INVESTIGATE_DAYS:
@@ -509,6 +513,8 @@ def choose_fix(
             or str(repo.get("status", "")).lower() == "missing"
         ):
             return ACTION_MISSING_FIX
+        if str(repo.get("status", "")).lower() == "disabled":
+            return ACTION_DISABLED_FIX
         text = human_fix(model_fix) if has_risk_signal(evidence) else NO_ACTION_FIX
         if ACTION_PIN_FIX not in text:
             if text == NO_ACTION_FIX:
@@ -567,6 +573,8 @@ def evidence_line(group: dict[str, Any], *, include_runs_in: bool = True) -> str
     repo = usable.get("github_repo") or {}
     if str(repo.get("status", "")).lower() == "missing":
         parts.append("GitHub repo does not exist")
+    elif str(repo.get("status", "")).lower() == "disabled":
+        parts.append("GitHub repo disabled")
     elif str(repo.get("status", "")).lower() == "exists":
         parts.append("GitHub repo exists")
     platform = usable.get("platform_takeover") or {}
@@ -659,9 +667,30 @@ def floor_severity(group: dict[str, Any]) -> str | None:
     return level
 
 
+def _mention_floor(group: dict[str, Any]) -> tuple[str | None, str]:
+    """A target only named in docs, tests or comments. Taking it over misleads a
+    reader instead of running code, so it belongs in Review, never Fix today."""
+    evidence = consistent_evidence(group["evidence"])
+    dns = evidence.get("dns") or {}
+    live = evidence.get("live_fetch") or {}
+    if _group_compromised(group):
+        signal = "Compromised domain"
+    elif is_claimable(evidence):
+        signal = "Claimable now"
+    elif str(dns.get("status", "")).lower() == "nxdomain":
+        signal = "DNS does not resolve"
+    elif live.get("for_sale"):
+        signal = "Domain listed for sale"
+    elif live.get("parked"):
+        signal = "Domain parked"
+    else:
+        return None, ""
+    return "low", f"{signal}, but only named in docs, tests or comments, so it is low"
+
+
 def floor_decision(group: dict[str, Any]) -> tuple[str | None, str]:
     if not executing_runs_in(group["rows"]):
-        return None, ""
+        return _mention_floor(group)
     evidence = consistent_evidence(group["evidence"])
     runs = sorted(
         {cl.runs_in for _, cl, _ in group["rows"] if cl.runs_in in EXECUTING}
@@ -695,6 +724,14 @@ def floor_decision(group: dict[str, Any]) -> tuple[str | None, str]:
             "high",
             "GitHub repo missing in executing position "
             f"({where}) is at least high",
+        )
+    if str(repo.get("status", "")).lower() == "disabled":
+        # the owner still holds the name, so nobody else can claim it, but
+        # what CI runs is no longer there to read
+        return (
+            "medium",
+            "GitHub repo disabled in executing position "
+            f"({where}) is at least medium",
         )
     platform = evidence.get("platform_takeover") or {}
     if str(platform.get("status", "")).lower() == "unclaimed":
@@ -737,6 +774,18 @@ def floor_decision(group: dict[str, Any]) -> tuple[str | None, str]:
             "high",
             f"NXDOMAIN in executing position ({where}) is at least high",
         )
+    # On the compromised list but not as a browser script (server, build or CI
+    # code calling it). SRI on every browser script is the only safe use.
+    if status == "compromised" and not (has_script and sri_ok):
+        return (
+            "high",
+            f"compromised domain in executing position ({where}) is at least high",
+        )
+    if status == "associated":
+        return (
+            "medium",
+            f"associated domain in executing position ({where}) is at least medium",
+        )
     return None, ""
 
 
@@ -771,6 +820,24 @@ def apply_floor(severity: Severity, floor: str | None) -> tuple[Severity, str]:
     if SEVERITY_ORDER[severity] > SEVERITY_ORDER[floor]:
         return floor, floor  # type: ignore[return-value]
     return severity, ""
+
+
+def settle_severity(model: Severity, floor: str | None) -> tuple[Severity, str, str]:
+    """(final severity, floor that raised it, note when the model was overruled).
+
+    Whether a target is in Fix today is decided by code: a rule at high or above
+    puts it there (the model may still call it critical), and the model's call
+    alone reaches Review at most. The same facts land in the same group on every
+    run, whatever the model happens to say."""
+    if floor in FIX_TODAY:
+        final, raised = apply_floor(model, floor)
+        return final, raised, ""
+    note = ""
+    if SEVERITY_ORDER[model] < SEVERITY_ORDER[MODEL_CEILING]:
+        note = f"Muse Spark said {model}, but no code rule backs that, so it stays in Review."
+        model = MODEL_CEILING
+    final, raised = apply_floor(model, floor)
+    return final, raised, note
 
 
 def sort_findings(findings: list[Finding]) -> list[Finding]:
@@ -966,8 +1033,10 @@ def _finding_from_rank(
         model_fix = parsed.fix
         uncertain = parsed.uncertain_about
     uncertain = _github_owner_note(uncertain, evidence)
-    final, raised = apply_floor(model_severity, floor)
-    floor_reason = floor_why if raised else ""
+    final, raised, ceiling_note = settle_severity(model_severity, floor)
+    # The rule that decided or bounded the severity, shown whether or not it
+    # had to raise the model's call.
+    floor_reason = floor_why if floor else ""
     action_ref = ""
     action_sha_pinned = None
     for ref, _cl, _inv in group["rows"]:
@@ -991,6 +1060,7 @@ def _finding_from_rank(
         needs_review=needs_review,
         floor_applied=raised,
         floor_reason=floor_reason,
+        ceiling_note=ceiling_note,
         evidence=evidence,
         evidence_line=evidence_line(group),
         cost_usd=cost_total,
@@ -1195,6 +1265,9 @@ def hydrate_evidence(
     platform = cache.get_json(f"platform:{ref.host_or_bucket.lower()}")
     if platform:
         evidence["platform_takeover"] = platform
+    live = cache.get_json(f"live_fetch:https://{ref.host_or_bucket.lower()}/")
+    if live:
+        evidence["live_fetch"] = live
     login = github_login(ref)
     if login:
         owner = cache.get_json(f"github_owner:{login.lower()}")

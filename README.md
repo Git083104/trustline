@@ -18,12 +18,25 @@ behind it:
 |---|---|---|
 | 01 Gather | code: file walk or page fetch, patterns, filters | `scanner/extract.py`, `scanner/website.py` |
 | 02 Classify | Muse Spark: what each reference is, where it runs, blast radius 0–3 | `scanner/classify.py` |
-| 03 Investigate | code lookups (DNS, RDAP, bucket probes, GitHub, platform fingerprints, Tranco), then a Muse Spark agent that picks extra checks (crt.sh, Wayback, live fetch) | `scanner/agent.py`, `scanner/tools/` |
-| 04 Reason | Muse Spark writes the risk; code checks every claim against the evidence and applies severity floors | `scanner/report.py` |
+| 03 Investigate | code lookups (DNS, RDAP, bucket probes, GitHub, platform fingerprints, Tranco) and the live home page of every host worth ranking; a target with a red flag gets one Muse Spark agent run (at most 6 turns) that digs into its history and leads; a clean target gets its history (crt.sh, Wayback) from code | `scanner/agent.py`, `scanner/tools/` |
+| 04 Reason | Muse Spark writes the risk; code checks every claim against the evidence and applies severity floors. Only a code rule can put a target in Fix today | `scanner/report.py` |
 | 05 Report | code: fix today, review, checked and safe | `public/static/app.js` |
 
 Facts come from deterministic tools and are cached in SQLite. The model never looks
 anything up and never does date math.
+
+Scanning the same repo twice puts the same targets in Fix today. A target lands there
+only when a code rule says so (a missing bucket or account, an unregistered or dead
+domain, an unclaimed platform, a parked or for-sale domain, a compromised domain, in a
+place where it runs), and each one shows that rule. Every check those rules read runs in
+code on every target, so none depends on which tools the agent picked. Without a rule,
+Muse Spark's call reaches Review at most (its high calls lead Review), and model calls
+ask for temperature 0. `tests/test_repeatable.py` scans the fixture repo six times with
+a model that changes its mind and checks Fix today never moves.
+
+The file tray beside the layers is a set of shortcuts. Point at a layer and its card
+stands up; while a scan runs, the card of the layer at work stands up. Click a card to
+jump to layers 01–05, open Run details, open Repos to try, or read About.
 
 **Repos to try** (the tab on the right edge of the page) lists real repos to scan:
 popular projects nobody maintains anymore that have something to flag, polyfill.io

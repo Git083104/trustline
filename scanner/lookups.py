@@ -20,6 +20,7 @@ from scanner.config import (
     CACHE_TTL_S,
     CRTSH_TIMEOUT_S,
     DNS_TIMEOUT_S,
+    EXPIRY_INVESTIGATE_DAYS,
     HTTP_TIMEOUT_S,
     RDAP_BOOTSTRAP_URL,
     RDAP_FALLBACK_BASE,
@@ -125,6 +126,46 @@ def consistent_evidence(evidence: dict[str, Any]) -> dict[str, Any]:
     elif rdap:
         out["rdap"] = rdap
     return out
+
+
+_UNKNOWN = frozenset({"unavailable", "error", "timeout", "unknown", "blocked", "skipped"})
+
+
+def _weight(name: str, value: Any) -> int:
+    """2 = a risk signal, 1 = a known answer, 0 = no answer."""
+    if not isinstance(value, dict):
+        return 1
+    status = str(value.get("status", "")).lower()
+    if status in _UNKNOWN:
+        return 0
+    signal = (
+        (name == "bucket_probe" and value.get("status") == "NoSuchBucket")
+        or (name in {"github_owner", "github_repo"} and status in {"missing", "disabled"})
+        or (name == "platform_takeover" and status == "unclaimed")
+        or (name == "dns" and status == "nxdomain")
+        or (name == "rdap" and status == "unregistered")
+        or (
+            name == "rdap"
+            and isinstance(value.get("days_to_expiry"), int)
+            and value["days_to_expiry"] <= EXPIRY_INVESTIGATE_DAYS
+        )
+        or (name == "live_fetch" and bool(value.get("parked") or value.get("for_sale")))
+    )
+    return 2 if signal else 1
+
+
+def merge_evidence(items: list[dict[str, Any]]) -> dict[str, Any]:
+    """One target's facts from several lookups (hosts or references).
+
+    A known answer replaces no answer, and a risk signal is never replaced by a
+    clean answer for another host, so the facts do not depend on which line of
+    the repo happened to be read last."""
+    merged: dict[str, Any] = {}
+    for evidence in items:
+        for name, value in (evidence or {}).items():
+            if name not in merged or _weight(name, value) >= _weight(name, merged[name]):
+                merged[name] = value
+    return consistent_evidence(merged)
 
 
 async def rdap(
@@ -722,6 +763,18 @@ async def github_owner(
     return result
 
 
+_DISABLED_TEXT = ("this repository has been disabled", "repository access blocked", "repository unavailable due to")
+
+
+def _disabled(status_code: int, body: str) -> bool:
+    """GitHub keeps a disabled or blocked repo's name taken, and says so in
+    words: the API with 403/451 "Repository access blocked", the web page with
+    "This repository has been disabled". Read either the same way, so the same
+    repo gets the same answer whichever endpoint answered."""
+    text = body[:20000].lower()
+    return status_code == 451 or any(needle in text for needle in _DISABLED_TEXT)
+
+
 async def github_repo(
     owner: str,
     repo: str,
@@ -764,8 +817,26 @@ async def github_repo(
                 )
                 cache.set_json(key, result.model_dump(mode="json"))
                 return result
+            if response.status_code in {403, 451} and _disabled(response.status_code, response.text):
+                result = GithubRepoResult(
+                    owner=owner,
+                    repo=repo,
+                    status="disabled",
+                    exists=True,
+                    http_status=response.status_code,
+                )
+                cache.set_json(key, result.model_dump(mode="json"))
+                return result
         response = await client.get(f"https://github.com/{owner}/{repo}")
-        if response.status_code == 404:
+        if response.status_code != 404 and _disabled(response.status_code, response.text):
+            result = GithubRepoResult(
+                owner=owner,
+                repo=repo,
+                status="disabled",
+                exists=True,
+                http_status=response.status_code,
+            )
+        elif response.status_code == 404:
             result = GithubRepoResult(
                 owner=owner,
                 repo=repo,

@@ -9,10 +9,10 @@
         {
           "repo": "ElemeFE/element",
           "about": "Element UI for Vue 2 · 54k stars · last push April 2024",
-          "expect": "high",
-          "finding": "CI runs actions-cool/maintain-one-comment@v1.2.1, an Action that no longer exists. Its owner disabled it over security issues in May 2026, and Element pins it to a tag rather than a commit.",
+          "expect": "flagged",
+          "finding": "CI runs actions-cool/maintain-one-comment@v1.2.1, an Action whose repository GitHub has disabled, and pins it to a tag rather than a commit. A big repo: 73 targets in one scan.",
           "where": ".github/workflows/preview-deploy.yml:38",
-          "checked": "Action repo not found on GitHub (2 Nov 2026). The owner account still exists.",
+          "checked": "GitHub shows “This repository has been disabled.” (3 Nov 2026). The owner account still exists, so nobody else can claim the name.",
           "targets": 73,
           "run": "long run"
         },

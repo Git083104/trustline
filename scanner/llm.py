@@ -29,6 +29,8 @@ _SECRET_ASSIGN = re.compile(
 # "Bearer <key>", also as Python prints a header inside bytes: b'Bearer \nLLM_...'
 _BEARER = re.compile(r"(?i)\b(bearer)(?:\s|\\[nrt])*[^\s'\"\\,;]+")
 SECRET_ENV = ("MODEL_API_KEY", "META_API_KEY", "GITHUB_TOKEN")
+# Sampling settings for repeatable answers; dropped if the API refuses them.
+STEADY_PARAMS: dict[str, Any] = {"temperature": 0}
 
 
 class ModelClient(Protocol):
@@ -199,6 +201,24 @@ class LiveModelClient:
             api_key=key,
             http_client=DefaultHttpxClient(verify=_tls_context()),
         )
+        self._steady = dict(STEADY_PARAMS)
+
+    def _create(self, **request: Any) -> Any:
+        """Ask for the model's most likely answer, so a repeat scan reads the same."""
+        from openai import BadRequestError
+
+        create = self._client.chat.completions.create
+        if not self._steady:
+            return create(**request)
+        try:
+            return create(**request, **self._steady)
+        except BadRequestError:
+            # Some models refuse sampling settings. If the plain request works,
+            # that was the reason: stop sending them. If not, its error is the
+            # real one and it raises from here.
+            response = create(**request)
+            self._steady = {}
+            return response
 
     def complete_json(
         self,
@@ -210,7 +230,7 @@ class LiveModelClient:
         schema: dict[str, Any],
         reasoning_effort: str,
     ) -> RawCompletion:
-        response = self._client.chat.completions.create(
+        response = self._create(
             model=model,
             messages=[
                 {"role": "system", "content": system},
@@ -238,7 +258,7 @@ class LiveModelClient:
         tools: list[dict[str, Any]],
         reasoning_effort: str,
     ) -> ToolTurn:
-        response = self._client.chat.completions.create(
+        response = self._create(
             model=model,
             messages=[{"role": "system", "content": system}, *messages],
             tools=tools,

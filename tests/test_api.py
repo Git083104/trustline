@@ -440,7 +440,7 @@ def test_events_carry_what_each_layer_shows(tmp_path):
     with_evidence = [item for item in prechecks if "evidence" in item]
     # facts are about a target, so they travel once per target
     assert len(with_evidence) == len({item["target"] for item in prechecks})
-    assert all(item["next"] in {"agent", "popular", "low_exposure"} for item in prechecks)
+    assert all(item["next"] in {"agent", "facts", "popular", "low_exposure"} for item in prechecks)
     gone = next(item for item in with_evidence if item["target"] == "acme-legacy-uploads-a3f91c2e")
     assert gone["evidence"]["bucket_probe"]["status"] == "NoSuchBucket"
     # the ranked targets are the same names the earlier layers used
@@ -616,28 +616,38 @@ def test_each_layer_collapses_to_its_result():
     assert 'h("p", { class: "verdict"' not in script
 
 
-def test_file_tray_figure_sits_beside_the_stack():
-    # the Riffle figure from @lucasmarkes/hairline (MIT), vendored with its license
+def test_file_tray_has_its_own_box_and_its_cards_go_somewhere():
+    # Riffle from @lucasmarkes/hairline (MIT), rebuilt from design/tray.ts, vendored with its license
     markup = (PUBLIC / "index.html").read_text()
-    assert '<div class="figure-wrap"><div class="riffle" id="riffle"></div></div>' in markup
+    assert '<div class="cell stack-cell span-3" data-scan="idle">' in markup
+    assert '<div class="cell tray-cell span-2">' in markup
+    assert '<div class="files" id="files"></div>' in markup
     assert '<script type="module" src="/static/figure.js"></script>' in markup
-    assert 'data-scan="idle"' in markup and "constellation" not in markup
-    # longer leaders between the slabs and their labels
-    assert markup.count('x1="250"') == 5 and markup.count('x2="350"') == 5
+    # straight slabs, and leaders that stop short of the labels
+    assert "rotate(" not in markup
+    assert markup.count('x1="252"') == 5 and markup.count('x2="364"') == 5
+    # the About card opens a dialog dressed like the error one
+    assert 'class="win about" id="about" role="dialog"' in markup and "ABOUT TRUSTLINE" in markup
     vendor = STATIC / "vendor"
-    assert (vendor / "hairline-riffle.js").read_text().startswith("/*! Riffle figure from @lucasmarkes/hairline 0.5.1 | MIT License")
+    bundle = (vendor / "trustline-tray.js").read_text()
+    assert bundle.startswith("/*! Trustline file tray: the Riffle figure from @lucasmarkes/hairline 0.5.1 (MIT License")
+    assert "export{" in bundle and "mountTray" in bundle
     assert "Copyright (c) 2026 Lucas Marques" in (vendor / "hairline-LICENSE.txt").read_text()
     figure = (STATIC / "figure.js").read_text()
-    assert 'import { riffle } from "./vendor/hairline-riffle.js";' in figure
-    assert 'getAttribute("data-scan") === "running"' in figure
-    assert 'art.setAttribute("data-scan"' in (STATIC / "app.js").read_text()
+    assert 'import { mountTray } from "./vendor/trustline-tray.js";' in figure
+    assert '"Run details", "Repos to try", "About"' in figure
+    assert 'new CustomEvent("trustline:card"' in figure
+    script = (STATIC / "app.js").read_text()
+    assert 'document.addEventListener("trustline:card"' in script
+    for name in ("goToLayer", "goToRun", "openDrawer", "showAbout"):
+        assert f"{name}(" in script
+    assert 'art.setAttribute("data-scan"' in script
     app = create_app(model_client=FakeModelClient(handler=lambda r: {}))
     with TestClient(app) as client:
-        for path in ("/static/figure.js", "/static/vendor/hairline-riffle.js"):
+        for path in ("/static/figure.js", "/static/vendor/trustline-tray.js"):
             served = client.get(path)
             assert served.status_code == 200, path
             assert "javascript" in served.headers["content-type"], path
-
 
 
 def test_page_carries_the_logo_and_icons():

@@ -196,6 +196,7 @@ class Finding(BaseModel):
     needs_review: bool = False
     floor_applied: str = ""
     floor_reason: str = ""
+    ceiling_note: str = ""
     evidence: dict[str, Any] = Field(default_factory=dict)
     evidence_line: str = ""
     cost_usd: float = 0

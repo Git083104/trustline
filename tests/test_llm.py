@@ -207,3 +207,53 @@ def test_live_client_strips_a_key_pasted_with_line_breaks(monkeypatch):
     monkeypatch.setenv("MODEL_API_KEY", " \n ")
     with pytest.raises(RuntimeError):
         llm.LiveModelClient()
+
+
+class _Completions:
+    """Stands in for client.chat.completions; refuses temperature if asked to."""
+
+    def __init__(self, refuse_temperature: bool):
+        self.refuse = refuse_temperature
+        self.requests: list[dict] = []
+
+    def create(self, **request):
+        self.requests.append(request)
+        if self.refuse and "temperature" in request:
+            response = httpx.Response(400, request=httpx.Request("POST", "https://api.test/v1"))
+            raise openai.BadRequestError("temperature is not supported", response=response, body=None)
+        message = type("Message", (), {"content": '{"items": []}', "tool_calls": None})
+        choice = type("Choice", (), {"message": message})
+        return type("Response", (), {"choices": [choice], "usage": None})
+
+
+def _live_with(completions: _Completions) -> "llm.LiveModelClient":
+    client = llm.LiveModelClient(api_key=FAKE_KEY)
+    client._client = type("Client", (), {"chat": type("Chat", (), {"completions": completions})})
+    return client
+
+
+def _ask(client: "llm.LiveModelClient") -> None:
+    client.complete_json(
+        model="muse-spark-1.3",
+        system="s",
+        user="u",
+        schema_name="x",
+        schema={"type": "object"},
+        reasoning_effort="low",
+    )
+
+
+def test_live_client_asks_for_repeatable_answers():
+    completions = _Completions(refuse_temperature=False)
+    _ask(_live_with(completions))
+    assert completions.requests[0]["temperature"] == 0
+
+
+def test_live_client_drops_temperature_once_the_api_refuses_it():
+    completions = _Completions(refuse_temperature=True)
+    client = _live_with(completions)
+    _ask(client)
+    _ask(client)
+    sent = ["temperature" in request for request in completions.requests]
+    # refused once, retried plainly, and never sent again
+    assert sent == [True, False, False]

@@ -102,6 +102,7 @@ def finding_public(item: Finding) -> dict[str, Any]:
         "model_severity": item.model_severity,
         "floor_reason": item.floor_reason,
         "floor_applied": item.floor_applied,
+        "ceiling_note": item.ceiling_note,
         "risk": item.risk,
         "fix": item.fix,
         "evidence_line": item.evidence_line,

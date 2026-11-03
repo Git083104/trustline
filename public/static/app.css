@@ -53,11 +53,19 @@ h1{font:600 clamp(58px,8.4vw,108px)/.84 var(--display);letter-spacing:-.055em;ma
 .scan[disabled]{cursor:progress;background:var(--cobalt-deep)}
 .scan svg{align-self:flex-end;width:30px;height:30px}
 
-.stack-cell{min-height:486px;display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;column-gap:24px;padding-left:40px}
-.figure-wrap{justify-self:center;width:100%;max-width:520px}
-.riffle{--hairline-plate:var(--paper);--hairline-hi:var(--cobalt);--hairline-edge:var(--ink);--hairline-mid:#6B6B6B;--hairline-lo:#CFCCC4;--hairline-stroke:1}
-.stack{display:grid;grid-template-columns:360px 330px;align-items:start}
-.stack svg{width:360px;height:452px;display:block;overflow:visible}
+/* The art row: the five slabs in the left box, the file tray in its own box on the
+   right, each centred, both boxes the same height, so the two drawings share one
+   horizontal axis (layer 03's leader). */
+.art-row .cell{min-height:508px}
+/* the label column is wider than most labels, so the drawing sits a little right of centre to look centred */
+.stack-cell{display:flex;align-items:center;justify-content:center;padding:28px 14px 28px 94px}
+.stack{display:grid;grid-template-columns:368px 280px;align-items:start}
+.stack svg{width:368px;height:452px;display:block;overflow:visible}
+.tray-cell{display:flex;align-items:center;justify-content:center;padding:28px 14px 44px}
+.files{width:min(100%,416px);--hairline-plate:var(--paper);--hairline-hi:var(--cobalt);--hairline-edge:var(--ink);--hairline-mid:#4A4A4A;--hairline-lo:#A9A69F;--hairline-stroke:1}
+.files-cap{position:absolute;left:14px;right:14px;bottom:16px;margin:0;text-align:center;font:500 12px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);min-height:17px}
+.slab[data-hot] .top{stroke:var(--cobalt);stroke-width:2}
+.stack-list li[data-hot] .sl-name{color:var(--cobalt)}
 .slab polygon{stroke-linejoin:round}
 .slab .top{fill:var(--paper);stroke:var(--ink);stroke-width:1.2}
 .slab .side{fill:#E4E2DC;stroke:var(--ink);stroke-width:1.2}
@@ -71,15 +79,19 @@ h1{font:600 clamp(58px,8.4vw,108px)/.84 var(--display);letter-spacing:-.055em;ma
 .slab[data-state="done"] .tex{fill:url(#dots)}
 .slab[data-state="error"] .top{fill:var(--paper);stroke:var(--cobalt);stroke-dasharray:4 3}
 .leader{stroke:var(--ink);stroke-width:1}
+.layer.flash .cell{animation:flash 1.4s ease-out}
+@keyframes flash{0%,35%{border-color:var(--cobalt)}100%{border-color:var(--rule)}}
+.input-cell.flash{animation:flash 1.4s ease-out}
+@media (prefers-reduced-motion:reduce){.layer.flash .cell,.input-cell.flash{animation:none}}
 @keyframes pulse{from{opacity:.62}to{opacity:1}}
 @media (prefers-reduced-motion:reduce){.slab[data-state="running"]{animation:none}}
 .stack-list{list-style:none;margin:0;padding:0;position:relative;height:452px}
 .stack-list li{position:absolute;left:0;right:0;transform:translateY(-50%)}
-.stack-list a{display:grid;grid-template-columns:30px minmax(0,1fr);column-gap:8px;text-decoration:none;padding:4px 0 4px 6px;min-height:44px}
+.stack-list a{display:grid;grid-template-columns:30px minmax(0,1fr);column-gap:8px;text-decoration:none;padding:4px 0 4px 12px;min-height:44px}
 .stack-list a:hover .sl-name{color:var(--cobalt)}
 .sl-n{font:500 12px/1.9 var(--mono);color:var(--muted)}
 .sl-name{font:500 22px/1.1 var(--display);letter-spacing:-.02em}
-.sl-st{grid-column:2;font:400 12px/1.5 var(--mono);color:var(--muted);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sl-st{grid-column:2;font:400 11px/1.5 var(--mono);color:var(--muted);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 li[data-state="running"] .sl-st{color:var(--cobalt)}
 li[data-state="done"] .sl-st{color:var(--ink)}
 
@@ -233,6 +245,7 @@ td:last-child,th:last-child{padding-right:0}
 .win-body svg{flex:none;width:34px;height:34px}
 .win-msg{margin:6px 0 6px;font:500 14px/1.4 var(--sans)}
 .win-detail{margin:0;font:400 12.5px/1.5 var(--mono);color:#222;overflow-wrap:anywhere}
+.win-detail + .win-detail{margin-top:8px}
 .win-foot{display:flex;justify-content:center;gap:8px;padding:10px 0 16px}
 .win-ok{min-width:104px;min-height:32px;background:var(--win-face);border:2px solid;border-color:var(--win-hi) var(--win-dark) var(--win-dark) var(--win-hi);box-shadow:inset -1px -1px var(--win-lo);font:400 13px/1 var(--sans);color:#000;cursor:pointer;padding:0 12px}
 .win-ok[hidden]{display:none}
@@ -268,8 +281,11 @@ td:last-child,th:last-child{padding-right:0}
 .dr-scan[disabled]{background:var(--faint);cursor:progress}
 
 @media (max-width:1100px){
-  .stack-cell{grid-template-columns:auto;justify-content:center;padding-left:14px}
-  .figure-wrap{display:none}
+  .art-row{grid-template-columns:minmax(0,1fr)}
+  .art-row .cell{grid-column:auto;min-height:0}
+  .stack-cell{padding:28px 14px}
+  .tray-cell{padding:20px 14px 44px}
+  .files{width:min(100%,380px)}
 }
 
 @media (max-width:860px){
@@ -277,9 +293,9 @@ td:last-child,th:last-child{padding-right:0}
   .row{grid-template-columns:minmax(0,1fr)}
   .span-2,.span-3,.span-4,.span-5{grid-column:auto}
   .form-row .cell,.scan{min-height:76px}
-  .stack-cell{min-height:0;display:block;padding-left:14px}
-  .figure-wrap{display:none}
+  .stack-cell{min-height:0;display:block;padding:12px 14px 14px}
   .stack{grid-template-columns:minmax(0,1fr)}
+  .files{width:min(100%,320px)}
   .stack svg{width:264px;height:auto;margin:0 0 6px calc(50% - 95px)}
   .stack svg .leader{display:none}
   .stack-list{height:auto}
