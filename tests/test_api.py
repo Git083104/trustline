@@ -265,7 +265,7 @@ def test_frontend_has_the_three_screens_and_no_design_switcher():
     assert "Trustmap" not in markup
     assert "Trustline" not in markup
     assert markup.count("Tether") > 1
-    assert "Inter" in markup and "JetBrains+Mono" in markup
+    assert "Inter" in markup and "IBM+Plex+Mono" in markup
 
 
 def test_report_panels_ship_empty_so_only_api_data_renders():

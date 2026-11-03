@@ -24,6 +24,14 @@ A registered, resolving, actively used domain that happens to renew soon is rout
 already treated that case as info; this revision applies the same rule to every label, including
 human ones, at eval time.
 
+### 3 Nov 2026 — subdomain NXDOMAIN is not a stranger-takeover
+
+A non-resolving subdomain of a registered, resolving apex is not claimable by outsiders; label it
+review/low. If the apex expires within 90 days, it is a watch item, not a real threat. Example:
+`forum.lbry.tech` under `lbry.tech` (NXDOMAIN child, RDAP registered parent, 70 days to expiry).
+Only the registrant of `lbry.tech` can recreate the name. Applied to every row in
+`eval/labels.jsonl` at eval time (`--rubric revised`); the file is not rewritten.
+
 ## Why it changed
 
 The original rule inflated gold critical/high with healthy names (for example `quandl.com`:

@@ -8,6 +8,7 @@ from collections import defaultdict
 from pathlib import Path
 
 from scanner.config import EVAL_SCAN_COST_CAP_USD, EXPIRY_INVESTIGATE_DAYS
+from scanner.extract import _registrable
 from scanner.llm import LiveModelClient
 from scanner.lookups import LookupCache, consistent_evidence
 from scanner.report import ScanOutcome, is_claimable, run_scan
@@ -55,12 +56,32 @@ def baseline_original(evidence: dict) -> str:
     return "low"
 
 
+def is_subdomain_nxdomain_of_registered_parent(evidence: dict) -> bool:
+    """Child host is NXDOMAIN; the registrable parent is still registered."""
+    evidence = consistent_evidence(evidence)
+    if is_claimable(evidence):
+        return False
+    dns = evidence.get("dns") or {}
+    rdap = evidence.get("rdap") or {}
+    if str(dns.get("status", "")).lower() != "nxdomain":
+        return False
+    if str(rdap.get("status", "")).lower() != "registered":
+        return False
+    host = str(dns.get("host") or "").lower().rstrip(".")
+    parent = _registrable(host) if host else ""
+    if not host or not parent or host == parent:
+        return False
+    return True
+
+
 def baseline_revised(evidence: dict) -> str:
     evidence = consistent_evidence(evidence)
     if is_claimable(evidence):
         return "critical"
     dns = evidence.get("dns") or {}
     if str(dns.get("status", "")).lower() == "nxdomain":
+        if is_subdomain_nxdomain_of_registered_parent(evidence):
+            return "low"
         return "high"
     return "low"
 
@@ -88,19 +109,35 @@ def apply_revised_rubric(labels: list[dict]) -> tuple[list[dict], list[dict]]:
     changes: list[dict] = []
     for row in labels:
         copy = dict(row)
-        if is_expiry_only(row.get("evidence") or {}) and row.get("severity") != "info":
+        evidence = row.get("evidence") or {}
+        days = (evidence.get("rdap") or {}).get("days_to_expiry")
+        if is_expiry_only(evidence) and row.get("severity") != "info":
             changes.append(
                 {
                     "repo": row["repo"],
                     "target": row["target"],
                     "from": row["severity"],
                     "to": "info",
-                    "days_to_expiry": (row.get("evidence") or {})
-                    .get("rdap", {})
-                    .get("days_to_expiry"),
+                    "why": "expiry-only",
+                    "days_to_expiry": days,
                 }
             )
             copy["severity"] = "info"
+        elif (
+            is_subdomain_nxdomain_of_registered_parent(evidence)
+            and row.get("severity") in GOLD_POS
+        ):
+            changes.append(
+                {
+                    "repo": row["repo"],
+                    "target": row["target"],
+                    "from": row["severity"],
+                    "to": "low",
+                    "why": "subdomain-nxdomain",
+                    "days_to_expiry": days,
+                }
+            )
+            copy["severity"] = "low"
         mapped.append(copy)
     return mapped, changes
 
@@ -459,8 +496,8 @@ def render_changes(changes: list[dict]) -> str:
     lines = [
         "## Labels remapped under the revised rubric",
         "",
-        "Expiry-only targets (DNS resolves and RDAP registered, ≤ 90 days) mapped to info. "
-        "`eval/labels.jsonl` was not edited.",
+        "Expiry-only targets mapped to info; NXDOMAIN subdomains of a registered parent "
+        "mapped to low. `eval/labels.jsonl` was not edited.",
         "",
     ]
     if not changes:
@@ -468,9 +505,10 @@ def render_changes(changes: list[dict]) -> str:
         lines.append("")
         return "\n".join(lines)
     for item in changes:
+        why = item.get("why") or "expiry-only"
         lines.append(
             f"- {item['repo']} `{item['target']}`: {item['from']} → {item['to']} "
-            f"(days_to_expiry={item['days_to_expiry']})"
+            f"({why}, days_to_expiry={item['days_to_expiry']})"
         )
     lines.append("")
     return "\n".join(lines)
@@ -548,6 +586,7 @@ def main(argv: list[str] | None = None) -> int:
 
     load_dotenv(Path(".env"), override=True)
     os.environ.setdefault("TRUSTMAP_SCAN_DEADLINE_S", "600")
+    os.environ.setdefault("TRUSTMAP_CLONE_TIMEOUT_S", "90")
     parser = argparse.ArgumentParser(prog="run_eval")
     parser.add_argument("--labels", default=str(LABELS_FILE))
     parser.add_argument("--results", default=str(RESULTS_FILE))

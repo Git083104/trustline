@@ -103,6 +103,7 @@ def test_partial_scan_reports_skipped_targets(tmp_path):
         ),
     ]
     rank_skipped: list[str] = []
+    rank_fallbacks: list[str] = []
     findings = rank(
         rows,
         client=FakeModelClient(
@@ -111,13 +112,14 @@ def test_partial_scan_reports_skipped_targets(tmp_path):
         cache=LookupCache(tmp_path / "r.db"),
         clock=ScanClock(total_s=0.0, rank_s=0.0, request_cap_s=0.1),
         skipped=rank_skipped,
+        fallbacks=rank_fallbacks,
     )
     assert {item.target for item in findings} == {
         "missing-deadline",
         "vendor.example.net",
     }
-    assert "vendor.example.net" in rank_skipped
-    assert "missing-deadline" not in rank_skipped
+    assert rank_skipped == []
+    assert "vendor.example.net" in rank_fallbacks
     gone = next(item for item in findings if item.target == "missing-deadline")
     assert gone.severity == "critical"
     assert gone.floor_applied == "critical"

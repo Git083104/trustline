@@ -1,5 +1,7 @@
 """Scanner settings. Model keys are read in later phases; do not load .env here."""
 
+import os
+
 # Registrable domains we never flag. Bucket matches on Amazon/Google hosts are kept.
 ALLOWLIST_DOMAINS: frozenset[str] = frozenset(
     {
@@ -68,7 +70,7 @@ MAX_FILE_BYTES = 1_000_000
 MAX_SCAN_FILES = 5_000
 MAX_SCAN_BYTES = 50 * 1024 * 1024
 CONTEXT_LINES = 10
-GITHUB_CLONE_TIMEOUT_S = 20
+GITHUB_CLONE_TIMEOUT_S = 45
 HTTP_TIMEOUT_S = 10.0
 WEBSITE_PAGE_MAX_BYTES = 5 * 1024 * 1024
 WEBSITE_JS_MAX_BYTES = 2 * 1024 * 1024
@@ -88,17 +90,18 @@ AGENT_REASONING_EFFORT = "low"
 RANK_REASONING_EFFORT = "low"
 LLM_MAX_RETRIES = 1
 LLM_REQUEST_TIMEOUT_S = 20.0
+RANK_TIMEOUT_S = 30.0
 LLM_HTTP_MAX_RETRIES = 1
 CLASSIFY_BATCH_SIZE = 5
 CLASSIFY_CONCURRENCY = 8
 MAX_AGENT_TOOL_CALLS = 3
-SCAN_DEADLINE_S = 75.0
+SCAN_DEADLINE_S = 90.0
 REPORT_RESERVE_S = 10.0
 AGENT_RESERVE_S = 8.0
 RANK_RESERVE_S = 12.0
 MAX_INVESTIGATION_CONCURRENCY = 4
 PRECHECK_CONCURRENCY = 8
-RANK_CONCURRENCY = 8
+RANK_CONCURRENCY = 4
 SCAN_COST_CAP_USD = 1.00
 DAILY_CAP_USD = 10.0
 IP_SCANS_PER_HOUR = 5
@@ -116,3 +119,13 @@ CT_GAP_DAYS = 365
 MODEL_PRICES: dict[str, dict[str, float]] = {
     "muse-spark-1.3": {"input": 1.25, "output": 4.25},
 }
+
+
+def on_serverless() -> bool:
+    if os.environ.get("VERCEL", "").strip():
+        return True
+    return os.environ.get("TRUSTMAP_SERVERLESS", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+    }

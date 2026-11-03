@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 import re
+import ssl
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FuturesTimeout
@@ -25,9 +28,33 @@ from scanner.models import CallLog
 
 T = TypeVar("T", bound=BaseModel)
 
+FAILURE_LIMIT = 300
+STEADY_PARAMS: dict[str, Any] = {"temperature": 0}
+log = logging.getLogger("trustmap")
+_steady_lock = threading.Lock()
+_process_steady: dict[str, Any] | None = None
+
+
+def reset_steady_for_tests() -> None:
+    global _process_steady
+    with _steady_lock:
+        _process_steady = None
+
+
+def _tls_context() -> ssl.SSLContext:
+    ctx = ssl.create_default_context()
+    try:
+        import certifi
+    except ImportError:  # pragma: no cover
+        return ctx
+    ctx.load_verify_locations(certifi.where())
+    return ctx
+
 _SECRET_ASSIGN = re.compile(
     r"(?i)\b(api[_-]?key|token|password|secret)\s*[=:]\s*[^\s'\"\\,;]+"
 )
+_BEARER = re.compile(r"(?i)\b(bearer)(?:\s|\\[nrt])*[^\s'\"\\,;]+")
+SECRET_ENV = ("MODEL_API_KEY", "META_API_KEY", "GITHUB_TOKEN")
 
 
 class ModelClient(Protocol):
@@ -149,9 +176,9 @@ class FakeModelClient:
 
 class LiveModelClient:
     def __init__(self, api_key: str | None = None):
-        from openai import OpenAI
+        from openai import DefaultHttpxClient, OpenAI
 
-        key = api_key or os.environ.get("MODEL_API_KEY")
+        key = (api_key or os.environ.get("MODEL_API_KEY") or "").strip()
         if not key:
             raise RuntimeError("MODEL_API_KEY is not set")
         self._client = OpenAI(
@@ -159,6 +186,7 @@ class LiveModelClient:
             api_key=key,
             timeout=LLM_REQUEST_TIMEOUT_S,
             max_retries=LLM_HTTP_MAX_RETRIES,
+            http_client=DefaultHttpxClient(verify=_tls_context()),
         )
 
     def _api(self, timeout_s: float | None):
@@ -169,6 +197,45 @@ class LiveModelClient:
             # A retry would double the wall clock past the per-call cap.
             max_retries=0,
         )
+
+    def _create(self, timeout_s: float | None = None, **request: Any) -> Any:
+        from openai import BadRequestError
+
+        global _process_steady
+        create = self._api(timeout_s).chat.completions.create
+        with _steady_lock:
+            extra = (
+                dict(STEADY_PARAMS)
+                if _process_steady is None
+                else dict(_process_steady)
+            )
+            if not extra:
+                return create(**request)
+            if _process_steady is None:
+                try:
+                    response = create(**request, **extra)
+                    _process_steady = dict(STEADY_PARAMS)
+                    return response
+                except BadRequestError as exc:
+                    log.warning(
+                        "Meta rejected sampling params %s (%s); "
+                        "dropping them for this process",
+                        extra,
+                        exc,
+                    )
+                    _process_steady = {}
+                    return create(**request)
+        try:
+            return create(**request, **extra)
+        except BadRequestError as exc:
+            log.warning(
+                "Meta rejected sampling params %s (%s); dropping them for this process",
+                extra,
+                exc,
+            )
+            with _steady_lock:
+                _process_steady = {}
+            return create(**request)
 
     def complete_json(
         self,
@@ -181,7 +248,8 @@ class LiveModelClient:
         reasoning_effort: str,
         timeout_s: float | None = None,
     ) -> RawCompletion:
-        response = self._api(timeout_s).chat.completions.create(
+        response = self._create(
+            timeout_s,
             model=model,
             messages=[
                 {"role": "system", "content": system},
@@ -210,7 +278,8 @@ class LiveModelClient:
         reasoning_effort: str,
         timeout_s: float | None = None,
     ) -> ToolTurn:
-        response = self._api(timeout_s).chat.completions.create(
+        response = self._create(
+            timeout_s,
             model=model,
             messages=[{"role": "system", "content": system}, *messages],
             tools=tools,
@@ -226,7 +295,38 @@ class LiveModelClient:
         return ToolTurn(name=call.function.name, arguments=args, usage=usage)
 
 
+def failure_message(exc: BaseException) -> str:
+    """One line for the page when a scan fails, with secrets removed."""
+    text = str(exc) or type(exc).__name__
+    try:
+        from openai import APIConnectionError, APITimeoutError
+    except ImportError:  # pragma: no cover
+        APIConnectionError = APITimeoutError = ()
+    if isinstance(exc, APIConnectionError):
+        root, seen = exc, {id(exc)}
+        while True:
+            nxt = root.__cause__ or root.__context__
+            if nxt is None or id(nxt) in seen:
+                break
+            root = nxt
+            seen.add(id(root))
+        cause = f"{type(root).__name__}: {root}" if root is not exc and str(root) else text
+        head = (
+            "The Meta Model API did not answer in time"
+            if isinstance(exc, APITimeoutError)
+            else "Couldn't reach the Meta Model API"
+        )
+        text = f"{head} ({cause})"
+    text = redact_secrets(text)
+    return text if len(text) <= FAILURE_LIMIT else text[:FAILURE_LIMIT] + "..."
+
+
 def redact_secrets(text: str) -> str:
+    for name in SECRET_ENV:
+        value = os.environ.get(name, "").strip()
+        if len(value) >= 8:
+            text = text.replace(value, "[REDACTED]")
+    text = _BEARER.sub(lambda match: f"{match.group(1)} [REDACTED]", text)
     return _SECRET_ASSIGN.sub(lambda match: f"{match.group(1)}=[REDACTED]", text)
 
 

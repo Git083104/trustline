@@ -288,3 +288,9 @@ def test_extract_records_github_origin_from_remote(tmp_path: Path):
     result = extract_scan(str(tmp_path))
     assert result.github_owner == "acme"
     assert result.github_repo == "widgets"
+
+
+def test_invalid_ipv6_url_is_skipped(tmp_path: Path):
+    (tmp_path / "app.js").write_text('u = "http://[::1:80/x"\n')
+    refs = extract(str(tmp_path))
+    assert refs == []
