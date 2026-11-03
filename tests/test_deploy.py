@@ -3,6 +3,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def test_vercel_redirects_to_render():
+    text = (ROOT / "vercel.json").read_text()
+    assert "trustline.onrender.com" in text
+    assert '"permanent": false' in text
+
+
 def test_render_yaml_forces_local_scan_off_and_sets_health():
     text = (ROOT / "render.yaml").read_text()
     assert "healthCheckPath: /api/health" in text

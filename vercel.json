@@ -1,0 +1,14 @@
+{
+  "redirects": [
+    {
+      "source": "/",
+      "destination": "https://trustline.onrender.com/",
+      "permanent": false
+    },
+    {
+      "source": "/:path*",
+      "destination": "https://trustline.onrender.com/:path*",
+      "permanent": false
+    }
+  ]
+}
