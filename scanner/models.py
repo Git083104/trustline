@@ -204,6 +204,7 @@ class Finding(BaseModel):
     needs_review: bool = False
     floor_applied: str = ""
     floor_reason: str = ""
+    ceiling_note: str = ""
     evidence: dict[str, Any] = Field(default_factory=dict)
     evidence_line: str = ""
     cost_usd: float = 0
@@ -211,3 +212,4 @@ class Finding(BaseModel):
     action_ref: str = ""
     action_sha_pinned: bool | None = None
     evidence_level: Literal["proven", "likely", ""] = ""
+    explained_by: Literal["model", "template"] = "model"

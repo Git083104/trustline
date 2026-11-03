@@ -345,7 +345,7 @@ def parse_muse_output(text: str) -> CiReport:
         if report is not None:
             break
     if report is None:
-        raise ValueError("muse output is not valid Trustmap findings JSON")
+        raise ValueError("muse output is not valid Tether findings JSON")
     tools = _tool_evidence_index(objects)
     for item in report.findings:
         merged = dict(item.evidence)

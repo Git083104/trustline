@@ -117,13 +117,13 @@ async def test_popular_nxdomain_keeps_floor(tmp_path):
         "evidence": evidence,
     }
     level, reason = floor_decision(group)
-    assert level == "high"
-    assert "NXDOMAIN" in reason
+    assert level == "low"
+    assert "only the owner of stripe.com" in reason
     findings = rank(
         [(ref, _cl(ref, type="script", runs_in="browser"), _inv(ref, evidence))],
-        client=FakeModelClient(handler=lambda request: _rank_ok(severity="info", risk="DNS does not resolve.")),
+        client=FakeModelClient(handler=lambda request: _rank_ok(severity="info", risk="Subdomain no longer resolves; only the owner of stripe.com can recreate it.")),
     )
-    assert findings[0].severity == "high"
+    assert findings[0].severity == "low"
     assert findings[0].model_severity == "info"
 
 

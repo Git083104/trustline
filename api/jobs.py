@@ -68,6 +68,7 @@ class Job:
             "stage_seconds": outcome.stage_seconds,
             "coverage": outcome.coverage,
             "agent_runs": outcome.agent_runs,
+            "rank_fallbacks": outcome.rank_fallbacks,
             "findings": [finding_public(item) for item in outcome.findings],
         }
         self.status = "done"
@@ -83,6 +84,7 @@ class Job:
                 "skipped_targets": outcome.skipped_targets,
                 "partial": outcome.partial,
                 "agent_runs": outcome.agent_runs,
+                "rank_fallbacks": outcome.rank_fallbacks,
             }
         )
 
@@ -91,7 +93,11 @@ class Job:
         self.error = message
         self.emit({"type": "error", "message": message})
 
-    async def stream(self) -> AsyncIterator[dict[str, Any]]:
+    async def stream(
+        self, heartbeat: float | None = None
+    ) -> AsyncIterator[dict[str, Any] | None]:
+        """Every event from the first, then live ones. With a heartbeat, yields None
+        after that many quiet seconds so the caller can keep the connection open."""
         index = 0
         while True:
             while index < len(self.events):
@@ -106,7 +112,10 @@ class Job:
                 if len(self.events) > index:
                     continue
                 self._waiters.append(waiter)
-            await waiter.wait()
+            try:
+                await asyncio.wait_for(waiter.wait(), heartbeat)
+            except asyncio.TimeoutError:
+                yield None
 
 
 class JobStore:

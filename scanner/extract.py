@@ -249,12 +249,14 @@ def _clone_github(url: str, dest_parent: Path) -> Path:
         str(dest),
     ]
     try:
-        subprocess.run(command, check=True, timeout=GITHUB_CLONE_TIMEOUT_S)
+        clone_s = float(os.environ.get("TRUSTMAP_CLONE_TIMEOUT_S") or GITHUB_CLONE_TIMEOUT_S)
+        subprocess.run(command, check=True, timeout=clone_s)
     except FileNotFoundError as exc:
         raise CloneError("git is not installed on the scanner host") from exc
     except subprocess.TimeoutExpired as exc:
+        clone_s = float(os.environ.get("TRUSTMAP_CLONE_TIMEOUT_S") or GITHUB_CLONE_TIMEOUT_S)
         raise CloneError(
-            f"{owner}/{repo} took longer than {GITHUB_CLONE_TIMEOUT_S}s to download"
+            f"{owner}/{repo} took longer than {clone_s:g}s to download"
         ) from exc
     except subprocess.CalledProcessError as exc:
         raise CloneError(
@@ -465,7 +467,10 @@ def _find_on_line(
 def _classify_http_url(
     raw: str, line: str = "", rel: str = ""
 ) -> tuple[str, str, str, str | None] | None:
-    parsed = urlparse(raw)
+    try:
+        parsed = urlparse(raw)
+    except ValueError:
+        return None
     host = _host_from_netloc(parsed.netloc)
     if not host:
         return None

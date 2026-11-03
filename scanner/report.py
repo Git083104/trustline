@@ -27,6 +27,7 @@ from scanner.config import (
     LLM_REQUEST_TIMEOUT_S,
     OWNERSHIP_BLAME_BUDGET_S,
     RANK_CONCURRENCY,
+    RANK_TIMEOUT_S,
     RANK_MODEL,
     RANK_REASONING_EFFORT,
     SCAN_COST_CAP_USD,
@@ -39,6 +40,7 @@ from scanner.compromised import (
     is_polyfill_host,
 )
 from scanner.extract import (
+    _registrable,
     empty_coverage,
     extract_scan,
     github_login,
@@ -80,6 +82,7 @@ class ScanOutcome:
     classify_model_n: int = 0
     agent_runs: int = 0
     agent_tool_calls: int = 0
+    rank_fallbacks: int = 0
     partial: bool = False
     stage_seconds: dict[str, float] = field(default_factory=dict)
     coverage: dict[str, object] = field(default_factory=lambda: empty_coverage().as_dict())
@@ -94,6 +97,10 @@ CLAIMABLE_FIX = (
     "account to reclaim the name."
 )
 ACTION_PIN_FIX = "Pin to a full commit SHA."
+ACTION_DISABLED_FIX = (
+    "Replace this action: GitHub has disabled its repository, so CI cannot read "
+    "what it runs. Pin the replacement to a full commit SHA."
+)
 ACTION_MISSING_FIX = (
     "Remove or replace this action. If this was yours, re-create it in your own "
     "account to reclaim the name. Pin to a full commit SHA."
@@ -154,6 +161,7 @@ SEVERITY_ORDER: dict[str, int] = {
     "low": 3,
     "info": 4,
 }
+FIX_TODAY = frozenset({"critical", "high"})
 DATE_RE = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
 NUM_RE = re.compile(r"\b\d+\b")
 REGION_RE = re.compile(r"\b[a-z]{2}-[a-z]+-\d+\b", re.IGNORECASE)
@@ -446,6 +454,7 @@ def _template_finding(group: dict[str, Any], *, deadline: bool) -> Finding:
         floor_why=floor_why,
         cost_total=0.0,
     )
+    finding = finding.model_copy(update={"explained_by": "template"})
     if deadline:
         finding = finding.model_copy(update={"needs_review": True})
     return finding
@@ -463,7 +472,7 @@ def has_risk_signal(evidence: dict[str, Any]) -> bool:
     if str(platform.get("status", "")).lower() == "unclaimed":
         return True
     repo = usable.get("github_repo") or {}
-    if str(repo.get("status", "")).lower() == "missing":
+    if str(repo.get("status", "")).lower() in {"missing", "disabled"}:
         return True
     days = rdap.get("days_to_expiry")
     if isinstance(days, int) and days <= EXPIRY_INVESTIGATE_DAYS:
@@ -590,6 +599,8 @@ def choose_fix(
             or str(repo.get("status", "")).lower() == "missing"
         ):
             return ACTION_MISSING_FIX
+        if str(repo.get("status", "")).lower() == "disabled":
+            return ACTION_DISABLED_FIX
         text = human_fix(model_fix) if has_risk_signal(evidence) else NO_ACTION_FIX
         if ACTION_PIN_FIX not in text:
             if text == NO_ACTION_FIX:
@@ -648,6 +659,8 @@ def evidence_line(group: dict[str, Any], *, include_runs_in: bool = True) -> str
     repo = usable.get("github_repo") or {}
     if str(repo.get("status", "")).lower() == "missing":
         parts.append("GitHub repo does not exist")
+    elif str(repo.get("status", "")).lower() == "disabled":
+        parts.append("GitHub repo disabled")
     elif str(repo.get("status", "")).lower() == "exists":
         parts.append("GitHub repo exists")
     platform = usable.get("platform_takeover") or {}
@@ -762,9 +775,28 @@ def floor_severity(group: dict[str, Any]) -> str | None:
     return level
 
 
+def _mention_floor(group: dict[str, Any]) -> tuple[str | None, str]:
+    evidence = consistent_evidence(group["evidence"])
+    dns = evidence.get("dns") or {}
+    live = evidence.get("live_fetch") or {}
+    if _group_compromised(group):
+        signal = "Compromised domain"
+    elif is_claimable(evidence):
+        signal = "Claimable now"
+    elif str(dns.get("status", "")).lower() == "nxdomain":
+        signal = "DNS does not resolve"
+    elif live.get("for_sale"):
+        signal = "Domain listed for sale"
+    elif live.get("parked"):
+        signal = "Domain parked"
+    else:
+        return None, ""
+    return "low", f"{signal}, but only named in docs, tests or comments, so it is low"
+
+
 def floor_decision(group: dict[str, Any]) -> tuple[str | None, str]:
     if not executing_runs_in(group["rows"]):
-        return None, ""
+        return _mention_floor(group)
     evidence = consistent_evidence(group["evidence"])
     runs = sorted(
         {cl.runs_in for _, cl, _ in group["rows"] if cl.runs_in in EXECUTING}
@@ -798,6 +830,12 @@ def floor_decision(group: dict[str, Any]) -> tuple[str | None, str]:
             "high",
             "GitHub repo missing in executing position "
             f"({where}) is at least high",
+        )
+    if str(repo.get("status", "")).lower() == "disabled":
+        return (
+            "medium",
+            "GitHub repo disabled in executing position "
+            f"({where}) is at least medium",
         )
     platform = evidence.get("platform_takeover") or {}
     if str(platform.get("status", "")).lower() == "unclaimed":
@@ -838,11 +876,81 @@ def floor_decision(group: dict[str, Any]) -> tuple[str | None, str]:
         )
         return "high", note
     if str(dns.get("status", "")).lower() == "nxdomain":
+        return _nxdomain_floor(group, evidence, dns, where)
+    return _executing_list_floor(group, evidence, where)
+
+
+def _nxdomain_floor(
+    group: dict[str, Any], evidence: dict[str, Any], dns: dict[str, Any], where: str
+) -> tuple[str | None, str]:
+    host = str(dns.get("host") or group.get("target") or "").lower().rstrip(".")
+    parent = _registrable(host) if host else ""
+    rdap = evidence.get("rdap") or {}
+    platform = evidence.get("platform_takeover") or {}
+    dangling = str(platform.get("status", "")).lower() == "unclaimed"
+    parent_unregistered = str(rdap.get("status", "")).lower() in {
+        "unregistered",
+        "nxdomain",
+    }
+    host_is_apex = bool(parent) and host == parent
+    if dangling or parent_unregistered:
         return (
             "high",
             f"NXDOMAIN in executing position ({where}) is at least high",
         )
+    if host_is_apex:
+        return (
+            "high",
+            f"NXDOMAIN in executing position ({where}) is at least high",
+        )
+    if parent:
+        return (
+            "low",
+            f"Subdomain no longer resolves; only the owner of {parent} can recreate it.",
+        )
+    return (
+        "high",
+        f"NXDOMAIN in executing position ({where}) is at least high",
+    )
+
+
+def _executing_list_floor(
+    group: dict[str, Any], evidence: dict[str, Any], where: str
+) -> tuple[str | None, str]:
+    sri_ok = _all_browser_scripts_sri(group["rows"])
+    has_script = bool(_browser_script_rows(group["rows"]))
+    status = _group_compromised(group)
+    if status == "compromised" and not (has_script and sri_ok):
+        return (
+            "high",
+            f"compromised domain in executing position ({where}) is at least high",
+        )
+    if status == "associated":
+        return (
+            "medium",
+            f"associated domain in executing position ({where}) is at least medium",
+        )
     return None, ""
+
+
+def risk_contradicts_rule(risk: str, floor_why: str) -> bool:
+    if not floor_why:
+        return False
+    why = floor_why.lower()
+    text = risk.lower()
+    if "only the owner of" in why:
+        return any(
+            token in text
+            for token in (
+                "stranger",
+                "anyone could",
+                "claim",
+                "take over",
+                "unregistered",
+                "takeover",
+            )
+        )
+    return False
 
 
 def _claimable_sri_floor(
@@ -898,6 +1006,7 @@ def rank(
     on_event: OnEvent | None = None,
     clock: ScanClock | None = None,
     skipped: list[str] | None = None,
+    fallbacks: list[str] | None = None,
 ) -> list[Finding]:
     groups = group_by_target(rows)
     if not groups:
@@ -910,34 +1019,23 @@ def rank(
     def rank_one(index: int) -> None:
         group = groups[index]
         known = skip_model_rank(group)
-        code_backed = (
-            known
-            or is_claimable(group["evidence"])
-            or is_proven_ownership(group["evidence"])
-            or is_rest_fallback_reregister(group["evidence"])
-            or supporting_facts(group["evidence"])
-            or floor_decision(group)[0] is not None
-        )
-        if not known and clock is not None and clock.remaining_stage() < LLM_REQUEST_TIMEOUT_S:
+        remaining = clock.remaining_stage() if clock is not None else RANK_TIMEOUT_S
+        if not known and clock is not None and remaining < 0.05:
             finding = _template_finding(group, deadline=True)
-            if not code_backed:
-                if skipped is not None:
-                    skipped.append(group["target"])
-                clock.note_skip(
-                    "rank",
-                    "stage budget exhausted before model call",
-                    [group["target"]],
-                )
-            elif clock is not None:
-                clock.note_skip(
-                    "rank",
-                    "stage budget exhausted; kept code verdict",
-                    [group["target"]],
-                )
-        else:
-            timeout_s = (
-                None if known else (clock.request_timeout() if clock is not None else None)
+            if fallbacks is not None:
+                fallbacks.append(group["target"])
+            clock.note_skip(
+                "rank",
+                "stage budget exhausted; kept code verdict",
+                [group["target"]],
             )
+        else:
+            timeout_s = None
+            if not known:
+                timeout_s = min(
+                    RANK_TIMEOUT_S,
+                    clock.remaining_stage() if clock is not None else RANK_TIMEOUT_S,
+                )
             try:
                 finding = _rank_group(
                     group,
@@ -948,16 +1046,9 @@ def rank(
                 )
             except TimeoutError:
                 finding = _template_finding(group, deadline=True)
-                if not code_backed:
-                    if skipped is not None:
-                        skipped.append(group["target"])
-                    if clock is not None:
-                        clock.note_skip(
-                            "rank",
-                            f"model call exceeded {timeout_s}s timeout",
-                            [group["target"]],
-                        )
-                elif clock is not None:
+                if fallbacks is not None:
+                    fallbacks.append(group["target"])
+                if clock is not None:
                     clock.note_skip(
                         "rank",
                         f"model call exceeded {timeout_s}s; kept code verdict",
@@ -1028,6 +1119,8 @@ def _rank_group(
             problems.append(f"unknown lookups cited: {unknown}")
         if ownership_claim_without_fact(parsed.risk, group["evidence"]):
             problems.append("ownership change claimed without a code fact")
+        if risk_contradicts_rule(parsed.risk, floor_why):
+            problems.append("risk contradicts the finding's rule note")
         if problems:
             raise ValueError("; ".join(problems))
 
@@ -1069,7 +1162,7 @@ def _rank_group(
             )
             continue
 
-    return _finding_from_rank(
+    finding = _finding_from_rank(
         group=group,
         payload=payload,
         parsed=None,
@@ -1077,6 +1170,9 @@ def _rank_group(
         floor_why=floor_why,
         cost_total=cost_total,
         needs_review=True,
+    )
+    return finding.model_copy(
+        update={"explained_by": "template", "risk": template_risk(group)}
     )
 
 
@@ -1275,6 +1371,7 @@ async def run_scan(
             budget_s=budget,
         )
     clock.begin_stage("rank")
+    fallbacks: list[str] = []
     findings = await asyncio.to_thread(
         rank,
         rows,
@@ -1284,6 +1381,7 @@ async def run_scan(
         on_event=on_event,
         clock=clock,
         skipped=skipped,
+        fallbacks=fallbacks,
     )
     clock.end_stage()
     budget = sorted(
@@ -1322,6 +1420,7 @@ async def run_scan(
         classify_model_n=clock.classify_model_n,
         agent_runs=agent_runs,
         agent_tool_calls=agent_tool_calls,
+        rank_fallbacks=len(set(fallbacks)),
         partial=bool(unique_skipped),
         stage_seconds=dict(clock.stage_seconds),
         coverage=coverage,

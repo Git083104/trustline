@@ -2,12 +2,12 @@
   "redirects": [
     {
       "source": "/",
-      "destination": "https://trustline.onrender.com/",
+      "destination": "https://trustline-cxqq.onrender.com/",
       "permanent": false
     },
     {
       "source": "/:path*",
-      "destination": "https://trustline.onrender.com/:path*",
+      "destination": "https://trustline-cxqq.onrender.com/:path*",
       "permanent": false
     }
   ]

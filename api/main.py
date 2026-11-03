@@ -23,7 +23,7 @@ from api.jobs import Job, JobStore
 from api.limits import LimitsStore, client_ip
 from scanner.config import SCAN_COST_CAP_USD
 from scanner.ssrf import SCAN_BLOCKED, ScanBlockedError, parse_public_url, refuse_blocked_ips
-from scanner.llm import LiveModelClient, ModelClient, redact_secrets
+from scanner.llm import LiveModelClient, ModelClient, failure_message, redact_secrets  # noqa: F401
 from scanner.lookups import LookupCache, default_cache
 from scanner.report import ScanOutcome, run_scan
 from scanner.tools import ToolContext
@@ -228,7 +228,7 @@ def create_app(
             actual = outcome.cost_usd
             job.finish(outcome)
         except Exception as exc:
-            job.fail(redact_secrets(str(exc)))
+            job.fail(failure_message(exc))
         finally:
             limit_store.reconcile(job.scan_id, actual)
 

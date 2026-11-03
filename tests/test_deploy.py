@@ -5,7 +5,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def test_vercel_redirects_to_render():
     text = (ROOT / "vercel.json").read_text()
-    assert "trustline.onrender.com" in text
+    assert "trustline-cxqq.onrender.com" in text
     assert '"permanent": false' in text
 
 
@@ -76,3 +76,22 @@ def test_render_yaml_plan_and_disk_agree():
     assert "TRUSTMAP_CACHE_DB" in text
     dockerfile = (ROOT / "Dockerfile").read_text()
     assert "mkdir -p /var/data" in dockerfile
+
+
+def test_requirements_txt_matches_pyproject():
+    # pip users and uv users must install the same thing
+    import tomllib
+
+    declared = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]["dependencies"]
+    listed = [
+        line.strip()
+        for line in (ROOT / "requirements.txt").read_text().splitlines()
+        if line.strip() and not line.startswith("#")
+    ]
+    assert sorted(listed) == sorted(declared)
+
+
+def test_static_lives_in_api_static():
+    assert (ROOT / "api" / "static" / "index.html").is_file()
+    assert "COPY public" not in (ROOT / "Dockerfile").read_text()
+    assert not (ROOT / "public").exists()

@@ -19,6 +19,7 @@ from eval.label import (
 from eval.run_eval import (
     apply_revised_rubric,
     baseline_original,
+    baseline_revised,
     baseline_severity,
     debug_gold,
     evaluate,
@@ -292,6 +293,24 @@ def test_baseline_severity_rules():
     )
     assert baseline_severity({"dns": {"status": "nxdomain"}}) == "high"
     assert (
+        baseline_revised(
+            {
+                "dns": {"status": "nxdomain", "host": "forum.lbry.tech"},
+                "rdap": {"status": "registered", "domain": "lbry.tech", "days_to_expiry": 70},
+            }
+        )
+        == "low"
+    )
+    assert (
+        baseline_original(
+            {
+                "dns": {"status": "nxdomain", "host": "forum.lbry.tech"},
+                "rdap": {"status": "registered", "domain": "lbry.tech"},
+            }
+        )
+        == "high"
+    )
+    assert (
         baseline_severity({"rdap": {"status": "registered", "days_to_expiry": 12}})
         == "low"
     )
@@ -312,8 +331,8 @@ def test_revised_rubric_maps_expiry_only_to_info():
         "rdap": {"status": "registered", "days_to_expiry": 80},
     }
     abandoned = {
-        "dns": {"status": "nxdomain"},
-        "rdap": {"status": "registered", "days_to_expiry": 70},
+        "dns": {"status": "nxdomain", "host": "forum.lbry.tech"},
+        "rdap": {"status": "registered", "domain": "lbry.tech", "days_to_expiry": 70},
     }
     assert is_expiry_only(expiry)
     assert not is_expiry_only(abandoned)
@@ -333,19 +352,30 @@ def test_revised_rubric_maps_expiry_only_to_info():
     ]
     mapped, changes = apply_revised_rubric(labels)
     assert mapped[0]["severity"] == "info"
-    assert mapped[1]["severity"] == "high"
+    assert mapped[1]["severity"] == "low"
     assert labels[0]["severity"] == "high"
+    assert labels[1]["severity"] == "high"
     assert changes == [
         {
             "repo": "https://github.com/quantopian/zipline",
             "target": "quandl.com",
             "from": "high",
             "to": "info",
+            "why": "expiry-only",
             "days_to_expiry": 80,
-        }
+        },
+        {
+            "repo": "https://github.com/lbryio/lbry-desktop",
+            "target": "lbry.tech",
+            "from": "high",
+            "to": "low",
+            "why": "subdomain-nxdomain",
+            "days_to_expiry": 70,
+        },
     ]
     text = evaluate(labels, {}, 0.0, [], rubric="revised")
     assert "`quandl.com`: high → info" in text
+    assert "`lbry.tech`: high → low" in text
     assert "## Original rubric" in text
     assert "## Revised rubric" in text
     assert "baseline (original)" in text

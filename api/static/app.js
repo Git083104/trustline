@@ -249,20 +249,15 @@
   /* ---------- scanning screen ---------- */
 
   function renderLayers() {
-    Array.prototype.forEach.call(document.querySelectorAll(".scan-layers .layer-label"), function (node) {
-      var index = Number(node.getAttribute("data-layer"));
-      node.classList.toggle("is-on", index === state.stage);
-      node.classList.toggle("is-done", index < state.stage);
+    Array.prototype.forEach.call(document.querySelectorAll(".slab, #stack-list li"), function (node) {
+      var index = Number(node.getAttribute("data-layer")) - 1;
+      var status = "pending";
+      if (index < state.stage) { status = "done"; }
+      else if (index === state.stage) { status = "running"; }
+      node.setAttribute("data-state", status);
     });
-    Array.prototype.forEach.call(document.querySelectorAll(".scan-layers .layer-solid"), function (group) {
-      var index = Number(group.getAttribute("data-solid"));
-      group.classList.toggle("is-on", index === state.stage);
-      group.classList.toggle("is-done", index < state.stage);
-    });
-    Array.prototype.forEach.call(document.querySelectorAll(".scan-layers .l-line"), function (line) {
-      var index = Number(line.getAttribute("data-line"));
-      line.classList.toggle("is-on", index === state.stage);
-    });
+    var stackCell = document.querySelector(".stack-cell");
+    if (stackCell) { stackCell.setAttribute("data-scan", state.finished ? "done" : "running"); }
     var counts = {
       find: state.counts.find,
       check: state.counts.check,
@@ -1105,42 +1100,36 @@
 
   /* ---------- home: nav tint, hero clearance, layer picker ---------- */
 
-  function onScroll() {
-    if (el.home.hidden) { return; }
-    var y = window.scrollY || 0;
-    el.glow.style.transform = "translateY(" + (-Math.min(y * 0.32, 150)) + "px)";
-    el.haze.style.opacity = String(0.7 + Math.min(y / 500, 0.3));
-    var bottom = el.hero.getBoundingClientRect().bottom;
-    el.nav.classList.toggle("is-light", bottom > 0 && bottom < 140);
-  }
+  function onScroll() {}
+  function syncHeroClearance() {}
 
-  // The nav is fixed, so the hero has to start below whatever height it wraps to.
-  function syncHeroClearance() {
-    var navHeight = el.nav.offsetHeight;
-    el.heroInner.style.setProperty("--hero-top",
-      "max(clamp(130px, 14vw, 180px), " + (navHeight + 24) + "px)");
-  }
-
-  function selectLayer(index) {
-    Array.prototype.forEach.call(document.querySelectorAll(".layer-label"), function (btn) {
-      btn.classList.toggle("is-on", Number(btn.getAttribute("data-layer")) === index);
-    });
-    Array.prototype.forEach.call(document.querySelectorAll(".layer-solid"), function (group) {
-      group.classList.toggle("is-on", Number(group.getAttribute("data-solid")) === index);
-    });
-    Array.prototype.forEach.call(document.querySelectorAll(".l-line"), function (line) {
-      line.classList.toggle("is-on", Number(line.getAttribute("data-line")) === index);
-    });
-    Array.prototype.forEach.call(document.querySelectorAll(".how-panel"), function (panel) {
-      panel.hidden = Number(panel.getAttribute("data-panel")) !== index;
-    });
-    el.howTool.textContent = [
-      "files → targets",
-      "dns · rdap · bucket_probe · github_api",
-      "plan → tool call → observation",
-      "model judgment + code rules",
-      "web · PR comment · MCP"
-    ][index];
+  function loadRepos() {
+    var list = $("repos-list");
+    if (!list) { return; }
+    fetch("/static/targets.json")
+      .then(function (res) { return res.ok ? res.json() : null; })
+      .then(function (data) {
+        if (!data || !data.groups) { return; }
+        list.replaceChildren();
+        data.groups.forEach(function (group) {
+          var wrap = make("div", "dr-group");
+          wrap.appendChild(make("h3", null, group.title || "Repos"));
+          (group.repos || []).forEach(function (repo) {
+            var btn = make("button", "dr-item dr-scan");
+            btn.type = "button";
+            btn.appendChild(make("span", "dr-repo", repo.repo));
+            if (repo.finding) { btn.appendChild(make("span", "dr-finding", repo.finding)); }
+            btn.addEventListener("click", function () {
+              el.target.value = "https://github.com/" + repo.repo;
+              syncInput();
+              el.target.focus();
+            });
+            wrap.appendChild(btn);
+          });
+          list.appendChild(wrap);
+        });
+      })
+      .catch(function () {});
   }
 
   /* ---------- wiring ---------- */
@@ -1182,8 +1171,7 @@
   window.addEventListener("resize", syncHeroClearance);
 
   syncInput();
-  syncHeroClearance();
-  onScroll();
+  loadRepos();
 
   var params = new URLSearchParams(window.location.search);
   var scanParam = params.get("scan");

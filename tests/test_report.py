@@ -325,7 +325,13 @@ def test_floor_claimable_is_critical_other_hard_is_high():
         "rows": [(gone, _cl(gone, runs_in="docs_only"), _inv(gone, {}))],
         "evidence": {"bucket_probe": {"status": "NoSuchBucket"}},
     }
-    assert floor_severity(docs) is None
+    # only named in docs: never Fix today, but always in Review (matches the
+    # eval labels, which call a claimable docs-only target low)
+    level, reason = floor_decision(docs)
+    assert level == "low"
+    assert "docs" in reason
+    quiet = {**docs, "evidence": {"bucket_probe": {"status": "exists"}}}
+    assert floor_severity(quiet) is None
     severity, note = apply_floor("medium", "critical")
     assert severity == "critical"
     assert note == "critical"
@@ -519,9 +525,9 @@ def test_rank_overrides_blast_and_applies_floor(tmp_path):
     ref = Reference(
         file="index.html",
         line=3,
-        raw="https://cdn.vendor.example.net/app.js",
-        host_or_bucket="cdn.vendor.example.net",
-        domain="vendor.example.net",
+        raw="https://abandoned-cdn.com/app.js",
+        host_or_bucket="abandoned-cdn.com",
+        domain="abandoned-cdn.com",
     )
     client = FakeModelClient(
         handler=lambda request: _rank_ok(
@@ -539,8 +545,8 @@ def test_rank_overrides_blast_and_applies_floor(tmp_path):
                 _inv(
                     ref,
                     {
-                        "dns": {"status": "nxdomain"},
-                        "rdap": {"status": "registered"},
+                        "dns": {"status": "nxdomain", "host": "abandoned-cdn.com"},
+                        "rdap": {"status": "registered", "domain": "abandoned-cdn.com"},
                     },
                 ),
             )
@@ -862,3 +868,184 @@ def test_rank_returns_findings_sorted_whatever_order_they_finish(tmp_path):
     from scanner.report import SEVERITY_ORDER
 
     assert severities == sorted(severities, key=lambda s: SEVERITY_ORDER[s])
+
+
+@pytest.mark.asyncio
+async def test_scan_never_asks_the_model_about_references_code_set_aside(tmp_path):
+    refs = extract(str(FIXTURE_ROOT))
+    dropped = {(ref.file, ref.line) for ref in refs if ref.filter_reason is not None}
+    kept = {(ref.file, ref.line) for ref in refs if ref.filter_reason is None}
+    assert dropped
+    asked: set = set()
+    inner = _fixture_handler()
+
+    def handler(request):
+        if request["schema_name"] == "classification_batch":
+            payload = json.loads(request["user"].split("\n", 1)[1])
+            asked.update((item["file"], item["line"]) for item in payload["references"])
+        return inner(request)
+
+    async def fake_bucket(name, provider, cache=None, **kwargs):
+        return BucketProbeResult(name=name, provider=provider, status="exists", http_status=403)
+
+    client = FakeModelClient(handler=handler, tool_handler=_scripted_client().tool_handler)
+    await scan(
+        str(FIXTURE_ROOT),
+        client=client,
+        cache=LookupCache(tmp_path / "s.db"),
+        ctx=_ctx(tmp_path, bucket_probe=fake_bucket),
+    )
+    assert dropped
+    assert asked
+
+
+def test_rank_past_its_deadline_keeps_code_severity_without_a_model_call(tmp_path):
+    from scanner.deadline import ScanClock
+
+    ref = Reference(file="deploy/infra.yaml", line=3, raw="s3://missing", host_or_bucket="missing")
+    rows = [(ref, _cl(ref), _inv(ref, {"bucket_probe": {"status": "NoSuchBucket", "http_status": 404}}))]
+    client = FakeModelClient(handler=lambda request: pytest.fail("rank called the model"))
+    fallbacks: list[str] = []
+    found = rank(
+        rows,
+        client=client,
+        cache=LookupCache(tmp_path / "d.db"),
+        clock=ScanClock(total_s=0.0, rank_s=0.0, request_cap_s=0.1),
+        fallbacks=fallbacks,
+    )
+    assert found[0].severity == "critical"
+    assert found[0].explained_by == "template"
+    assert found[0].risk
+    assert fallbacks == ["missing"]
+
+
+def test_rules_cover_what_only_the_model_used_to_catch():
+    # Fix today needs a code rule now, so every pattern the model alone used to
+    # rank high has a rule of its own.
+    ci = Reference(
+        file=".github/workflows/build.yml",
+        line=12,
+        raw="curl -s https://cdn.polyfill.io/install.sh | sh",
+        host_or_bucket="cdn.polyfill.io",
+        domain="polyfill.io",
+    )
+    fetched = {
+        "target": "polyfill.io",
+        "rows": [(ci, _cl(ci, type="script", runs_in="ci"), _inv(ci, {}))],
+        "evidence": {"dns": {"status": "resolves"}, "rdap": {"status": "registered"}},
+    }
+    level, reason = floor_decision(fetched)
+    assert level == "high" and "compromised" in reason
+    api = ci.model_copy(update={"host_or_bucket": "api.bootcdn.net", "domain": "bootcdn.net"})
+    called = {
+        "target": "bootcdn.net",
+        "rows": [(api, _cl(api, type="api", runs_in="server"), _inv(api, {}))],
+        "evidence": {"dns": {"status": "resolves"}},
+    }
+    level, reason = floor_decision(called)
+    assert level == "medium" and "associated" in reason
+    doc = Reference(
+        file="README.md",
+        line=3,
+        raw="https://old-demo.example.net/",
+        host_or_bucket="old-demo.example.net",
+        domain="example.net",
+    )
+    sold = {
+        "target": "example.net",
+        "rows": [(doc, _cl(doc, type="docs_link", runs_in="docs_only"), _inv(doc, {}))],
+        "evidence": {"dns": {"status": "resolves"}, "live_fetch": {"status": "ok", "for_sale": True}},
+    }
+    level, reason = floor_decision(sold)
+    assert level == "low" and "for sale" in reason
+
+
+def test_a_disabled_action_repo_is_review_with_its_own_fix():
+    action = Reference(
+        file=".github/workflows/preview-deploy.yml",
+        line=38,
+        raw="actions-cool/maintain-one-comment@v1.2.1",
+        host_or_bucket="github.com/actions-cool/maintain-one-comment",
+        action_owner="actions-cool",
+        action_repo="maintain-one-comment",
+        action_ref="v1.2.1",
+        action_sha_pinned=False,
+    )
+    group = {
+        "target": "github.com/actions-cool/maintain-one-comment",
+        "rows": [(action, _cl(action, type="script", runs_in="ci"), _inv(action, {}))],
+        "evidence": {
+            "github_owner": {"status": "exists", "exists": True},
+            "github_repo": {"status": "disabled", "exists": True},
+        },
+    }
+    level, reason = floor_decision(group)
+    assert level == "medium" and "disabled" in reason
+    fix = choose_fix(group["evidence"], "remove dead reference", "medium", group["rows"])
+    assert "disabled" in fix and "commit SHA" in fix
+    assert "GitHub repo disabled" in evidence_line(group)
+
+
+def test_rank_timeout_keeps_a_template_finding():
+    ref = Reference(
+        file="app.js",
+        line=1,
+        raw="https://gone.example/lib.js",
+        host_or_bucket="gone.example",
+        domain="gone.example",
+        tag="script",
+    )
+    evidence = {
+        "dns": {"status": "nxdomain", "host": "gone.example"},
+        "rdap": {"status": "unregistered", "domain": "gone.example"},
+    }
+    group_row = (ref, _cl(ref, type="script", runs_in="browser"), _inv(ref, evidence))
+
+    class _TimeoutClient(FakeModelClient):
+        def complete_json(self, **kwargs):
+            raise TimeoutError("rank timeout")
+
+    skipped: list[str] = []
+    fallbacks: list[str] = []
+    findings = rank(
+        [group_row],
+        client=_TimeoutClient(handler=lambda r: {}),
+        skipped=skipped,
+        fallbacks=fallbacks,
+    )
+    assert skipped == []
+    assert fallbacks == ["gone.example"]
+    assert findings[0].explained_by == "template"
+    assert findings[0].risk
+    assert findings[0].severity in {"critical", "high"}
+
+
+def test_nxdomain_subdomain_of_live_parent_is_review_not_high():
+    ref = Reference(
+        file="src/cdn.js",
+        line=4,
+        raw="https://shadow.ele.me/app.js",
+        host_or_bucket="shadow.ele.me",
+        domain="ele.me",
+        tag="script",
+    )
+    evidence = {
+        "dns": {"status": "nxdomain", "host": "shadow.ele.me"},
+        "rdap": {"status": "registered", "domain": "ele.me", "days_to_expiry": 400},
+    }
+    group = {
+        "target": "shadow.ele.me",
+        "kind": "domain",
+        "rows": [(ref, _cl(ref, type="script", runs_in="browser"), _inv(ref, evidence))],
+        "evidence": evidence,
+    }
+    level, reason = floor_decision(group)
+    assert level == "low"
+    assert level != "high"
+    assert "only the owner of ele.me" in reason
+    from scanner.report import risk_contradicts_rule
+
+    assert risk_contradicts_rule(
+        "A stranger could take over shadow.ele.me and serve malware.",
+        reason,
+    )
