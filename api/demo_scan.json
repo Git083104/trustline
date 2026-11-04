@@ -1,52 +1,67 @@
 {
   "scan_id": "demo",
   "kind": "repo",
-  "target": "https://github.com/jwang2007/paperplane-shop",
+  "target": "https://github.com/Git083104/tether-demo-shop",
   "status": "done",
-  "cost_usd": 0.09206975,
-  "classify_cost_usd": 0.0,
-  "agent_cost_usd": 0.06813425000000001,
-  "rank_cost_usd": 0.0239355,
+  "cost_usd": 0.06581075,
+  "classify_cost_usd": 0,
+  "agent_cost_usd": 0.023647249999999998,
+  "rank_cost_usd": 0.0421635,
   "budget_targets": [],
   "skipped_targets": [],
+  "code_only_targets": [
+    "api.tether-demo-checkout.com",
+    "cdn.polyfill.io",
+    "cdn.tether-demo-storefront.com",
+    "tether-demo-widgets.github.io",
+    "tetherdemoshopcdn"
+  ],
   "partial": false,
   "stage_seconds": {
-    "extract": 18.09977932367474,
-    "classify": 0.0017076293006539345,
-    "agent": 32.076287855394185,
-    "rank": 20.219557406380773
+    "extract": 1.9060661513358355,
+    "classify": 0.001162055879831314,
+    "agent": 37.22127754613757,
+    "rank": 25.11385646276176
   },
   "coverage": {
-    "files_scanned": 12,
-    "files_total": 12,
+    "files_scanned": 10,
+    "files_total": 10,
     "truncated": false,
-    "reason": ""
+    "reason": "",
+    "ignored_non_hosts": 0,
+    "ignored_files": [],
+    "ignored_file_count": 0
   },
-  "agent_runs": 7,
+  "agent_runs": 3,
+  "classify_rule_n": 20,
+  "classify_model_n": 0,
   "rank_fallbacks": 0,
+  "code_only": false,
+  "code_only_banner": "",
+  "muse_overloaded": false,
   "findings": [
     {
-      "target": "trustline-demo-release-artifacts",
+      "target": "tether-demo-ship-artifacts",
       "kind": "bucket",
       "severity": "critical",
       "model_severity": "critical",
       "floor_reason": "",
       "floor_applied": "",
       "ceiling_note": "",
-      "risk": "A stranger can claim the trustline-demo-release-artifacts bucket now and plant files that .github/workflows/deploy.yml and deploy/release.yml pull during releases.",
+      "risk": "A stranger can claim the missing tether-demo-ship-artifacts bucket and plant malicious artifacts that the deploy and release workflows will use, hijacking builds and releases.",
       "fix": "Remove or replace this reference. If this was yours, re-create it in your own account to reclaim the name.",
-      "evidence_line": "Evidence: S3 bucket does not exist \u00b7 referenced at .github/workflows/deploy.yml:13 in CI \u00b7 named in deploy/release.yml:3 in deploy",
+      "evidence_line": "Evidence: S3 bucket does not exist \u00b7 referenced at .github/workflows/deploy.yml:13 and .github/workflows/release.yml:11 in CI",
       "evidence": {
         "bucket_probe": {
-          "name": "trustline-demo-release-artifacts",
+          "name": "tether-demo-ship-artifacts",
           "provider": "s3",
           "status": "NoSuchBucket",
           "http_status": 404
         },
         "tranco_rank": null,
         "live_fetch": {
-          "url": "https://trustline-demo-release-artifacts.s3.amazonaws.com",
-          "final_url": "https://trustline-demo-release-artifacts.s3.amazonaws.com",
+          "url": "https://tether-demo-ship-artifacts.s3.amazonaws.com/",
+          "final_url": "https://tether-demo-ship-artifacts.s3.amazonaws.com/",
           "status": "ok",
           "http_status": 404,
           "redirect_chain": [],
@@ -55,14 +70,14 @@
           "for_sale": false,
           "signal": null,
           "nameservers": [
+            "ns-328.awsdns-41.com",
             "ns-674.awsdns-20.net",
             "ns-1173.awsdns-18.org",
-            "ns-1620.awsdns-10.co.uk",
-            "ns-328.awsdns-41.com"
+            "ns-1620.awsdns-10.co.uk"
           ]
         },
         "wayback": {
-          "url": "https://trustline-demo-release-artifacts.s3.amazonaws.com",
+          "url": "https://tether-demo-ship-artifacts.s3.amazonaws.com/",
           "status": "unavailable",
           "first_snapshot": null,
           "last_snapshot": null,
@@ -79,30 +94,58 @@
       "evidence_level": "proven",
       "explained_by": "model",
       "references": [
-        ".github/workflows/deploy.yml:13",
-        "deploy/release.yml:3"
+        {
+          "page_url": "",
+          "file": ".github/workflows/deploy.yml",
+          "line": 13,
+          "tag": "",
+          "attribute": "",
+          "raw": "s3://tether-demo-ship-artifacts",
+          "sri": null,
+          "loaded_by": "",
+          "runs_in": "ci"
+        },
+        {
+          "page_url": "",
+          "file": ".github/workflows/release.yml",
+          "line": 11,
+          "tag": "",
+          "attribute": "",
+          "raw": "s3://tether-demo-ship-artifacts",
+          "sri": null,
+          "loaded_by": "",
+          "runs_in": "ci"
+        }
       ],
-      "cost_usd": 0.00605,
-      "uncertain_about": "Whether the bucket is still intended for releases or can be removed entirely.",
+      "cost_usd": 0.00566,
+      "uncertain_about": "",
       "needs_review": false,
       "classified_blast_radius": 3,
       "blast_radius": 3,
-      "blast_override_reason": ""
+      "blast_override_reason": "",
+      "headline": "Your deploy downloads files from a storage bucket that no longer exists",
+      "why": "A stranger can claim the missing tether-demo-ship-artifacts bucket and plant malicious artifacts that the deploy and release workflows will use, hijacking builds and releases.",
+      "steps": [
+        "Open .github/workflows/deploy.yml:13 and stop pointing deploys at that bucket.",
+        "Use a bucket in an account you still own.",
+        "Do not create the missing bucket from this tool."
+      ],
+      "risk_type": "nosuchbucket"
     },
     {
-      "target": "github.com/trustline-demo-tools",
+      "target": "github.com/tether-demo-bootstrap",
       "kind": "domain",
       "severity": "critical",
       "model_severity": "critical",
       "floor_reason": "",
       "floor_applied": "",
       "ceiling_note": "",
-      "risk": "A stranger can claim the missing GitHub organization and publish a malicious install.sh that the deploy workflow downloads and executes in CI.",
+      "risk": "A stranger can register the missing tether-demo-bootstrap GitHub account and publish setup/main/install.sh, which .github/workflows/deploy.yml downloads and executes in CI.",
       "fix": "Remove or replace this reference. If this was yours, re-create it in your own account to reclaim the name.",
       "evidence_line": "Evidence: GitHub owner does not exist \u00b7 Tranco rank 34 \u00b7 referenced at .github/workflows/deploy.yml:11 in CI",
       "evidence": {
         "github_owner": {
-          "owner": "trustline-demo-tools",
+          "owner": "tether-demo-bootstrap",
           "status": "missing",
           "exists": false,
           "kind": null,
@@ -111,8 +154,8 @@
         },
         "tranco_rank": 34,
         "live_fetch": {
-          "url": "https://raw.githubusercontent.com/trustline-demo-tools/setup/main/install.sh",
-          "final_url": "https://raw.githubusercontent.com/trustline-demo-tools/setup/main/install.sh",
+          "url": "https://raw.githubusercontent.com/tether-demo-bootstrap/setup/main/install.sh",
+          "final_url": "https://raw.githubusercontent.com/tether-demo-bootstrap/setup/main/install.sh",
           "status": "ok",
           "http_status": 404,
           "redirect_chain": [],
@@ -121,14 +164,6 @@
           "for_sale": false,
           "signal": null,
           "nameservers": []
-        },
-        "wayback": {
-          "url": "https://raw.githubusercontent.com/trustline-demo-tools/setup/main/install.sh",
-          "status": "unavailable",
-          "first_snapshot": null,
-          "last_snapshot": null,
-          "first_digest": null,
-          "last_digest": null
         },
         "changed_hands": {
           "status": "unavailable",
@@ -145,31 +180,60 @@
       "evidence_level": "proven",
       "explained_by": "model",
       "references": [
-        ".github/workflows/deploy.yml:11"
+        {
+          "page_url": "",
+          "file": ".github/workflows/deploy.yml",
+          "line": 11,
+          "tag": "",
+          "attribute": "",
+          "raw": "https://raw.githubusercontent.com/tether-demo-bootstrap/setup/main/install.sh",
+          "sri": null,
+          "loaded_by": "",
+          "runs_in": "ci"
+        }
       ],
-      "cost_usd": 0.0,
+      "cost_usd": 0.0095055,
       "uncertain_about": "GitHub may retire popular repository names after an owner is deleted or renamed, which can block this exact path.",
       "needs_review": false,
       "classified_blast_radius": 2,
       "blast_radius": 2,
-      "blast_override_reason": ""
+      "blast_override_reason": "",
+      "headline": "Your CI runs a script from a GitHub account that no longer exists",
+      "why": "A stranger can register the missing tether-demo-bootstrap GitHub account and publish setup/main/install.sh, which .github/workflows/deploy.yml downloads and executes in CI.",
+      "steps": [
+        "Open .github/workflows/deploy.yml:11 and disable or delete that CI step.",
+        "Replace the download with a script from a repository you still own.",
+        "Do not create the missing GitHub account from this tool."
+      ],
+      "risk_type": "missing_github_ci"
     },
     {
       "target": "polyfill.io",
       "kind": "domain",
       "severity": "critical",
-      "model_severity": "high",
+      "model_severity": "info",
       "floor_reason": "compromised domain in a browser script without SRI (browser) is at least critical",
       "floor_applied": "critical",
       "ceiling_note": "",
-      "risk": "The script tag in public/index.html loads JavaScript from cdn.polyfill.io, which currently does not resolve. If a stranger gains control of polyfill.io they could serve malicious JavaScript that runs in visitors' browsers via that page.",
+      "risk": "Evidence: DNS does not resolve \u00b7 compromised domain \u00b7 Tranco rank 53571 \u00b7 referenced at docs/index.html:7 in docs \u00b7 loaded by index.html:6 in the browser compromised domain in a browser script without SRI (browser) is at least critical",
       "fix": "Remove it, or use cdnjs.cloudflare.com/polyfill or polyfill-fastly.io",
-      "evidence_line": "Evidence: DNS does not resolve \u00b7 compromised domain \u00b7 Tranco rank 53571 \u00b7 loaded by public/index.html:7 in the browser",
+      "evidence_line": "Evidence: DNS does not resolve \u00b7 compromised domain \u00b7 Tranco rank 53571 \u00b7 referenced at docs/index.html:7 in docs \u00b7 loaded by index.html:6 in the browser",
       "evidence": {
         "dns": {
           "host": "cdn.polyfill.io",
           "status": "nxdomain",
           "addresses": [],
+          "cnames": []
+        },
+        "dns_parent": {
+          "host": "polyfill.io",
+          "status": "resolves",
+          "addresses": [
+            "104.21.62.62",
+            "172.67.220.166",
+            "2606:4700:3037::ac43:dca6",
+            "2606:4700:3033::6815:3e3e"
+          ],
           "cnames": []
         },
         "rdap": {
@@ -193,37 +257,72 @@
       "action_ref": "",
       "action_sha_pinned": null,
       "evidence_level": "proven",
-      "explained_by": "model",
+      "explained_by": "template",
       "references": [
-        "public/index.html:7"
+        {
+          "page_url": "",
+          "file": "docs/index.html",
+          "line": 7,
+          "tag": "script",
+          "attribute": "",
+          "raw": "https://cdn.polyfill.io/v3/polyfill.min.js",
+          "sri": null,
+          "loaded_by": "",
+          "runs_in": "docs_only"
+        },
+        {
+          "page_url": "",
+          "file": "index.html",
+          "line": 6,
+          "tag": "script",
+          "attribute": "",
+          "raw": "https://cdn.polyfill.io/v3/polyfill.min.js?features=default",
+          "sri": null,
+          "loaded_by": "",
+          "runs_in": "browser"
+        }
       ],
       "cost_usd": 0.0,
-      "uncertain_about": "whether polyfill.io is currently claimable for registration, as no registration data was supplied",
+      "uncertain_about": "",
       "needs_review": false,
       "classified_blast_radius": 2,
       "blast_radius": 2,
-      "blast_override_reason": ""
+      "blast_override_reason": "",
+      "headline": "Your site loads a script from a CDN known to have served malware",
+      "why": "That CDN has been used to ship malware; pages that load it inherit that risk.",
+      "steps": [
+        "Open index.html:6 and find the script or stylesheet URL.",
+        "Replace it with a maintained CDN you control, or pin a subresource integrity hash.",
+        "Do not register or claim the old name."
+      ],
+      "risk_type": "compromised_cdn"
     },
     {
-      "target": "trustline-demo-agent.net",
+      "target": "tether-demo-runtime.net",
       "kind": "domain",
       "severity": "critical",
       "model_severity": "critical",
       "floor_reason": "",
       "floor_applied": "",
       "ceiling_note": "",
-      "risk": "Anyone could register trustline-demo-agent.net and serve a malicious agent-1.4.2.tar.gz that gets pulled in by the download in Dockerfile line 3 during the Docker build.",
+      "risk": "Anyone can register tether-demo-runtime.net since it is unregistered and does not resolve, then serve a malicious agent-1.4.2.tar.gz. The Dockerfile at line 3 downloads that file during the Docker build, so attacker code would land in built images.",
       "fix": "Remove or replace this reference. If this was yours, re-create it in your own account to reclaim the name.",
-      "evidence_line": "Evidence: DNS does not resolve \u00b7 domain not registered \u00b7 file existed since 2026-11-01 \u00b7 no certificates found \u00b7 referenced at Dockerfile:3 at build time",
+      "evidence_line": "Evidence: DNS does not resolve \u00b7 domain not registered \u00b7 referenced at Dockerfile:3 at build time",
       "evidence": {
         "dns": {
-          "host": "downloads.trustline-demo-agent.net",
+          "host": "downloads.tether-demo-runtime.net",
+          "status": "nxdomain",
+          "addresses": [],
+          "cnames": []
+        },
+        "dns_parent": {
+          "host": "tether-demo-runtime.net",
           "status": "nxdomain",
           "addresses": [],
           "cnames": []
         },
         "rdap": {
-          "domain": "trustline-demo-agent.net",
+          "domain": "tether-demo-runtime.net",
           "status": "unregistered",
           "registrar": null,
           "registered": null,
@@ -234,46 +333,7 @@
           "nameservers": [],
           "statuses": []
         },
-        "tranco_rank": null,
-        "live_fetch": {
-          "url": "https://downloads.trustline-demo-agent.net/agent-1.4.2.tar.gz",
-          "final_url": "https://downloads.trustline-demo-agent.net/agent-1.4.2.tar.gz",
-          "status": "blocked",
-          "http_status": null,
-          "redirect_chain": [],
-          "title": "",
-          "parked": false,
-          "for_sale": false,
-          "signal": null,
-          "nameservers": [],
-          "error": "This address can't be scanned"
-        },
-        "cert_history": {
-          "domain": "trustline-demo-agent.net",
-          "status": "ok",
-          "issuers": [],
-          "first_seen": null,
-          "last_seen": null,
-          "first_issuer_org": "",
-          "last_issuer_org": "",
-          "max_gap_days": null
-        },
-        "wayback": {
-          "url": "https://downloads.trustline-demo-agent.net/agent-1.4.2.tar.gz",
-          "status": "unavailable",
-          "first_snapshot": null,
-          "last_snapshot": null,
-          "first_digest": null,
-          "last_digest": null
-        },
-        "changed_hands": {
-          "status": "ok",
-          "supporting": [],
-          "reference_date": "2026-11-01",
-          "reference_source": "file existed since",
-          "path": "Dockerfile",
-          "reregistered_after_reference": false
-        }
+        "tranco_rank": null
       },
       "tranco_rank": null,
       "parked": false,
@@ -284,35 +344,59 @@
       "evidence_level": "proven",
       "explained_by": "model",
       "references": [
-        "Dockerfile:3"
+        {
+          "page_url": "",
+          "file": "Dockerfile",
+          "line": 3,
+          "tag": "",
+          "attribute": "",
+          "raw": "https://downloads.tether-demo-runtime.net/agent-1.4.2.tar.gz",
+          "sri": null,
+          "loaded_by": "",
+          "runs_in": "build"
+        }
       ],
-      "cost_usd": 0.0103355,
-      "uncertain_about": "The direct fetch was blocked so hosted content could not be viewed, but claimability does not depend on it.",
+      "cost_usd": 0.00816125,
+      "uncertain_about": "Whether the domain was previously owned by this project or by an abandoned third party.",
       "needs_review": false,
       "classified_blast_radius": 2,
       "blast_radius": 2,
-      "blast_override_reason": ""
+      "blast_override_reason": "",
+      "headline": "Your project still names a host that no longer resolves",
+      "why": "Anyone can register tether-demo-runtime.net since it is unregistered and does not resolve, then serve a malicious agent-1.4.2.tar.gz. The Dockerfile at line 3 downloads that file during the Docker build, so attacker code would land in built images.",
+      "steps": [
+        "Open Dockerfile:3 and remove or replace the reference.",
+        "Use a name you still control.",
+        "Do not register or claim the abandoned name from this tool."
+      ],
+      "risk_type": "nxdomain"
     },
     {
-      "target": "trustline-demo-cartkit.com",
+      "target": "tether-demo-storefront.com",
       "kind": "domain",
       "severity": "critical",
-      "model_severity": "critical",
-      "floor_reason": "",
-      "floor_applied": "",
+      "model_severity": "info",
+      "floor_reason": "RDAP unregistered for a script/api/config download in executing position (browser) is at least critical",
+      "floor_applied": "critical",
       "ceiling_note": "",
-      "risk": "Anyone can register trustline-demo-cartkit.com and serve malicious JavaScript at /v2/cart.js that will execute in visitors browsers when they load public/index.html.",
+      "risk": "Evidence: DNS does not resolve \u00b7 domain not registered \u00b7 referenced at docs/index.html:8 in docs \u00b7 loaded by index.html:7 in the browser RDAP unregistered for a script/api/config download in executing position (browser) is at least critical",
       "fix": "Remove or replace this reference. If this was yours, re-create it in your own account to reclaim the name.",
-      "evidence_line": "Evidence: DNS does not resolve \u00b7 domain not registered \u00b7 file existed since 2026-11-01 \u00b7 referenced at CHANGELOG.md:4 and docs/setup.md:3 in docs \u00b7 loaded by public/index.html:8 in the browser",
+      "evidence_line": "Evidence: DNS does not resolve \u00b7 domain not registered \u00b7 referenced at docs/index.html:8 in docs \u00b7 loaded by index.html:7 in the browser",
       "evidence": {
         "dns": {
-          "host": "cdn.trustline-demo-cartkit.com",
+          "host": "cdn.tether-demo-storefront.com",
+          "status": "nxdomain",
+          "addresses": [],
+          "cnames": []
+        },
+        "dns_parent": {
+          "host": "tether-demo-storefront.com",
           "status": "nxdomain",
           "addresses": [],
           "cnames": []
         },
         "rdap": {
-          "domain": "trustline-demo-cartkit.com",
+          "domain": "tether-demo-storefront.com",
           "status": "unregistered",
           "registrar": null,
           "registered": null,
@@ -323,46 +407,7 @@
           "nameservers": [],
           "statuses": []
         },
-        "tranco_rank": null,
-        "live_fetch": {
-          "url": "https://cdn.trustline-demo-cartkit.com/v2/cart.js",
-          "final_url": "https://cdn.trustline-demo-cartkit.com/v2/cart.js",
-          "status": "blocked",
-          "http_status": null,
-          "redirect_chain": [],
-          "title": "",
-          "parked": false,
-          "for_sale": false,
-          "signal": null,
-          "nameservers": [],
-          "error": "This address can't be scanned"
-        },
-        "cert_history": {
-          "domain": "trustline-demo-cartkit.com",
-          "status": "unavailable",
-          "issuers": [],
-          "first_seen": null,
-          "last_seen": null,
-          "first_issuer_org": "",
-          "last_issuer_org": "",
-          "max_gap_days": null
-        },
-        "wayback": {
-          "url": "https://cdn.trustline-demo-cartkit.com/v2/cart.js",
-          "status": "unavailable",
-          "first_snapshot": null,
-          "last_snapshot": null,
-          "first_digest": null,
-          "last_digest": null
-        },
-        "changed_hands": {
-          "status": "ok",
-          "supporting": [],
-          "reference_date": "2026-11-01",
-          "reference_source": "file existed since",
-          "path": "CHANGELOG.md",
-          "reregistered_after_reference": false
-        }
+        "tranco_rank": null
       },
       "tranco_rank": null,
       "parked": false,
@@ -371,43 +416,81 @@
       "action_ref": "",
       "action_sha_pinned": null,
       "evidence_level": "proven",
-      "explained_by": "model",
+      "explained_by": "template",
       "references": [
-        "CHANGELOG.md:4",
-        "docs/setup.md:3",
-        "public/index.html:8"
+        {
+          "page_url": "",
+          "file": "docs/index.html",
+          "line": 8,
+          "tag": "script",
+          "attribute": "",
+          "raw": "https://cdn.tether-demo-storefront.com/v2/cart.js",
+          "sri": null,
+          "loaded_by": "",
+          "runs_in": "docs_only"
+        },
+        {
+          "page_url": "",
+          "file": "index.html",
+          "line": 7,
+          "tag": "script",
+          "attribute": "",
+          "raw": "https://cdn.tether-demo-storefront.com/v2/cart.js",
+          "sri": null,
+          "loaded_by": "",
+          "runs_in": "browser"
+        }
       ],
-      "cost_usd": 0.007549999999999999,
-      "uncertain_about": "The direct URL could not be fetched because scanning was blocked, so the browser failure mode was not confirmed.",
+      "cost_usd": 0.0,
+      "uncertain_about": "",
       "needs_review": false,
       "classified_blast_radius": 2,
       "blast_radius": 2,
-      "blast_override_reason": ""
+      "blast_override_reason": "",
+      "headline": "Your website loads code from a domain anyone can register",
+      "why": "Anyone who registers that domain could run their code in visitors' browsers.",
+      "steps": [
+        "Open index.html:7 and remove or replace the script tag.",
+        "Point it at a host you control, or drop the dependency.",
+        "Do not register the abandoned domain yourself from this tool."
+      ],
+      "risk_type": "unregistered_script"
     },
     {
-      "target": "trustline-demo-chat.github.io",
+      "target": "tether-demo-widgets.github.io",
       "kind": "domain",
       "severity": "critical",
-      "model_severity": "critical",
-      "floor_reason": "",
-      "floor_applied": "",
+      "model_severity": "info",
+      "floor_reason": "GitHub Pages account missing for a script/api/config download in executing position (browser) is at least critical",
+      "floor_applied": "critical",
       "ceiling_note": "",
-      "risk": "A stranger can claim the missing GitHub account and publish their own chat-widget.js, which will run in visitors' browsers through the script tag in public/index.html.",
+      "risk": "Evidence: DNS resolves \u00b7 GitHub owner does not exist \u00b7 GitHub Pages unclaimed (vulnerable) on tether-demo-widgets.github.io \u00b7 Tranco rank 135 \u00b7 referenced at docs/abandoned/index.html:7 and docs/index.html:9 in docs \u00b7 loaded by index.html:11 in the browser GitHub Pages account missing for a script/api/config download in executing position (browser) is at least critical",
       "fix": "Remove or replace this reference. If this was yours, re-create it in your own account to reclaim the name.",
-      "evidence_line": "Evidence: DNS resolves \u00b7 GitHub owner does not exist \u00b7 GitHub Pages unclaimed (vulnerable) \u00b7 Tranco rank 135 \u00b7 loaded by public/index.html:14 in the browser",
+      "evidence_line": "Evidence: DNS resolves \u00b7 GitHub owner does not exist \u00b7 GitHub Pages unclaimed (vulnerable) on tether-demo-widgets.github.io \u00b7 Tranco rank 135 \u00b7 referenced at docs/abandoned/index.html:7 and docs/index.html:9 in docs \u00b7 loaded by index.html:11 in the browser",
       "evidence": {
         "dns": {
-          "host": "trustline-demo-chat.github.io",
+          "host": "tether-demo-widgets.github.io",
           "status": "resolves",
           "addresses": [
-            "185.199.109.153",
-            "185.199.108.153",
-            "185.199.110.153",
             "185.199.111.153",
-            "2606:50c0:8002::153",
-            "2606:50c0:8003::153",
+            "185.199.109.153",
+            "185.199.110.153",
+            "185.199.108.153",
             "2606:50c0:8000::153",
-            "2606:50c0:8001::153"
+            "2606:50c0:8001::153",
+            "2606:50c0:8002::153",
+            "2606:50c0:8003::153"
+          ],
+          "cnames": []
+        },
+        "dns_parent": {
+          "host": "github.io",
+          "status": "resolves",
+          "addresses": [
+            "185.199.111.153",
+            "185.199.108.153",
+            "185.199.109.153",
+            "185.199.110.153"
           ],
           "cnames": []
         },
@@ -424,15 +507,16 @@
           "statuses": []
         },
         "platform_takeover": {
-          "host": "trustline-demo-chat.github.io",
+          "host": "tether-demo-widgets.github.io",
           "status": "unclaimed",
           "platform": "GitHub Pages",
           "takeover": "vulnerable",
           "signal": "There isn't a GitHub Pages site here",
-          "http_status": 404
+          "http_status": 404,
+          "dns_proof": true
         },
         "github_owner": {
-          "owner": "trustline-demo-chat",
+          "owner": "tether-demo-widgets",
           "status": "missing",
           "exists": false,
           "kind": null,
@@ -448,31 +532,71 @@
       "action_ref": "",
       "action_sha_pinned": null,
       "evidence_level": "proven",
-      "explained_by": "model",
+      "explained_by": "template",
       "references": [
-        "public/index.html:14"
+        {
+          "page_url": "",
+          "file": "docs/abandoned/index.html",
+          "line": 7,
+          "tag": "script",
+          "attribute": "",
+          "raw": "https://tether-demo-widgets.github.io/chat-widget.js",
+          "sri": null,
+          "loaded_by": "",
+          "runs_in": "docs_only"
+        },
+        {
+          "page_url": "",
+          "file": "docs/index.html",
+          "line": 9,
+          "tag": "script",
+          "attribute": "",
+          "raw": "https://tether-demo-widgets.github.io/chat-widget.js",
+          "sri": null,
+          "loaded_by": "",
+          "runs_in": "docs_only"
+        },
+        {
+          "page_url": "",
+          "file": "index.html",
+          "line": 11,
+          "tag": "script",
+          "attribute": "",
+          "raw": "https://tether-demo-widgets.github.io/embed/chat-widget.js",
+          "sri": null,
+          "loaded_by": "",
+          "runs_in": "browser"
+        }
       ],
       "cost_usd": 0.0,
       "uncertain_about": "GitHub may retire popular repository names after an owner is deleted or renamed, which can block this exact path.",
       "needs_review": false,
       "classified_blast_radius": 2,
       "blast_radius": 2,
-      "blast_override_reason": ""
+      "blast_override_reason": "",
+      "headline": "Your site loads a script from a GitHub Pages account that no longer exists",
+      "why": "Anyone who recreates that GitHub account could publish a script your pages would load.",
+      "steps": [
+        "Open index.html:11 and remove the script tag.",
+        "Host the widget from a Pages site you control.",
+        "Do not create the missing GitHub account from this tool."
+      ],
+      "risk_type": "missing_github_pages"
     },
     {
-      "target": "trustlinedemoassets",
+      "target": "tetherdemoshopcdn",
       "kind": "bucket",
       "severity": "high",
-      "model_severity": "high",
-      "floor_reason": "",
-      "floor_applied": "",
+      "model_severity": "info",
+      "floor_reason": "NoSuchBucket for a static asset in executing position (deploy) is at least high",
+      "floor_applied": "high",
       "ceiling_note": "",
-      "risk": "Anyone can register the missing trustlinedemoassets storage and return malicious data from the catalog URL fetched in src/config.js, which ships in deployment.",
+      "risk": "Evidence: Azure blob does not exist \u00b7 Tranco rank 58 \u00b7 referenced at docs/index.html:14 in docs \u00b7 named in src/config.js:2 in deploy NoSuchBucket for a static asset in executing position (deploy) is at least high",
       "fix": "Remove or replace this reference. If this was yours, re-create it in your own account to reclaim the name.",
-      "evidence_line": "Evidence: Azure blob does not exist \u00b7 Tranco rank 58 \u00b7 named in src/config.js:3 in deploy",
+      "evidence_line": "Evidence: Azure blob does not exist \u00b7 Tranco rank 58 \u00b7 referenced at docs/index.html:14 in docs \u00b7 named in src/config.js:2 in deploy",
       "evidence": {
         "bucket_probe": {
-          "name": "trustlinedemoassets",
+          "name": "tetherdemoshopcdn",
           "provider": "azure",
           "status": "NoSuchBucket",
           "http_status": null
@@ -486,87 +610,72 @@
       "action_ref": "",
       "action_sha_pinned": null,
       "evidence_level": "proven",
-      "explained_by": "model",
+      "explained_by": "template",
       "references": [
-        "src/config.js:3"
+        {
+          "page_url": "",
+          "file": "docs/index.html",
+          "line": 14,
+          "tag": "img",
+          "attribute": "",
+          "raw": "https://tetherdemoshopcdn.blob.core.windows.net/demo/banner.png",
+          "sri": null,
+          "loaded_by": "",
+          "runs_in": "docs_only"
+        },
+        {
+          "page_url": "",
+          "file": "src/config.js",
+          "line": 2,
+          "tag": "",
+          "attribute": "",
+          "raw": "https://tetherdemoshopcdn.blob.core.windows.net/catalog",
+          "sri": null,
+          "loaded_by": "",
+          "runs_in": "deploy"
+        }
       ],
       "cost_usd": 0.0,
-      "uncertain_about": "Whether this storage account name is still available for registration on Azure and how strictly the app validates catalog data",
+      "uncertain_about": "",
       "needs_review": false,
       "classified_blast_radius": 3,
       "blast_radius": 3,
-      "blast_override_reason": ""
-    },
-    {
-      "target": "trustline-demo-metrics.io",
-      "kind": "domain",
-      "severity": "high",
-      "model_severity": "high",
-      "floor_reason": "",
-      "floor_applied": "",
-      "ceiling_note": "",
-      "risk": "Anyone who registers trustline-demo-metrics.io could receive event data sent to https://events.trustline-demo-metrics.io/collect from src/config.js and return crafted responses the server would trust.",
-      "fix": "Remove this reference; it points to a host that no longer resolves.",
-      "evidence_line": "Evidence: DNS does not resolve \u00b7 referenced at src/config.js:2 on the server",
-      "evidence": {
-        "dns": {
-          "host": "events.trustline-demo-metrics.io",
-          "status": "nxdomain",
-          "addresses": [],
-          "cnames": []
-        },
-        "rdap": {
-          "domain": "trustline-demo-metrics.io",
-          "status": "unknown",
-          "registrar": null,
-          "registered": null,
-          "expiry": null,
-          "days_to_expiry": null,
-          "last_changed": null,
-          "transfer": null,
-          "nameservers": [],
-          "statuses": []
-        },
-        "tranco_rank": null
-      },
-      "tranco_rank": null,
-      "parked": false,
-      "for_sale": false,
-      "live_signal": null,
-      "action_ref": "",
-      "action_sha_pinned": null,
-      "evidence_level": "",
-      "explained_by": "model",
-      "references": [
-        "src/config.js:2"
+      "blast_override_reason": "",
+      "headline": "Your deploy downloads files from a storage bucket that no longer exists",
+      "why": "Anyone who creates that bucket could serve files your deploy trusts.",
+      "steps": [
+        "Open src/config.js:2 and stop pointing deploys at that bucket.",
+        "Use a bucket in an account you still own.",
+        "Do not create the missing bucket from this tool."
       ],
-      "cost_usd": 0.0,
-      "uncertain_about": "whether the domain is actually unregistered and claimable, since no registration lookup was provided",
-      "needs_review": false,
-      "classified_blast_radius": 2,
-      "blast_radius": 2,
-      "blast_override_reason": ""
+      "risk_type": "nosuchbucket"
     },
     {
-      "target": "trustline-demo-payments.dev",
+      "target": "tether-demo-checkout.com",
       "kind": "domain",
       "severity": "high",
       "model_severity": "high",
       "floor_reason": "",
       "floor_applied": "",
       "ceiling_note": "",
-      "risk": "Anyone could register trustline-demo-payments.dev and control the hook URL in tests/fixtures/orders.json, letting them collect test order callbacks or return malicious responses when tests run.",
+      "risk": "Anyone can register tether-demo-checkout.com and return hostile data to the checkout API URL in src/config.js, taking over server-side checkout traffic.",
       "fix": "Remove or replace this reference. If this was yours, re-create it in your own account to reclaim the name.",
-      "evidence_line": "Evidence: DNS does not resolve \u00b7 domain not registered \u00b7 referenced at tests/fixtures/orders.json:3 in tests",
+      "evidence_line": "Evidence: DNS does not resolve \u00b7 domain not registered \u00b7 referenced at src/config.js:1 on the server",
       "evidence": {
         "dns": {
-          "host": "sandbox.trustline-demo-payments.dev",
+          "host": "api.tether-demo-checkout.com",
+          "status": "nxdomain",
+          "addresses": [],
+          "cnames": []
+        },
+        "dns_parent": {
+          "host": "tether-demo-checkout.com",
           "status": "nxdomain",
           "addresses": [],
           "cnames": []
         },
         "rdap": {
-          "domain": "trustline-demo-payments.dev",
+          "domain": "tether-demo-checkout.com",
           "status": "unregistered",
           "registrar": null,
           "registered": null,
@@ -588,14 +697,198 @@
       "evidence_level": "proven",
       "explained_by": "model",
       "references": [
-        "tests/fixtures/orders.json:3"
+        {
+          "page_url": "",
+          "file": "src/config.js",
+          "line": 1,
+          "tag": "",
+          "attribute": "",
+          "raw": "https://api.tether-demo-checkout.com/v1",
+          "sri": null,
+          "loaded_by": "",
+          "runs_in": "server"
+        }
+      ],
+      "cost_usd": 0.0098375,
+      "uncertain_about": "whether the demo checkout endpoint is still needed",
+      "needs_review": false,
+      "classified_blast_radius": 2,
+      "blast_radius": 2,
+      "blast_override_reason": "",
+      "headline": "Your project still names a host that no longer resolves",
+      "why": "Anyone can register tether-demo-checkout.com and return hostile data to the checkout API URL in src/config.js, taking over server-side checkout traffic.",
+      "steps": [
+        "Open src/config.js:1 and remove or replace the reference.",
+        "Use a name you still control.",
+        "Do not register or claim the abandoned name from this tool."
+      ],
+      "risk_type": "nxdomain"
+    },
+    {
+      "target": "bootcss.com",
+      "kind": "domain",
+      "severity": "low",
+      "model_severity": "info",
+      "floor_reason": "Compromised domain, but only named in docs, tests or comments, so it is low",
+      "floor_applied": "low",
+      "ceiling_note": "",
+      "risk": "Evidence: DNS resolves \u00b7 domain is registered \u00b7 compromised domain \u00b7 Tranco rank 44945 \u00b7 referenced at docs/old-cdn/index.html:7 in docs Compromised domain, but only named in docs, tests or comments, so it is low",
+      "fix": "Remove this reference; it points to a host that no longer resolves.",
+      "evidence_line": "Evidence: DNS resolves \u00b7 domain is registered \u00b7 compromised domain \u00b7 Tranco rank 44945 \u00b7 referenced at docs/old-cdn/index.html:7 in docs",
+      "evidence": {
+        "dns": {
+          "host": "cdn.bootcss.com",
+          "status": "resolves",
+          "addresses": [
+            "43.175.171.84",
+            "101.33.21.239",
+            "43.152.22.80",
+            "43.168.117.41",
+            "43.152.182.137"
+          ],
+          "cnames": [
+            "cdn.bootcss.com.cdn.dnsv1.com",
+            "aszc6gh6.slt.sched.intlscdn.com"
+          ]
+        },
+        "dns_parent": {
+          "host": "bootcss.com",
+          "status": "resolves",
+          "addresses": [
+            "128.14.165.153",
+            "98.98.253.37"
+          ],
+          "cnames": [
+            "bootcss.com.d48437e9.cdnhwcvix16.com",
+            "hcdnw.ovc.sme.cdnhwccmz121.com"
+          ]
+        },
+        "rdap": {
+          "domain": "bootcss.com",
+          "status": "registered",
+          "registrar": "DNSPod, Inc.",
+          "registered": "2012-11-12",
+          "expiry": "2028-11-12",
+          "days_to_expiry": 739,
+          "last_changed": "2025-05-13",
+          "transfer": null,
+          "nameservers": [
+            "plastic.dnspod.net",
+            "tuatara.dnspod.net"
+          ],
+          "statuses": [
+            "active"
+          ]
+        },
+        "tranco_rank": 44945
+      },
+      "tranco_rank": 44945,
+      "parked": false,
+      "for_sale": false,
+      "live_signal": null,
+      "action_ref": "",
+      "action_sha_pinned": null,
+      "evidence_level": "proven",
+      "explained_by": "template",
+      "references": [
+        {
+          "page_url": "",
+          "file": "docs/old-cdn/index.html",
+          "line": 7,
+          "tag": "script",
+          "attribute": "",
+          "raw": "https://cdn.bootcss.com/jquery/3.6.0/jquery.min.js",
+          "sri": null,
+          "loaded_by": "",
+          "runs_in": "docs_only"
+        }
       ],
       "cost_usd": 0.0,
-      "uncertain_about": "Whether the test suite actually sends requests to this hook or only uses it as placeholder data",
+      "uncertain_about": "",
       "needs_review": false,
       "classified_blast_radius": 0,
       "blast_radius": 0,
-      "blast_override_reason": ""
+      "blast_override_reason": "",
+      "headline": "This name only appears in docs or tests",
+      "why": "Evidence: DNS resolves \u00b7 domain is registered \u00b7 compromised domain \u00b7 Tranco rank 44945 \u00b7 referenced at docs/old-cdn/index.html:7 in docs Compromised domain, but only named in docs, tests or comments, so it is low",
+      "steps": [
+        "Optionally delete the mention at docs/old-cdn/index.html:7.",
+        "No runtime change is required."
+      ],
+      "risk_type": "inert_mention"
+    },
+    {
+      "target": "tether-demo-orders.dev",
+      "kind": "domain",
+      "severity": "low",
+      "model_severity": "low",
+      "floor_reason": "",
+      "floor_applied": "",
+      "ceiling_note": "",
+      "risk": "Anyone could register tether-demo-orders.dev since it is unregistered and does not resolve, then control the hook URL found in tests/fixtures/orders.json. Exposure is limited to test runs that use that fixture.",
+      "fix": "Remove or replace this reference. If this was yours, re-create it in your own account to reclaim the name.",
+      "evidence_line": "Evidence: DNS does not resolve \u00b7 domain not registered \u00b7 referenced at tests/fixtures/orders.json:3 in tests",
+      "evidence": {
+        "dns": {
+          "host": "sandbox.tether-demo-orders.dev",
+          "status": "nxdomain",
+          "addresses": [],
+          "cnames": []
+        },
+        "dns_parent": {
+          "host": "tether-demo-orders.dev",
+          "status": "nxdomain",
+          "addresses": [],
+          "cnames": []
+        },
+        "rdap": {
+          "domain": "tether-demo-orders.dev",
+          "status": "unregistered",
+          "registrar": null,
+          "registered": null,
+          "expiry": null,
+          "days_to_expiry": null,
+          "last_changed": null,
+          "transfer": null,
+          "nameservers": [],
+          "statuses": []
+        },
+        "tranco_rank": null
+      },
+      "tranco_rank": null,
+      "parked": false,
+      "for_sale": false,
+      "live_signal": null,
+      "action_ref": "",
+      "action_sha_pinned": null,
+      "evidence_level": "proven",
+      "explained_by": "model",
+      "references": [
+        {
+          "page_url": "",
+          "file": "tests/fixtures/orders.json",
+          "line": 3,
+          "tag": "",
+          "attribute": "",
+          "raw": "https://sandbox.tether-demo-orders.dev/hook",
+          "sri": null,
+          "loaded_by": "",
+          "runs_in": "test"
+        }
+      ],
+      "cost_usd": 0.008999249999999999,
+      "uncertain_about": "",
+      "needs_review": false,
+      "classified_blast_radius": 0,
+      "blast_radius": 0,
+      "blast_override_reason": "",
+      "headline": "This name only appears in docs or tests",
+      "why": "Anyone could register tether-demo-orders.dev since it is unregistered and does not resolve, then control the hook URL found in tests/fixtures/orders.json. Exposure is limited to test runs that use that fixture.",
+      "steps": [
+        "Optionally delete the mention at tests/fixtures/orders.json:3.",
+        "No runtime change is required."
+      ],
+      "risk_type": "inert_mention"
     },
     {
       "target": "github.com/actions/checkout",
@@ -607,7 +900,7 @@
       "ceiling_note": "",
       "risk": "Checked and safe. Tranco rank 34.",
       "fix": "Pin to a full commit SHA.",
-      "evidence_line": "Evidence: GitHub owner exists \u00b7 GitHub repo exists \u00b7 Tranco rank 34 \u00b7 referenced at .github/workflows/deploy.yml:9 in CI",
+      "evidence_line": "Evidence: GitHub owner exists \u00b7 GitHub repo exists \u00b7 Tranco rank 34 \u00b7 referenced at .github/workflows/deploy.yml:9 and .github/workflows/release.yml:9 in CI",
       "evidence": {
         "github_owner": {
           "owner": "actions",
@@ -635,177 +928,93 @@
       "evidence_level": "",
       "explained_by": "model",
       "references": [
-        ".github/workflows/deploy.yml:9"
+        {
+          "page_url": "",
+          "file": ".github/workflows/deploy.yml",
+          "line": 9,
+          "tag": "",
+          "attribute": "",
+          "raw": "actions/checkout@v4",
+          "sri": null,
+          "loaded_by": "",
+          "runs_in": "ci"
+        },
+        {
+          "page_url": "",
+          "file": ".github/workflows/release.yml",
+          "line": 9,
+          "tag": "",
+          "attribute": "",
+          "raw": "actions/checkout@v4",
+          "sri": null,
+          "loaded_by": "",
+          "runs_in": "ci"
+        }
       ],
       "cost_usd": 0.0,
       "uncertain_about": "",
       "needs_review": false,
       "classified_blast_radius": 2,
       "blast_radius": 2,
-      "blast_override_reason": ""
-    },
-    {
-      "target": "googletagmanager.com",
-      "kind": "domain",
-      "severity": "info",
-      "model_severity": "info",
-      "floor_reason": "",
-      "floor_applied": "",
-      "ceiling_note": "",
-      "risk": "Checked and safe. Tranco rank 23.",
-      "fix": "No action needed",
-      "evidence_line": "Evidence: DNS resolves \u00b7 domain is registered \u00b7 Tranco rank 23 \u00b7 loaded by public/index.html:9 in the browser",
-      "evidence": {
-        "dns": {
-          "host": "www.googletagmanager.com",
-          "status": "resolves",
-          "addresses": [
-            "142.250.107.97",
-            "2607:f8b0:400a:809::2008"
-          ],
-          "cnames": []
-        },
-        "rdap": {
-          "domain": "googletagmanager.com",
-          "status": "registered",
-          "registrar": "MarkMonitor Inc.",
-          "registered": "2011-11-11",
-          "expiry": "2027-11-11",
-          "days_to_expiry": 373,
-          "last_changed": "2026-10-10",
-          "transfer": null,
-          "nameservers": [
-            "ns1.google.com",
-            "ns2.google.com",
-            "ns3.google.com",
-            "ns4.google.com"
-          ],
-          "statuses": [
-            "client delete prohibited",
-            "client transfer prohibited",
-            "client update prohibited"
-          ]
-        },
-        "tranco_rank": 23
-      },
-      "tranco_rank": 23,
-      "parked": false,
-      "for_sale": false,
-      "live_signal": null,
-      "action_ref": "",
-      "action_sha_pinned": null,
-      "evidence_level": "likely",
-      "explained_by": "model",
-      "references": [
-        "public/index.html:9"
+      "blast_override_reason": "",
+      "headline": "Your project still talks to a domain anyone can register",
+      "why": "Checked and safe. Tranco rank 34.",
+      "steps": [
+        "Open .github/workflows/deploy.yml:9 and remove or replace the reference.",
+        "Use a name you still control.",
+        "Do not register or claim the abandoned name from this tool."
       ],
-      "cost_usd": 0.0,
-      "uncertain_about": "",
-      "needs_review": false,
-      "classified_blast_radius": 2,
-      "blast_radius": 2,
-      "blast_override_reason": ""
+      "risk_type": "unregistered_host"
     },
     {
-      "target": "hcaptcha.com",
+      "target": "cloudflare.com",
       "kind": "domain",
       "severity": "info",
       "model_severity": "info",
       "floor_reason": "",
       "floor_applied": "",
       "ceiling_note": "",
-      "risk": "Checked and safe. Tranco rank 231.",
+      "risk": "Checked and safe. Tranco rank 2.",
       "fix": "No action needed",
-      "evidence_line": "Evidence: DNS resolves \u00b7 domain is registered \u00b7 Tranco rank 231 \u00b7 loaded by public/index.html:10 in the browser",
+      "evidence_line": "Evidence: DNS resolves \u00b7 domain is registered \u00b7 Tranco rank 2 \u00b7 referenced at docs/old-cdn/index.html:8 in docs",
       "evidence": {
         "dns": {
-          "host": "js.hcaptcha.com",
+          "host": "cdnjs.cloudflare.com",
           "status": "resolves",
           "addresses": [
-            "104.19.229.21",
-            "104.19.230.21"
+            "104.17.25.14",
+            "104.17.24.14",
+            "2606:4700::6811:190e",
+            "2606:4700::6811:180e"
+          ],
+          "cnames": []
+        },
+        "dns_parent": {
+          "host": "cloudflare.com",
+          "status": "resolves",
+          "addresses": [
+            "104.16.133.229",
+            "104.16.132.229",
+            "2606:4700::6810:84e5",
+            "2606:4700::6810:85e5"
           ],
           "cnames": []
         },
         "rdap": {
-          "domain": "hcaptcha.com",
+          "domain": "cloudflare.com",
           "status": "registered",
-          "registrar": "NameCheap, Inc.",
-          "registered": "2018-01-12",
-          "expiry": "2030-01-12",
-          "days_to_expiry": 1166,
-          "last_changed": "2024-12-11",
+          "registrar": "Cloudflare, Inc.",
+          "registered": "2009-02-17",
+          "expiry": "2033-02-17",
+          "days_to_expiry": 2297,
+          "last_changed": "2024-01-09",
           "transfer": null,
           "nameservers": [
-            "eva.ns.cloudflare.com",
-            "josh.ns.cloudflare.com"
-          ],
-          "statuses": [
-            "client transfer prohibited"
-          ]
-        },
-        "tranco_rank": 231
-      },
-      "tranco_rank": 231,
-      "parked": false,
-      "for_sale": false,
-      "live_signal": null,
-      "action_ref": "",
-      "action_sha_pinned": null,
-      "evidence_level": "likely",
-      "explained_by": "model",
-      "references": [
-        "public/index.html:10"
-      ],
-      "cost_usd": 0.0,
-      "uncertain_about": "",
-      "needs_review": false,
-      "classified_blast_radius": 2,
-      "blast_radius": 2,
-      "blast_override_reason": ""
-    },
-    {
-      "target": "slack.com",
-      "kind": "domain",
-      "severity": "info",
-      "model_severity": "info",
-      "floor_reason": "",
-      "floor_applied": "",
-      "ceiling_note": "",
-      "risk": "Checked and safe. Tranco rank 305.",
-      "fix": "No action needed",
-      "evidence_line": "Evidence: DNS resolves \u00b7 domain is registered \u00b7 Tranco rank 305 \u00b7 referenced at src/config.js:4 on the server",
-      "evidence": {
-        "dns": {
-          "host": "hooks.slack.com",
-          "status": "resolves",
-          "addresses": [
-            "52.89.90.67",
-            "54.70.179.16",
-            "35.82.91.193",
-            "54.71.95.193",
-            "54.245.50.245",
-            "44.237.180.172",
-            "35.81.85.251",
-            "44.234.235.93",
-            "54.188.33.22"
-          ],
-          "cnames": []
-        },
-        "rdap": {
-          "domain": "slack.com",
-          "status": "registered",
-          "registrar": "MarkMonitor Inc.",
-          "registered": "1992-10-21",
-          "expiry": "2027-10-20",
-          "days_to_expiry": 351,
-          "last_changed": "2025-09-18",
-          "transfer": null,
-          "nameservers": [
-            "ns-1493.awsdns-58.org",
-            "ns-166.awsdns-20.com",
-            "ns-1901.awsdns-45.co.uk",
-            "ns-606.awsdns-11.net"
+            "ns3.cloudflare.com",
+            "ns4.cloudflare.com",
+            "ns5.cloudflare.com",
+            "ns6.cloudflare.com",
+            "ns7.cloudflare.com"
           ],
           "statuses": [
             "client delete prohibited",
@@ -816,9 +1025,9 @@
             "server update prohibited"
           ]
         },
-        "tranco_rank": 305
+        "tranco_rank": 2
       },
-      "tranco_rank": 305,
+      "tranco_rank": 2,
       "parked": false,
       "for_sale": false,
       "live_signal": null,
@@ -827,106 +1036,166 @@
       "evidence_level": "likely",
       "explained_by": "model",
       "references": [
-        "src/config.js:4"
+        {
+          "page_url": "",
+          "file": "docs/old-cdn/index.html",
+          "line": 8,
+          "tag": "script",
+          "attribute": "",
+          "raw": "https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.21/lodash.min.js",
+          "sri": null,
+          "loaded_by": "",
+          "runs_in": "docs_only"
+        }
       ],
       "cost_usd": 0.0,
       "uncertain_about": "",
       "needs_review": false,
-      "classified_blast_radius": 2,
-      "blast_radius": 2,
-      "blast_override_reason": ""
+      "classified_blast_radius": 0,
+      "blast_radius": 0,
+      "blast_override_reason": "",
+      "headline": "This name only appears in docs or tests",
+      "why": "Checked and safe. Tranco rank 2.",
+      "steps": [
+        "Optionally delete the mention at docs/old-cdn/index.html:8.",
+        "No runtime change is required."
+      ],
+      "risk_type": "inert_mention"
     },
     {
-      "target": "stripe.com",
+      "target": "git083104.github.io",
       "kind": "domain",
       "severity": "info",
       "model_severity": "info",
       "floor_reason": "",
       "floor_applied": "",
       "ceiling_note": "",
-      "risk": "Checked and safe. Tranco rank 204.",
+      "risk": "Evidence: DNS resolves \u00b7 GitHub owner exists \u00b7 GitHub Pages unclaimed (vulnerable) on git083104.github.io \u00b7 Tranco rank 135 \u00b7 referenced at README.md:9 in docs GitHub account still exists.",
       "fix": "No action needed",
-      "evidence_line": "Evidence: DNS resolves \u00b7 domain is registered \u00b7 Tranco rank 204 \u00b7 referenced at src/config.js:1 on the server",
+      "evidence_line": "Evidence: DNS resolves \u00b7 GitHub owner exists \u00b7 GitHub Pages unclaimed (vulnerable) on git083104.github.io \u00b7 Tranco rank 135 \u00b7 referenced at README.md:9 in docs",
       "evidence": {
         "dns": {
-          "host": "api.stripe.com",
+          "host": "git083104.github.io",
           "status": "resolves",
           "addresses": [
-            "198.202.176.175",
-            "198.137.150.175"
+            "185.199.109.153",
+            "185.199.108.153",
+            "185.199.110.153",
+            "185.199.111.153",
+            "2606:50c0:8000::153",
+            "2606:50c0:8003::153",
+            "2606:50c0:8002::153",
+            "2606:50c0:8001::153"
+          ],
+          "cnames": []
+        },
+        "dns_parent": {
+          "host": "github.io",
+          "status": "resolves",
+          "addresses": [
+            "185.199.111.153",
+            "185.199.108.153",
+            "185.199.109.153",
+            "185.199.110.153"
           ],
           "cnames": []
         },
         "rdap": {
-          "domain": "stripe.com",
-          "status": "registered",
-          "registrar": "SafeNames Ltd.",
-          "registered": "1995-09-12",
-          "expiry": "2027-09-11",
-          "days_to_expiry": 312,
-          "last_changed": "2025-10-01",
+          "domain": "github.io",
+          "status": "unknown",
+          "registrar": null,
+          "registered": null,
+          "expiry": null,
+          "days_to_expiry": null,
+          "last_changed": null,
           "transfer": null,
-          "nameservers": [
-            "ns-1087.awsdns-07.org",
-            "ns-1882.awsdns-43.co.uk",
-            "ns-423.awsdns-52.com",
-            "ns-705.awsdns-24.net"
-          ],
-          "statuses": [
-            "client delete prohibited",
-            "client transfer prohibited",
-            "client update prohibited",
-            "server delete prohibited",
-            "server transfer prohibited",
-            "server update prohibited"
-          ]
+          "nameservers": [],
+          "statuses": []
         },
-        "tranco_rank": 204
+        "platform_takeover": {
+          "host": "git083104.github.io",
+          "status": "unclaimed",
+          "platform": "GitHub Pages",
+          "takeover": "vulnerable",
+          "signal": "There isn't a GitHub Pages site here",
+          "http_status": 404,
+          "dns_proof": true
+        },
+        "github_owner": {
+          "owner": "git083104",
+          "status": "exists",
+          "exists": true,
+          "kind": null,
+          "created_at": null,
+          "http_status": 200
+        },
+        "tranco_rank": 135
       },
-      "tranco_rank": 204,
+      "tranco_rank": 135,
       "parked": false,
       "for_sale": false,
       "live_signal": null,
       "action_ref": "",
       "action_sha_pinned": null,
-      "evidence_level": "likely",
-      "explained_by": "model",
+      "evidence_level": "",
+      "explained_by": "template",
       "references": [
-        "src/config.js:1"
+        {
+          "page_url": "",
+          "file": "README.md",
+          "line": 9,
+          "tag": "",
+          "attribute": "",
+          "raw": "https://git083104.github.io/tether-demo-shop/",
+          "sri": null,
+          "loaded_by": "",
+          "runs_in": "docs_only"
+        }
       ],
       "cost_usd": 0.0,
       "uncertain_about": "",
       "needs_review": false,
-      "classified_blast_radius": 2,
-      "blast_radius": 2,
-      "blast_override_reason": ""
+      "classified_blast_radius": 0,
+      "blast_radius": 0,
+      "blast_override_reason": "",
+      "headline": "This name only appears in docs or tests",
+      "why": "Evidence: DNS resolves \u00b7 GitHub owner exists \u00b7 GitHub Pages unclaimed (vulnerable) on git083104.github.io \u00b7 Tranco rank 135 \u00b7 referenced at README.md:9 in docs GitHub account still exists.",
+      "steps": [
+        "Optionally delete the mention at README.md:9.",
+        "No runtime change is required."
+      ],
+      "risk_type": "inert_mention"
     }
   ],
   "recorded_with": "live",
-  "recorded_at": "2026-11-03",
+  "recorded_at": "2026-11-04",
   "events": [
     {
       "type": "started",
       "kind": "repo",
-      "target": "https://github.com/jwang2007/paperplane-shop",
+      "target": "https://github.com/Git083104/tether-demo-shop",
       "cost_cap_usd": 1.0,
+      "code_only": false,
       "scan_id": "demo",
-      "ts": 1793737242.3463507,
+      "ts": 1793816031.3497024,
       "recorded_with": "live"
     },
     {
       "type": "extracted",
       "references": 20,
-      "actionable": 18,
-      "filtered": 2,
+      "actionable": 20,
+      "filtered": 0,
       "coverage": {
-        "files_scanned": 12,
-        "files_total": 12,
+        "files_scanned": 10,
+        "files_total": 10,
         "truncated": false,
-        "reason": ""
+        "reason": "",
+        "ignored_non_hosts": 0,
+        "ignored_files": [],
+        "ignored_file_count": 0
       },
       "scan_id": "demo",
-      "ts": 1793737260.447082
+      "ts": 1793816036.9365287
     },
     {
       "type": "precheck",
@@ -934,63 +1203,63 @@
       "kind": "domain",
       "hard_signal": false,
       "scan_id": "demo",
-      "ts": 1793737260.5199506
+      "ts": 1793816042.1536956
     },
     {
       "type": "precheck",
-      "target": "github.com/trustline-demo-tools",
+      "target": "github.com/tether-demo-bootstrap",
       "kind": "domain",
       "hard_signal": true,
       "scan_id": "demo",
-      "ts": 1793737260.5200129
+      "ts": 1793816042.1538072
     },
     {
       "type": "precheck",
-      "target": "trustline-demo-release-artifacts",
+      "target": "tether-demo-ship-artifacts",
       "kind": "bucket",
       "hard_signal": true,
       "scan_id": "demo",
-      "ts": 1793737260.5200202
+      "ts": 1793816042.1538188
     },
     {
       "type": "precheck",
-      "target": "trustline-demo-cartkit.com",
-      "kind": "domain",
-      "hard_signal": true,
-      "scan_id": "demo",
-      "ts": 1793737260.5200565
-    },
-    {
-      "type": "precheck",
-      "target": "trustline-demo-agent.net",
-      "kind": "domain",
-      "hard_signal": true,
-      "scan_id": "demo",
-      "ts": 1793737260.5200906
-    },
-    {
-      "type": "precheck",
-      "target": "shields.io",
+      "target": "github.com/actions/checkout",
       "kind": "domain",
       "hard_signal": false,
       "scan_id": "demo",
-      "ts": 1793737260.5201218
+      "ts": 1793816042.1538434
     },
     {
       "type": "precheck",
-      "target": "trustline-demo-release-artifacts",
+      "target": "tether-demo-ship-artifacts",
       "kind": "bucket",
       "hard_signal": true,
       "scan_id": "demo",
-      "ts": 1793737260.520128
+      "ts": 1793816042.1538517
     },
     {
       "type": "precheck",
-      "target": "trustline-demo-cartkit.com",
+      "target": "tether-demo-runtime.net",
       "kind": "domain",
       "hard_signal": true,
       "scan_id": "demo",
-      "ts": 1793737260.5201616
+      "ts": 1793816042.1539009
+    },
+    {
+      "type": "precheck",
+      "target": "git083104.github.io",
+      "kind": "domain",
+      "hard_signal": true,
+      "scan_id": "demo",
+      "ts": 1793816042.1539426
+    },
+    {
+      "type": "precheck",
+      "target": "tether-demo-widgets.github.io",
+      "kind": "domain",
+      "hard_signal": true,
+      "scan_id": "demo",
+      "ts": 1793816042.1539805
     },
     {
       "type": "precheck",
@@ -998,639 +1267,165 @@
       "kind": "domain",
       "hard_signal": true,
       "scan_id": "demo",
-      "ts": 1793737260.520193
+      "ts": 1793816042.1540222
     },
     {
       "type": "precheck",
-      "target": "trustline-demo-cartkit.com",
+      "target": "tether-demo-storefront.com",
       "kind": "domain",
       "hard_signal": true,
       "scan_id": "demo",
-      "ts": 1793737260.5202265
+      "ts": 1793816042.1540654
     },
     {
       "type": "precheck",
-      "target": "googletagmanager.com",
-      "kind": "domain",
-      "hard_signal": false,
-      "scan_id": "demo",
-      "ts": 1793737260.520261
-    },
-    {
-      "type": "precheck",
-      "target": "hcaptcha.com",
-      "kind": "domain",
-      "hard_signal": false,
-      "scan_id": "demo",
-      "ts": 1793737260.5202901
-    },
-    {
-      "type": "precheck",
-      "target": "trustline-demo-chat.github.io",
+      "target": "tether-demo-widgets.github.io",
       "kind": "domain",
       "hard_signal": true,
       "scan_id": "demo",
-      "ts": 1793737260.5203183
+      "ts": 1793816042.1541016
     },
     {
       "type": "precheck",
-      "target": "stripe.com",
-      "kind": "domain",
-      "hard_signal": false,
-      "scan_id": "demo",
-      "ts": 1793737260.5203476
-    },
-    {
-      "type": "precheck",
-      "target": "trustline-demo-metrics.io",
-      "kind": "domain",
-      "hard_signal": true,
-      "scan_id": "demo",
-      "ts": 1793737260.5204082
-    },
-    {
-      "type": "precheck",
-      "target": "trustlinedemoassets",
+      "target": "tetherdemoshopcdn",
       "kind": "bucket",
       "hard_signal": true,
       "scan_id": "demo",
-      "ts": 1793737260.5204155
+      "ts": 1793816042.1541388
     },
     {
       "type": "precheck",
-      "target": "slack.com",
+      "target": "bootcss.com",
       "kind": "domain",
       "hard_signal": false,
       "scan_id": "demo",
-      "ts": 1793737260.5204513
+      "ts": 1793816042.1541803
     },
     {
       "type": "precheck",
-      "target": "trustline-demo-payments.dev",
+      "target": "cloudflare.com",
+      "kind": "domain",
+      "hard_signal": false,
+      "scan_id": "demo",
+      "ts": 1793816042.154222
+    },
+    {
+      "type": "precheck",
+      "target": "polyfill.io",
       "kind": "domain",
       "hard_signal": true,
       "scan_id": "demo",
-      "ts": 1793737260.5204837
+      "ts": 1793816042.1542616
+    },
+    {
+      "type": "precheck",
+      "target": "tether-demo-storefront.com",
+      "kind": "domain",
+      "hard_signal": true,
+      "scan_id": "demo",
+      "ts": 1793816042.1543028
+    },
+    {
+      "type": "precheck",
+      "target": "tether-demo-widgets.github.io",
+      "kind": "domain",
+      "hard_signal": true,
+      "scan_id": "demo",
+      "ts": 1793816042.15434
+    },
+    {
+      "type": "precheck",
+      "target": "tether-demo-checkout.com",
+      "kind": "domain",
+      "hard_signal": true,
+      "scan_id": "demo",
+      "ts": 1793816042.1543798
+    },
+    {
+      "type": "precheck",
+      "target": "tetherdemoshopcdn",
+      "kind": "bucket",
+      "hard_signal": true,
+      "scan_id": "demo",
+      "ts": 1793816042.154388
+    },
+    {
+      "type": "precheck",
+      "target": "tether-demo-orders.dev",
+      "kind": "domain",
+      "hard_signal": true,
+      "scan_id": "demo",
+      "ts": 1793816042.1544294
     },
     {
       "type": "plan",
-      "target": "trustline-demo-agent.net",
+      "target": "github.com/tether-demo-bootstrap",
       "tool": "live_fetch",
       "args": {
-        "url": "https://downloads.trustline-demo-agent.net/agent-1.4.2.tar.gz"
+        "url": "https://raw.githubusercontent.com/tether-demo-bootstrap/setup/main/install.sh"
       },
-      "tokens": 1779,
-      "cost_usd": 0.00316575,
+      "tokens": 1819,
+      "cost_usd": 0.00347675,
       "scan_id": "demo",
-      "ts": 1793737263.1458607
+      "ts": 1793816045.6812782
     },
     {
       "type": "act",
-      "target": "trustline-demo-agent.net",
+      "target": "github.com/tether-demo-bootstrap",
       "tool": "live_fetch",
       "args": {
-        "url": "https://downloads.trustline-demo-agent.net/agent-1.4.2.tar.gz"
+        "url": "https://raw.githubusercontent.com/tether-demo-bootstrap/setup/main/install.sh"
       },
       "scan_id": "demo",
-      "ts": 1793737263.1459029
+      "ts": 1793816045.6813164
     },
     {
       "type": "observe",
-      "target": "trustline-demo-agent.net",
+      "target": "github.com/tether-demo-bootstrap",
       "tool": "live_fetch",
       "args": {
-        "url": "https://downloads.trustline-demo-agent.net/agent-1.4.2.tar.gz"
+        "url": "https://raw.githubusercontent.com/tether-demo-bootstrap/setup/main/install.sh"
       },
-      "result_summary": "{\"error\": \"This address can't be scanned\", \"final_url\": \"https://downloads.trustline-demo-agent.net/agent-1.4.2.tar.gz\", \"for_sale\": false, \"http_status\": null, \"nameservers\": [], \"parked\": false, \"redirect_chain\": [], \"signal\": null, \"status\": \"blocked\", \"title\": \"\", \"url\": \"https://downloads.trustline-demo-agent.net/agent-1.4.2.tar.gz\"}",
+      "result_summary": "{\"final_url\": \"https://raw.githubusercontent.com/tether-demo-bootstrap/setup/main/install.sh\", \"for_sale\": false, \"http_status\": 404, \"nameservers\": [], \"parked\": false, \"redirect_chain\": [], \"signal\": null, \"status\": \"ok\", \"title\": \"\", \"url\": \"https://raw.githubusercontent.com/tether-demo-bootstrap/setup/main/install.sh\"}",
       "tokens": 0,
       "cost_usd": 0.0,
       "scan_id": "demo",
-      "ts": 1793737263.1465619
+      "ts": 1793816045.9518182
     },
     {
       "type": "plan",
-      "target": "trustline-demo-cartkit.com",
+      "target": "tether-demo-ship-artifacts",
       "tool": "live_fetch",
       "args": {
-        "url": "https://blog.trustline-demo-cartkit.com/posts/v2-3-cdn"
+        "url": "https://tether-demo-ship-artifacts.s3.amazonaws.com/"
       },
-      "tokens": 1771,
-      "cost_usd": 0.00311375,
+      "tokens": 1998,
+      "cost_usd": 0.0042585,
       "scan_id": "demo",
-      "ts": 1793737263.8474784
+      "ts": 1793816050.0070615
     },
     {
       "type": "act",
-      "target": "trustline-demo-cartkit.com",
+      "target": "tether-demo-ship-artifacts",
       "tool": "live_fetch",
       "args": {
-        "url": "https://blog.trustline-demo-cartkit.com/posts/v2-3-cdn"
+        "url": "https://tether-demo-ship-artifacts.s3.amazonaws.com/"
       },
       "scan_id": "demo",
-      "ts": 1793737263.847514
+      "ts": 1793816050.0070815
     },
     {
       "type": "observe",
-      "target": "trustline-demo-cartkit.com",
+      "target": "tether-demo-ship-artifacts",
       "tool": "live_fetch",
       "args": {
-        "url": "https://blog.trustline-demo-cartkit.com/posts/v2-3-cdn"
+        "url": "https://tether-demo-ship-artifacts.s3.amazonaws.com/"
       },
-      "result_summary": "{\"error\": \"This address can't be scanned\", \"final_url\": \"https://blog.trustline-demo-cartkit.com/posts/v2-3-cdn\", \"for_sale\": false, \"http_status\": null, \"nameservers\": [], \"parked\": false, \"redirect_chain\": [], \"signal\": null, \"status\": \"blocked\", \"title\": \"\", \"url\": \"https://blog.trustline-demo-cartkit.com/posts/v2-3-cdn\"}",
+      "result_summary": "{\"final_url\": \"https://tether-demo-ship-artifacts.s3.amazonaws.com/\", \"for_sale\": false, \"http_status\": 404, \"nameservers\": [\"ns-328.awsdns-41.com\", \"ns-674.awsdns-20.net\", \"ns-1173.awsdns-18.org\", \"ns-1620.awsdns-10.co.uk\"], \"parked\": false, \"redirect_chain\": [], \"signal\": null, \"status\": \"ok\", \"title\": \"\", \"url\": \"https://tether-demo-ship-artifacts.s3.amazonaws.com/\"}",
       "tokens": 0,
       "cost_usd": 0.0,
       "scan_id": "demo",
-      "ts": 1793737263.8480544
-    },
-    {
-      "type": "plan",
-      "target": "github.com/trustline-demo-tools",
-      "tool": "live_fetch",
-      "args": {
-        "url": "https://raw.githubusercontent.com/trustline-demo-tools/setup/main/install.sh"
-      },
-      "tokens": 1798,
-      "cost_usd": 0.0034355,
-      "scan_id": "demo",
-      "ts": 1793737264.1497624
-    },
-    {
-      "type": "act",
-      "target": "github.com/trustline-demo-tools",
-      "tool": "live_fetch",
-      "args": {
-        "url": "https://raw.githubusercontent.com/trustline-demo-tools/setup/main/install.sh"
-      },
-      "scan_id": "demo",
-      "ts": 1793737264.1498096
-    },
-    {
-      "type": "observe",
-      "target": "github.com/trustline-demo-tools",
-      "tool": "live_fetch",
-      "args": {
-        "url": "https://raw.githubusercontent.com/trustline-demo-tools/setup/main/install.sh"
-      },
-      "result_summary": "{\"final_url\": \"https://raw.githubusercontent.com/trustline-demo-tools/setup/main/install.sh\", \"for_sale\": false, \"http_status\": 404, \"nameservers\": [], \"parked\": false, \"redirect_chain\": [], \"signal\": null, \"status\": \"ok\", \"title\": \"\", \"url\": \"https://raw.githubusercontent.com/trustline-demo-tools/setup/main/install.sh\"}",
-      "tokens": 0,
-      "cost_usd": 0.0,
-      "scan_id": "demo",
-      "ts": 1793737264.1506038
-    },
-    {
-      "type": "plan",
-      "target": "trustline-demo-agent.net",
-      "tool": "cert_history",
-      "args": {
-        "domain": "trustline-demo-agent.net"
-      },
-      "tokens": 2002,
-      "cost_usd": 0.0036575,
-      "scan_id": "demo",
-      "ts": 1793737266.532606
-    },
-    {
-      "type": "act",
-      "target": "trustline-demo-agent.net",
-      "tool": "cert_history",
-      "args": {
-        "domain": "trustline-demo-agent.net"
-      },
-      "scan_id": "demo",
-      "ts": 1793737266.5326385
-    },
-    {
-      "type": "observe",
-      "target": "trustline-demo-agent.net",
-      "tool": "cert_history",
-      "args": {
-        "domain": "trustline-demo-agent.net"
-      },
-      "result_summary": "{\"domain\": \"trustline-demo-agent.net\", \"first_issuer_org\": \"\", \"first_seen\": null, \"issuers\": [], \"last_issuer_org\": \"\", \"last_seen\": null, \"max_gap_days\": null, \"status\": \"ok\"}",
-      "tokens": 0,
-      "cost_usd": 0.0,
-      "scan_id": "demo",
-      "ts": 1793737266.53308
-    },
-    {
-      "type": "plan",
-      "target": "trustline-demo-cartkit.com",
-      "tool": "cert_history",
-      "args": {
-        "domain": "trustline-demo-cartkit.com"
-      },
-      "tokens": 1966,
-      "cost_usd": 0.0034955,
-      "scan_id": "demo",
-      "ts": 1793737266.798205
-    },
-    {
-      "type": "act",
-      "target": "trustline-demo-cartkit.com",
-      "tool": "cert_history",
-      "args": {
-        "domain": "trustline-demo-cartkit.com"
-      },
-      "scan_id": "demo",
-      "ts": 1793737266.7982519
-    },
-    {
-      "type": "observe",
-      "target": "trustline-demo-cartkit.com",
-      "tool": "cert_history",
-      "args": {
-        "domain": "trustline-demo-cartkit.com"
-      },
-      "result_summary": "{\"domain\": \"trustline-demo-cartkit.com\", \"first_issuer_org\": \"\", \"first_seen\": null, \"issuers\": [], \"last_issuer_org\": \"\", \"last_seen\": null, \"max_gap_days\": null, \"status\": \"unavailable\"}",
-      "tokens": 0,
-      "cost_usd": 0.0,
-      "scan_id": "demo",
-      "ts": 1793737267.8271677
-    },
-    {
-      "type": "plan",
-      "target": "trustline-demo-agent.net",
-      "tool": "wayback",
-      "args": {
-        "url": "https://downloads.trustline-demo-agent.net/agent-1.4.2.tar.gz"
-      },
-      "tokens": 1874,
-      "cost_usd": 0.0028345,
-      "scan_id": "demo",
-      "ts": 1793737268.2096324
-    },
-    {
-      "type": "act",
-      "target": "trustline-demo-agent.net",
-      "tool": "wayback",
-      "args": {
-        "url": "https://downloads.trustline-demo-agent.net/agent-1.4.2.tar.gz"
-      },
-      "scan_id": "demo",
-      "ts": 1793737268.2096682
-    },
-    {
-      "type": "observe",
-      "target": "trustline-demo-agent.net",
-      "tool": "wayback",
-      "args": {
-        "url": "https://downloads.trustline-demo-agent.net/agent-1.4.2.tar.gz"
-      },
-      "result_summary": "{\"first_digest\": null, \"first_snapshot\": null, \"last_digest\": null, \"last_snapshot\": null, \"status\": \"unavailable\", \"url\": \"https://downloads.trustline-demo-agent.net/agent-1.4.2.tar.gz\"}",
-      "tokens": 0,
-      "cost_usd": 0.0,
-      "scan_id": "demo",
-      "ts": 1793737268.210248
-    },
-    {
-      "type": "plan",
-      "target": "github.com/trustline-demo-tools",
-      "tool": "github_owner",
-      "args": {
-        "owner": "trustline-demo-tools"
-      },
-      "tokens": 1999,
-      "cost_usd": 0.00389375,
-      "scan_id": "demo",
-      "ts": 1793737268.385394
-    },
-    {
-      "type": "act",
-      "target": "github.com/trustline-demo-tools",
-      "tool": "github_owner",
-      "args": {
-        "owner": "trustline-demo-tools"
-      },
-      "scan_id": "demo",
-      "ts": 1793737268.3854403
-    },
-    {
-      "type": "observe",
-      "target": "github.com/trustline-demo-tools",
-      "tool": "github_owner",
-      "args": {
-        "owner": "trustline-demo-tools"
-      },
-      "result_summary": "{\"created_at\": null, \"exists\": false, \"http_status\": 404, \"kind\": null, \"owner\": \"trustline-demo-tools\", \"status\": \"missing\"}",
-      "tokens": 0,
-      "cost_usd": 0.0,
-      "scan_id": "demo",
-      "ts": 1793737268.385965
-    },
-    {
-      "type": "plan",
-      "target": "trustline-demo-release-artifacts",
-      "tool": "done",
-      "args": {
-        "summary": "Reference s3://trustline-demo-release-artifacts in .github/workflows/deploy.yml line 13 executes in CI (runs_in: ci). Precomputed bucket_probe reports NoSuchBucket (404) for S3 bucket trustline-demo-release-artifacts, confirming it is unclaimed and claimable-now. An attacker who creates the bucket in S3 can serve attacker-controlled release artifacts to the deploy workflow, enabling supply-chain compromise / code execution in CI/CD and downstream consumers. Blast radius 3."
-      },
-      "tokens": 2188,
-      "cost_usd": 0.005129,
-      "scan_id": "demo",
-      "ts": 1793737268.660949
-    },
-    {
-      "type": "act",
-      "target": "trustline-demo-release-artifacts",
-      "tool": "done",
-      "args": {
-        "summary": "Reference s3://trustline-demo-release-artifacts in .github/workflows/deploy.yml line 13 executes in CI (runs_in: ci). Precomputed bucket_probe reports NoSuchBucket (404) for S3 bucket trustline-demo-release-artifacts, confirming it is unclaimed and claimable-now. An attacker who creates the bucket in S3 can serve attacker-controlled release artifacts to the deploy workflow, enabling supply-chain compromise / code execution in CI/CD and downstream consumers. Blast radius 3."
-      },
-      "scan_id": "demo",
-      "ts": 1793737268.6609638
-    },
-    {
-      "type": "observe",
-      "target": "trustline-demo-release-artifacts",
-      "tool": "done",
-      "args": {
-        "summary": "Reference s3://trustline-demo-release-artifacts in .github/workflows/deploy.yml line 13 executes in CI (runs_in: ci). Precomputed bucket_probe reports NoSuchBucket (404) for S3 bucket trustline-demo-release-artifacts, confirming it is unclaimed and claimable-now. An attacker who creates the bucket in S3 can serve attacker-controlled release artifacts to the deploy workflow, enabling supply-chain compromise / code execution in CI/CD and downstream consumers. Blast radius 3."
-      },
-      "result_summary": "{\"done\": true, \"summary\": \"Reference s3://trustline-demo-release-artifacts in .github/workflows/deploy.yml line 13 executes in CI (runs_in: ci). Precomputed bucket_probe reports NoSuchBucket (404) for S3 bucket trustline-demo-release-artifacts, confirming it is unclaimed and claimable-now. An attacker who creates the bucket in S3 can serve attacker-controlled release artifacts to the deploy workfl...",
-      "tokens": 0,
-      "cost_usd": 0.0,
-      "scan_id": "demo",
-      "ts": 1793737268.6610377
-    },
-    {
-      "type": "plan",
-      "target": "trustline-demo-cartkit.com",
-      "tool": "wayback",
-      "args": {
-        "url": "https://blog.trustline-demo-cartkit.com/posts/v2-3-cdn"
-      },
-      "tokens": 2079,
-      "cost_usd": 0.00368775,
-      "scan_id": "demo",
-      "ts": 1793737271.5288033
-    },
-    {
-      "type": "act",
-      "target": "trustline-demo-cartkit.com",
-      "tool": "wayback",
-      "args": {
-        "url": "https://blog.trustline-demo-cartkit.com/posts/v2-3-cdn"
-      },
-      "scan_id": "demo",
-      "ts": 1793737271.528834
-    },
-    {
-      "type": "observe",
-      "target": "trustline-demo-cartkit.com",
-      "tool": "wayback",
-      "args": {
-        "url": "https://blog.trustline-demo-cartkit.com/posts/v2-3-cdn"
-      },
-      "result_summary": "{\"first_digest\": null, \"first_snapshot\": null, \"last_digest\": null, \"last_snapshot\": null, \"status\": \"unavailable\", \"url\": \"https://blog.trustline-demo-cartkit.com/posts/v2-3-cdn\"}",
-      "tokens": 0,
-      "cost_usd": 0.0,
-      "scan_id": "demo",
-      "ts": 1793737271.5293462
-    },
-    {
-      "type": "plan",
-      "target": "github.com/trustline-demo-tools",
-      "tool": "wayback",
-      "args": {
-        "url": "https://raw.githubusercontent.com/trustline-demo-tools/setup/main/install.sh"
-      },
-      "tokens": 2004,
-      "cost_usd": 0.003687,
-      "scan_id": "demo",
-      "ts": 1793737271.9811988
-    },
-    {
-      "type": "act",
-      "target": "github.com/trustline-demo-tools",
-      "tool": "wayback",
-      "args": {
-        "url": "https://raw.githubusercontent.com/trustline-demo-tools/setup/main/install.sh"
-      },
-      "scan_id": "demo",
-      "ts": 1793737271.9812303
-    },
-    {
-      "type": "plan",
-      "target": "trustline-demo-cartkit.com",
-      "tool": "live_fetch",
-      "args": {
-        "url": "https://docs.trustline-demo-cartkit.com/install"
-      },
-      "tokens": 1916,
-      "cost_usd": 0.003748,
-      "scan_id": "demo",
-      "ts": 1793737272.4242733
-    },
-    {
-      "type": "act",
-      "target": "trustline-demo-cartkit.com",
-      "tool": "live_fetch",
-      "args": {
-        "url": "https://docs.trustline-demo-cartkit.com/install"
-      },
-      "scan_id": "demo",
-      "ts": 1793737272.4243083
-    },
-    {
-      "type": "observe",
-      "target": "trustline-demo-cartkit.com",
-      "tool": "live_fetch",
-      "args": {
-        "url": "https://docs.trustline-demo-cartkit.com/install"
-      },
-      "result_summary": "{\"error\": \"This address can't be scanned\", \"final_url\": \"https://docs.trustline-demo-cartkit.com/install\", \"for_sale\": false, \"http_status\": null, \"nameservers\": [], \"parked\": false, \"redirect_chain\": [], \"signal\": null, \"status\": \"blocked\", \"title\": \"\", \"url\": \"https://docs.trustline-demo-cartkit.com/install\"}",
-      "tokens": 0,
-      "cost_usd": 0.0,
-      "scan_id": "demo",
-      "ts": 1793737272.4248722
-    },
-    {
-      "type": "observe",
-      "target": "github.com/trustline-demo-tools",
-      "tool": "wayback",
-      "args": {
-        "url": "https://raw.githubusercontent.com/trustline-demo-tools/setup/main/install.sh"
-      },
-      "result_summary": "{\"first_digest\": null, \"first_snapshot\": null, \"last_digest\": null, \"last_snapshot\": null, \"status\": \"unavailable\", \"url\": \"https://raw.githubusercontent.com/trustline-demo-tools/setup/main/install.sh\"}",
-      "tokens": 0,
-      "cost_usd": 0.0,
-      "scan_id": "demo",
-      "ts": 1793737272.4561563
-    },
-    {
-      "type": "plan",
-      "target": "trustline-demo-release-artifacts",
-      "tool": "live_fetch",
-      "args": {
-        "url": "https://trustline-demo-release-artifacts.s3.amazonaws.com"
-      },
-      "tokens": 1889,
-      "cost_usd": 0.00386125,
-      "scan_id": "demo",
-      "ts": 1793737272.948784
-    },
-    {
-      "type": "act",
-      "target": "trustline-demo-release-artifacts",
-      "tool": "live_fetch",
-      "args": {
-        "url": "https://trustline-demo-release-artifacts.s3.amazonaws.com"
-      },
-      "scan_id": "demo",
-      "ts": 1793737272.948801
-    },
-    {
-      "type": "observe",
-      "target": "trustline-demo-release-artifacts",
-      "tool": "live_fetch",
-      "args": {
-        "url": "https://trustline-demo-release-artifacts.s3.amazonaws.com"
-      },
-      "result_summary": "{\"final_url\": \"https://trustline-demo-release-artifacts.s3.amazonaws.com\", \"for_sale\": false, \"http_status\": 404, \"nameservers\": [\"ns-674.awsdns-20.net\", \"ns-1173.awsdns-18.org\", \"ns-1620.awsdns-10.co.uk\", \"ns-328.awsdns-41.com\"], \"parked\": false, \"redirect_chain\": [], \"signal\": null, \"status\": \"ok\", \"title\": \"\", \"url\": \"https://trustline-demo-release-artifacts.s3.amazonaws.com\"}",
-      "tokens": 0,
-      "cost_usd": 0.0,
-      "scan_id": "demo",
-      "ts": 1793737272.949285
-    },
-    {
-      "type": "plan",
-      "target": "polyfill.io",
-      "tool": "live_fetch",
-      "args": {
-        "url": "https://cdn.polyfill.io/v3/polyfill.min.js?features=default"
-      },
-      "tokens": 1785,
-      "cost_usd": 0.00322125,
-      "scan_id": "demo",
-      "ts": 1793737274.0953896
-    },
-    {
-      "type": "act",
-      "target": "polyfill.io",
-      "tool": "live_fetch",
-      "args": {
-        "url": "https://cdn.polyfill.io/v3/polyfill.min.js?features=default"
-      },
-      "scan_id": "demo",
-      "ts": 1793737274.0954373
-    },
-    {
-      "type": "observe",
-      "target": "polyfill.io",
-      "tool": "live_fetch",
-      "args": {
-        "url": "https://cdn.polyfill.io/v3/polyfill.min.js?features=default"
-      },
-      "result_summary": "{\"error\": \"This address can't be scanned\", \"final_url\": \"https://cdn.polyfill.io/v3/polyfill.min.js?features=default\", \"for_sale\": false, \"http_status\": null, \"nameservers\": [], \"parked\": false, \"redirect_chain\": [], \"signal\": null, \"status\": \"blocked\", \"title\": \"\", \"url\": \"https://cdn.polyfill.io/v3/polyfill.min.js?features=default\"}",
-      "tokens": 0,
-      "cost_usd": 0.0,
-      "scan_id": "demo",
-      "ts": 1793737274.0975723
-    },
-    {
-      "type": "plan",
-      "target": "trustline-demo-cartkit.com",
-      "tool": "cert_history",
-      "args": {
-        "domain": "trustline-demo-cartkit.com"
-      },
-      "tokens": 1889,
-      "cost_usd": 0.00324025,
-      "scan_id": "demo",
-      "ts": 1793737275.4869776
-    },
-    {
-      "type": "act",
-      "target": "trustline-demo-cartkit.com",
-      "tool": "cert_history",
-      "args": {
-        "domain": "trustline-demo-cartkit.com"
-      },
-      "scan_id": "demo",
-      "ts": 1793737275.4870093
-    },
-    {
-      "type": "observe",
-      "target": "trustline-demo-cartkit.com",
-      "tool": "cert_history",
-      "args": {
-        "domain": "trustline-demo-cartkit.com"
-      },
-      "result_summary": "{\"domain\": \"trustline-demo-cartkit.com\", \"first_issuer_org\": \"\", \"first_seen\": null, \"issuers\": [], \"last_issuer_org\": \"\", \"last_seen\": null, \"max_gap_days\": null, \"status\": \"unavailable\"}",
-      "tokens": 0,
-      "cost_usd": 0.0,
-      "scan_id": "demo",
-      "ts": 1793737275.487687
-    },
-    {
-      "type": "plan",
-      "target": "trustline-demo-cartkit.com",
-      "tool": "live_fetch",
-      "args": {
-        "url": "https://cdn.trustline-demo-cartkit.com/v2/cart.js"
-      },
-      "tokens": 1910,
-      "cost_usd": 0.0037195,
-      "scan_id": "demo",
-      "ts": 1793737276.1011863
-    },
-    {
-      "type": "act",
-      "target": "trustline-demo-cartkit.com",
-      "tool": "live_fetch",
-      "args": {
-        "url": "https://cdn.trustline-demo-cartkit.com/v2/cart.js"
-      },
-      "scan_id": "demo",
-      "ts": 1793737276.1012218
-    },
-    {
-      "type": "observe",
-      "target": "trustline-demo-cartkit.com",
-      "tool": "live_fetch",
-      "args": {
-        "url": "https://cdn.trustline-demo-cartkit.com/v2/cart.js"
-      },
-      "result_summary": "{\"error\": \"This address can't be scanned\", \"final_url\": \"https://cdn.trustline-demo-cartkit.com/v2/cart.js\", \"for_sale\": false, \"http_status\": null, \"nameservers\": [], \"parked\": false, \"redirect_chain\": [], \"signal\": null, \"status\": \"blocked\", \"title\": \"\", \"url\": \"https://cdn.trustline-demo-cartkit.com/v2/cart.js\"}",
-      "tokens": 0,
-      "cost_usd": 0.0,
-      "scan_id": "demo",
-      "ts": 1793737276.125395
-    },
-    {
-      "type": "plan",
-      "target": "trustline-demo-release-artifacts",
-      "tool": "wayback",
-      "args": {
-        "url": "https://trustline-demo-release-artifacts.s3.amazonaws.com"
-      },
-      "tokens": 1859,
-      "cost_usd": 0.00321775,
-      "scan_id": "demo",
-      "ts": 1793737276.1941638
-    },
-    {
-      "type": "act",
-      "target": "trustline-demo-release-artifacts",
-      "tool": "wayback",
-      "args": {
-        "url": "https://trustline-demo-release-artifacts.s3.amazonaws.com"
-      },
-      "scan_id": "demo",
-      "ts": 1793737276.1941817
-    },
-    {
-      "type": "observe",
-      "target": "trustline-demo-release-artifacts",
-      "tool": "wayback",
-      "args": {
-        "url": "https://trustline-demo-release-artifacts.s3.amazonaws.com"
-      },
-      "result_summary": "{\"first_digest\": null, \"first_snapshot\": null, \"last_digest\": null, \"last_snapshot\": null, \"status\": \"unavailable\", \"url\": \"https://trustline-demo-release-artifacts.s3.amazonaws.com\"}",
-      "tokens": 0,
-      "cost_usd": 0.0,
-      "scan_id": "demo",
-      "ts": 1793737276.1947885
+      "ts": 1793816050.2376802
     },
     {
       "type": "plan",
@@ -1639,10 +1434,10 @@
       "args": {
         "domain": "polyfill.io"
       },
-      "tokens": 1931,
-      "cost_usd": 0.00340375,
+      "tokens": 2177,
+      "cost_usd": 0.00459925,
       "scan_id": "demo",
-      "ts": 1793737276.5836883
+      "ts": 1793816051.4428585
     },
     {
       "type": "act",
@@ -1652,182 +1447,207 @@
         "domain": "polyfill.io"
       },
       "scan_id": "demo",
-      "ts": 1793737276.5837245
+      "ts": 1793816051.442894
     },
     {
       "type": "plan",
-      "target": "trustline-demo-cartkit.com",
-      "tool": "wayback",
+      "target": "tether-demo-ship-artifacts",
+      "tool": "bucket_probe",
       "args": {
-        "url": "https://docs.trustline-demo-cartkit.com/install"
+        "name": "tether-demo-ship-artifacts",
+        "provider": "s3"
       },
-      "tokens": 1845,
-      "cost_usd": 0.0027652499999999995,
+      "tokens": 2019,
+      "cost_usd": 0.0038197500000000002,
       "scan_id": "demo",
-      "ts": 1793737277.1785989
+      "ts": 1793816053.3907602
     },
     {
       "type": "act",
-      "target": "trustline-demo-cartkit.com",
-      "tool": "wayback",
+      "target": "tether-demo-ship-artifacts",
+      "tool": "bucket_probe",
       "args": {
-        "url": "https://docs.trustline-demo-cartkit.com/install"
+        "name": "tether-demo-ship-artifacts",
+        "provider": "s3"
       },
       "scan_id": "demo",
-      "ts": 1793737277.1786346
+      "ts": 1793816053.3907835
     },
     {
       "type": "observe",
-      "target": "trustline-demo-cartkit.com",
-      "tool": "wayback",
+      "target": "tether-demo-ship-artifacts",
+      "tool": "bucket_probe",
       "args": {
-        "url": "https://docs.trustline-demo-cartkit.com/install"
+        "name": "tether-demo-ship-artifacts",
+        "provider": "s3"
       },
-      "result_summary": "{\"first_digest\": null, \"first_snapshot\": null, \"last_digest\": null, \"last_snapshot\": null, \"status\": \"unavailable\", \"url\": \"https://docs.trustline-demo-cartkit.com/install\"}",
+      "result_summary": "{\"http_status\": 404, \"name\": \"tether-demo-ship-artifacts\", \"provider\": \"s3\", \"status\": \"NoSuchBucket\"}",
       "tokens": 0,
       "cost_usd": 0.0,
       "scan_id": "demo",
-      "ts": 1793737278.1940732
+      "ts": 1793816053.391359
     },
     {
       "type": "plan",
-      "target": "trustline-demo-cartkit.com",
-      "tool": "cert_history",
+      "target": "tether-demo-ship-artifacts",
+      "tool": "wayback",
       "args": {
-        "domain": "trustline-demo-cartkit.com"
+        "url": "https://tether-demo-ship-artifacts.s3.amazonaws.com/"
       },
-      "tokens": 1942,
-      "cost_usd": 0.0034355,
+      "tokens": 1971,
+      "cost_usd": 0.0033697500000000003,
       "scan_id": "demo",
-      "ts": 1793737278.7887383
+      "ts": 1793816056.4908528
     },
     {
       "type": "act",
-      "target": "trustline-demo-cartkit.com",
-      "tool": "cert_history",
+      "target": "tether-demo-ship-artifacts",
+      "tool": "wayback",
       "args": {
-        "domain": "trustline-demo-cartkit.com"
+        "url": "https://tether-demo-ship-artifacts.s3.amazonaws.com/"
       },
       "scan_id": "demo",
-      "ts": 1793737278.7887776
+      "ts": 1793816056.4908695
+    },
+    {
+      "type": "plan",
+      "target": "github.com/tether-demo-bootstrap",
+      "tool": "github_owner",
+      "args": {
+        "owner": "tether-demo-bootstrap"
+      },
+      "tokens": 2227,
+      "cost_usd": 0.00482375,
+      "scan_id": "demo",
+      "ts": 1793816058.5428205
+    },
+    {
+      "type": "act",
+      "target": "github.com/tether-demo-bootstrap",
+      "tool": "github_owner",
+      "args": {
+        "owner": "tether-demo-bootstrap"
+      },
+      "scan_id": "demo",
+      "ts": 1793816058.5428743
     },
     {
       "type": "observe",
-      "target": "trustline-demo-cartkit.com",
-      "tool": "cert_history",
+      "target": "github.com/tether-demo-bootstrap",
+      "tool": "github_owner",
       "args": {
-        "domain": "trustline-demo-cartkit.com"
+        "owner": "tether-demo-bootstrap"
       },
-      "result_summary": "{\"domain\": \"trustline-demo-cartkit.com\", \"first_issuer_org\": \"\", \"first_seen\": null, \"issuers\": [], \"last_issuer_org\": \"\", \"last_seen\": null, \"max_gap_days\": null, \"status\": \"unavailable\"}",
+      "result_summary": "{\"created_at\": null, \"exists\": false, \"http_status\": 404, \"kind\": null, \"owner\": \"tether-demo-bootstrap\", \"status\": \"missing\"}",
       "tokens": 0,
       "cost_usd": 0.0,
       "scan_id": "demo",
-      "ts": 1793737278.7893496
-    },
-    {
-      "type": "plan",
-      "target": "trustline-demo-chat.github.io",
-      "tool": "live_fetch",
-      "args": {
-        "url": "https://trustline-demo-chat.github.io/embed/chat-widget.js"
-      },
-      "tokens": 1983,
-      "cost_usd": 0.0035077499999999996,
-      "scan_id": "demo",
-      "ts": 1793737281.1313004
-    },
-    {
-      "type": "act",
-      "target": "trustline-demo-chat.github.io",
-      "tool": "live_fetch",
-      "args": {
-        "url": "https://trustline-demo-chat.github.io/embed/chat-widget.js"
-      },
-      "scan_id": "demo",
-      "ts": 1793737281.1313322
+      "ts": 1793816058.5435169
     },
     {
       "type": "observe",
-      "target": "trustline-demo-chat.github.io",
-      "tool": "live_fetch",
+      "target": "tether-demo-ship-artifacts",
+      "tool": "wayback",
       "args": {
-        "url": "https://trustline-demo-chat.github.io/embed/chat-widget.js"
+        "url": "https://tether-demo-ship-artifacts.s3.amazonaws.com/"
       },
-      "result_summary": "{\"final_url\": \"https://trustline-demo-chat.github.io/embed/chat-widget.js\", \"for_sale\": false, \"http_status\": 404, \"nameservers\": [], \"parked\": false, \"redirect_chain\": [], \"signal\": null, \"status\": \"ok\", \"title\": \"Site not found &middot; GitHub Pages\", \"url\": \"https://trustline-demo-chat.github.io/embed/chat-widget.js\"}",
+      "result_summary": "{\"first_digest\": null, \"first_snapshot\": null, \"last_digest\": null, \"last_snapshot\": null, \"status\": \"unavailable\", \"url\": \"https://tether-demo-ship-artifacts.s3.amazonaws.com/\"}",
       "tokens": 0,
       "cost_usd": 0.0,
       "scan_id": "demo",
-      "ts": 1793737281.3326457
+      "ts": 1793816059.411693
     },
     {
       "type": "plan",
-      "target": "trustline-demo-cartkit.com",
-      "tool": "wayback",
-      "args": {
-        "url": "https://cdn.trustline-demo-cartkit.com/v2/cart.js"
-      },
-      "tokens": 2010,
-      "cost_usd": 0.0034365000000000003,
-      "scan_id": "demo",
-      "ts": 1793737281.428833
-    },
-    {
-      "type": "act",
-      "target": "trustline-demo-cartkit.com",
-      "tool": "wayback",
-      "args": {
-        "url": "https://cdn.trustline-demo-cartkit.com/v2/cart.js"
-      },
-      "scan_id": "demo",
-      "ts": 1793737281.4288719
-    },
-    {
-      "type": "plan",
-      "target": "trustline-demo-release-artifacts",
+      "target": "github.com/tether-demo-bootstrap",
       "tool": "done",
       "args": {
-        "summary": "Reference s3://trustline-demo-release-artifacts in deploy/release.yml line 3, executes in deploy stage. Precomputed bucket_probe: NoSuchBucket (404) for S3 bucket trustline-demo-release-artifacts - confirmed by live_fetch GET https://trustline-demo-release-artifacts.s3.amazonaws.com returning http_status 404, not parked/for-sale. Wayback shows no snapshots (unavailable). Bucket name is globally claimable-now in AWS S3 namespace. If attacker creates bucket with this exact name, any deploy job or consumer reading s3://trustline-demo-release-artifacts will read attacker-controlled release artifacts, enabling supply-chain compromise / malicious code distribution with blast_radius 3."
+        "summary": "Reference executes as a script in CI: .github/workflows/deploy.yml line 11 fetches https://raw.githubusercontent.com/tether-demo-bootstrap/setup/main/install.sh (github.com/tether-demo-bootstrap). Confirmed claimable-now: live_fetch returns HTTP 404 for the raw URL, and github_owner for tether-demo-bootstrap returns missing/exists false HTTP 404. Attacker who registers GitHub user/org tether-demo-bootstrap can create repo setup/main/install.sh and achieve remote code execution in the deploy workflow whenever CI runs, with blast_radius 2. tranco_rank 34 noted as popularity context only and does not lower severity."
       },
-      "tokens": 2253,
-      "cost_usd": 0.00461025,
+      "tokens": 2063,
+      "cost_usd": 0.0038987500000000003,
       "scan_id": "demo",
-      "ts": 1793737281.7018564
+      "ts": 1793816061.8970335
     },
     {
       "type": "act",
-      "target": "trustline-demo-release-artifacts",
+      "target": "github.com/tether-demo-bootstrap",
       "tool": "done",
       "args": {
-        "summary": "Reference s3://trustline-demo-release-artifacts in deploy/release.yml line 3, executes in deploy stage. Precomputed bucket_probe: NoSuchBucket (404) for S3 bucket trustline-demo-release-artifacts - confirmed by live_fetch GET https://trustline-demo-release-artifacts.s3.amazonaws.com returning http_status 404, not parked/for-sale. Wayback shows no snapshots (unavailable). Bucket name is globally claimable-now in AWS S3 namespace. If attacker creates bucket with this exact name, any deploy job or consumer reading s3://trustline-demo-release-artifacts will read attacker-controlled release artifacts, enabling supply-chain compromise / malicious code distribution with blast_radius 3."
+        "summary": "Reference executes as a script in CI: .github/workflows/deploy.yml line 11 fetches https://raw.githubusercontent.com/tether-demo-bootstrap/setup/main/install.sh (github.com/tether-demo-bootstrap). Confirmed claimable-now: live_fetch returns HTTP 404 for the raw URL, and github_owner for tether-demo-bootstrap returns missing/exists false HTTP 404. Attacker who registers GitHub user/org tether-demo-bootstrap can create repo setup/main/install.sh and achieve remote code execution in the deploy workflow whenever CI runs, with blast_radius 2. tranco_rank 34 noted as popularity context only and does not lower severity."
       },
       "scan_id": "demo",
-      "ts": 1793737281.7018743
+      "ts": 1793816061.8970754
     },
     {
       "type": "observe",
-      "target": "trustline-demo-release-artifacts",
+      "target": "github.com/tether-demo-bootstrap",
       "tool": "done",
       "args": {
-        "summary": "Reference s3://trustline-demo-release-artifacts in deploy/release.yml line 3, executes in deploy stage. Precomputed bucket_probe: NoSuchBucket (404) for S3 bucket trustline-demo-release-artifacts - confirmed by live_fetch GET https://trustline-demo-release-artifacts.s3.amazonaws.com returning http_status 404, not parked/for-sale. Wayback shows no snapshots (unavailable). Bucket name is globally claimable-now in AWS S3 namespace. If attacker creates bucket with this exact name, any deploy job or consumer reading s3://trustline-demo-release-artifacts will read attacker-controlled release artifacts, enabling supply-chain compromise / malicious code distribution with blast_radius 3."
+        "summary": "Reference executes as a script in CI: .github/workflows/deploy.yml line 11 fetches https://raw.githubusercontent.com/tether-demo-bootstrap/setup/main/install.sh (github.com/tether-demo-bootstrap). Confirmed claimable-now: live_fetch returns HTTP 404 for the raw URL, and github_owner for tether-demo-bootstrap returns missing/exists false HTTP 404. Attacker who registers GitHub user/org tether-demo-bootstrap can create repo setup/main/install.sh and achieve remote code execution in the deploy workflow whenever CI runs, with blast_radius 2. tranco_rank 34 noted as popularity context only and does not lower severity."
       },
-      "result_summary": "{\"done\": true, \"summary\": \"Reference s3://trustline-demo-release-artifacts in deploy/release.yml line 3, executes in deploy stage. Precomputed bucket_probe: NoSuchBucket (404) for S3 bucket trustline-demo-release-artifacts - confirmed by live_fetch GET https://trustline-demo-release-artifacts.s3.amazonaws.com returning http_status 404, not parked/for-sale. Wayback shows no snapshots (unavailable)....",
+      "result_summary": "{\"done\": true, \"summary\": \"Reference executes as a script in CI: .github/workflows/deploy.yml line 11 fetches https://raw.githubusercontent.com/tether-demo-bootstrap/setup/main/install.sh (github.com/tether-demo-bootstrap). Confirmed claimable-now: live_fetch returns HTTP 404 for the raw URL, and github_owner for tether-demo-bootstrap returns missing/exists false HTTP 404. Attacker who registers G...",
       "tokens": 0,
       "cost_usd": 0.0,
       "scan_id": "demo",
-      "ts": 1793737281.7019937
+      "ts": 1793816061.8971846
+    },
+    {
+      "type": "plan",
+      "target": "tether-demo-storefront.com",
+      "tool": "cert_history",
+      "args": {
+        "domain": "tether-demo-storefront.com"
+      },
+      "tokens": 1872,
+      "cost_usd": 0.003423,
+      "scan_id": "demo",
+      "ts": 1793816062.0726564
+    },
+    {
+      "type": "act",
+      "target": "tether-demo-storefront.com",
+      "tool": "cert_history",
+      "args": {
+        "domain": "tether-demo-storefront.com"
+      },
+      "scan_id": "demo",
+      "ts": 1793816062.0727158
     },
     {
       "type": "observe",
-      "target": "trustline-demo-cartkit.com",
-      "tool": "wayback",
+      "target": "tether-demo-storefront.com",
+      "tool": "cert_history",
       "args": {
-        "url": "https://cdn.trustline-demo-cartkit.com/v2/cart.js"
+        "domain": "tether-demo-storefront.com"
       },
-      "result_summary": "{\"first_digest\": null, \"first_snapshot\": null, \"last_digest\": null, \"last_snapshot\": null, \"status\": \"unavailable\", \"url\": \"https://cdn.trustline-demo-cartkit.com/v2/cart.js\"}",
+      "result_summary": "{\"domain\": \"tether-demo-storefront.com\", \"first_issuer_org\": \"\", \"first_seen\": null, \"issuers\": [], \"last_issuer_org\": \"\", \"last_seen\": null, \"max_gap_days\": null, \"status\": \"unavailable\"}",
       "tokens": 0,
       "cost_usd": 0.0,
       "scan_id": "demo",
-      "ts": 1793737282.2425885
+      "ts": 1793816062.8512776
+    },
+    {
+      "type": "plan",
+      "target": "tether-demo-widgets.github.io",
+      "tool": "live_fetch",
+      "args": {
+        "url": "https://tether-demo-widgets.github.io/embed/chat-widget.js"
+      },
+      "tokens": 2068,
+      "cost_usd": 0.003596,
+      "scan_id": "demo",
+      "ts": 1793816064.13203
+    },
+    {
+      "type": "act",
+      "target": "tether-demo-widgets.github.io",
+      "tool": "live_fetch",
+      "args": {
+        "url": "https://tether-demo-widgets.github.io/embed/chat-widget.js"
+      },
+      "scan_id": "demo",
+      "ts": 1793816064.1320732
     },
     {
       "type": "ranked",
@@ -1840,7 +1660,7 @@
       "ceiling_note": "",
       "risk": "Checked and safe. Tranco rank 34.",
       "fix": "Pin to a full commit SHA.",
-      "evidence_line": "Evidence: GitHub owner exists \u00b7 GitHub repo exists \u00b7 Tranco rank 34 \u00b7 referenced at .github/workflows/deploy.yml:9 in CI",
+      "evidence_line": "Evidence: GitHub owner exists \u00b7 GitHub repo exists \u00b7 Tranco rank 34 \u00b7 referenced at .github/workflows/deploy.yml:9 and .github/workflows/release.yml:9 in CI",
       "evidence": {
         "github_owner": {
           "owner": "actions",
@@ -1868,7 +1688,28 @@
       "evidence_level": "",
       "explained_by": "model",
       "references": [
-        ".github/workflows/deploy.yml:9"
+        {
+          "page_url": "",
+          "file": ".github/workflows/deploy.yml",
+          "line": 9,
+          "tag": "",
+          "attribute": "",
+          "raw": "actions/checkout@v4",
+          "sri": null,
+          "loaded_by": "",
+          "runs_in": "ci"
+        },
+        {
+          "page_url": "",
+          "file": ".github/workflows/release.yml",
+          "line": 9,
+          "tag": "",
+          "attribute": "",
+          "raw": "actions/checkout@v4",
+          "sri": null,
+          "loaded_by": "",
+          "runs_in": "ci"
+        }
       ],
       "cost_usd": 0.0,
       "uncertain_about": "",
@@ -1876,67 +1717,236 @@
       "classified_blast_radius": 2,
       "blast_radius": 2,
       "blast_override_reason": "",
+      "headline": "Your project still talks to a domain anyone can register",
+      "why": "Checked and safe. Tranco rank 34.",
+      "steps": [
+        "Open .github/workflows/deploy.yml:9 and remove or replace the reference.",
+        "Use a name you still control.",
+        "Do not register or claim the abandoned name from this tool."
+      ],
+      "risk_type": "unregistered_host",
       "scan_id": "demo",
-      "ts": 1793737292.5267217
+      "ts": 1793816074.162953
     },
     {
       "type": "ranked",
-      "target": "github.com/trustline-demo-tools",
+      "target": "git083104.github.io",
       "kind": "domain",
-      "severity": "critical",
-      "model_severity": "critical",
+      "severity": "info",
+      "model_severity": "info",
       "floor_reason": "",
       "floor_applied": "",
       "ceiling_note": "",
-      "risk": "A stranger can claim the missing GitHub organization and publish a malicious install.sh that the deploy workflow downloads and executes in CI.",
-      "fix": "Remove or replace this reference. If this was yours, re-create it in your own account to reclaim the name.",
-      "evidence_line": "Evidence: GitHub owner does not exist \u00b7 Tranco rank 34 \u00b7 referenced at .github/workflows/deploy.yml:11 in CI",
+      "risk": "Evidence: DNS resolves \u00b7 GitHub owner exists \u00b7 GitHub Pages unclaimed (vulnerable) on git083104.github.io \u00b7 Tranco rank 135 \u00b7 referenced at README.md:9 in docs GitHub account still exists.",
+      "fix": "No action needed",
+      "evidence_line": "Evidence: DNS resolves \u00b7 GitHub owner exists \u00b7 GitHub Pages unclaimed (vulnerable) on git083104.github.io \u00b7 Tranco rank 135 \u00b7 referenced at README.md:9 in docs",
       "evidence": {
+        "dns": {
+          "host": "git083104.github.io",
+          "status": "resolves",
+          "addresses": [
+            "185.199.109.153",
+            "185.199.108.153",
+            "185.199.110.153",
+            "185.199.111.153",
+            "2606:50c0:8000::153",
+            "2606:50c0:8003::153",
+            "2606:50c0:8002::153",
+            "2606:50c0:8001::153"
+          ],
+          "cnames": []
+        },
+        "dns_parent": {
+          "host": "github.io",
+          "status": "resolves",
+          "addresses": [
+            "185.199.111.153",
+            "185.199.108.153",
+            "185.199.109.153",
+            "185.199.110.153"
+          ],
+          "cnames": []
+        },
+        "rdap": {
+          "domain": "github.io",
+          "status": "unknown",
+          "registrar": null,
+          "registered": null,
+          "expiry": null,
+          "days_to_expiry": null,
+          "last_changed": null,
+          "transfer": null,
+          "nameservers": [],
+          "statuses": []
+        },
+        "platform_takeover": {
+          "host": "git083104.github.io",
+          "status": "unclaimed",
+          "platform": "GitHub Pages",
+          "takeover": "vulnerable",
+          "signal": "There isn't a GitHub Pages site here",
+          "http_status": 404,
+          "dns_proof": true
+        },
         "github_owner": {
-          "owner": "trustline-demo-tools",
+          "owner": "git083104",
+          "status": "exists",
+          "exists": true,
+          "kind": null,
+          "created_at": null,
+          "http_status": 200
+        },
+        "tranco_rank": 135
+      },
+      "tranco_rank": 135,
+      "parked": false,
+      "for_sale": false,
+      "live_signal": null,
+      "action_ref": "",
+      "action_sha_pinned": null,
+      "evidence_level": "",
+      "explained_by": "template",
+      "references": [
+        {
+          "page_url": "",
+          "file": "README.md",
+          "line": 9,
+          "tag": "",
+          "attribute": "",
+          "raw": "https://git083104.github.io/tether-demo-shop/",
+          "sri": null,
+          "loaded_by": "",
+          "runs_in": "docs_only"
+        }
+      ],
+      "cost_usd": 0.0,
+      "uncertain_about": "",
+      "needs_review": false,
+      "classified_blast_radius": 0,
+      "blast_radius": 0,
+      "blast_override_reason": "",
+      "headline": "This name only appears in docs or tests",
+      "why": "Evidence: DNS resolves \u00b7 GitHub owner exists \u00b7 GitHub Pages unclaimed (vulnerable) on git083104.github.io \u00b7 Tranco rank 135 \u00b7 referenced at README.md:9 in docs GitHub account still exists.",
+      "steps": [
+        "Optionally delete the mention at README.md:9.",
+        "No runtime change is required."
+      ],
+      "risk_type": "inert_mention",
+      "scan_id": "demo",
+      "ts": 1793816074.1633742
+    },
+    {
+      "type": "ranked",
+      "target": "tether-demo-widgets.github.io",
+      "kind": "domain",
+      "severity": "critical",
+      "model_severity": "info",
+      "floor_reason": "GitHub Pages account missing for a script/api/config download in executing position (browser) is at least critical",
+      "floor_applied": "critical",
+      "ceiling_note": "",
+      "risk": "Evidence: DNS resolves \u00b7 GitHub owner does not exist \u00b7 GitHub Pages unclaimed (vulnerable) on tether-demo-widgets.github.io \u00b7 Tranco rank 135 \u00b7 referenced at docs/abandoned/index.html:7 and docs/index.html:9 in docs \u00b7 loaded by index.html:11 in the browser GitHub Pages account missing for a script/api/config download in executing position (browser) is at least critical",
+      "fix": "Remove or replace this reference. If this was yours, re-create it in your own account to reclaim the name.",
+      "evidence_line": "Evidence: DNS resolves \u00b7 GitHub owner does not exist \u00b7 GitHub Pages unclaimed (vulnerable) on tether-demo-widgets.github.io \u00b7 Tranco rank 135 \u00b7 referenced at docs/abandoned/index.html:7 and docs/index.html:9 in docs \u00b7 loaded by index.html:11 in the browser",
+      "evidence": {
+        "dns": {
+          "host": "tether-demo-widgets.github.io",
+          "status": "resolves",
+          "addresses": [
+            "185.199.111.153",
+            "185.199.109.153",
+            "185.199.110.153",
+            "185.199.108.153",
+            "2606:50c0:8000::153",
+            "2606:50c0:8001::153",
+            "2606:50c0:8002::153",
+            "2606:50c0:8003::153"
+          ],
+          "cnames": []
+        },
+        "dns_parent": {
+          "host": "github.io",
+          "status": "resolves",
+          "addresses": [
+            "185.199.111.153",
+            "185.199.108.153",
+            "185.199.109.153",
+            "185.199.110.153"
+          ],
+          "cnames": []
+        },
+        "rdap": {
+          "domain": "github.io",
+          "status": "unknown",
+          "registrar": null,
+          "registered": null,
+          "expiry": null,
+          "days_to_expiry": null,
+          "last_changed": null,
+          "transfer": null,
+          "nameservers": [],
+          "statuses": []
+        },
+        "platform_takeover": {
+          "host": "tether-demo-widgets.github.io",
+          "status": "unclaimed",
+          "platform": "GitHub Pages",
+          "takeover": "vulnerable",
+          "signal": "There isn't a GitHub Pages site here",
+          "http_status": 404,
+          "dns_proof": true
+        },
+        "github_owner": {
+          "owner": "tether-demo-widgets",
           "status": "missing",
           "exists": false,
           "kind": null,
           "created_at": null,
           "http_status": 404
         },
-        "tranco_rank": 34,
-        "live_fetch": {
-          "url": "https://raw.githubusercontent.com/trustline-demo-tools/setup/main/install.sh",
-          "final_url": "https://raw.githubusercontent.com/trustline-demo-tools/setup/main/install.sh",
-          "status": "ok",
-          "http_status": 404,
-          "redirect_chain": [],
-          "title": "",
-          "parked": false,
-          "for_sale": false,
-          "signal": null,
-          "nameservers": []
-        },
-        "wayback": {
-          "url": "https://raw.githubusercontent.com/trustline-demo-tools/setup/main/install.sh",
-          "status": "unavailable",
-          "first_snapshot": null,
-          "last_snapshot": null,
-          "first_digest": null,
-          "last_digest": null
-        },
-        "changed_hands": {
-          "status": "unavailable",
-          "supporting": [],
-          "reregistered_after_reference": false
-        }
+        "tranco_rank": 135
       },
-      "tranco_rank": 34,
+      "tranco_rank": 135,
       "parked": false,
       "for_sale": false,
       "live_signal": null,
       "action_ref": "",
       "action_sha_pinned": null,
       "evidence_level": "proven",
-      "explained_by": "model",
+      "explained_by": "template",
       "references": [
-        ".github/workflows/deploy.yml:11"
+        {
+          "page_url": "",
+          "file": "docs/abandoned/index.html",
+          "line": 7,
+          "tag": "script",
+          "attribute": "",
+          "raw": "https://tether-demo-widgets.github.io/chat-widget.js",
+          "sri": null,
+          "loaded_by": "",
+          "runs_in": "docs_only"
+        },
+        {
+          "page_url": "",
+          "file": "docs/index.html",
+          "line": 9,
+          "tag": "script",
+          "attribute": "",
+          "raw": "https://tether-demo-widgets.github.io/chat-widget.js",
+          "sri": null,
+          "loaded_by": "",
+          "runs_in": "docs_only"
+        },
+        {
+          "page_url": "",
+          "file": "index.html",
+          "line": 11,
+          "tag": "script",
+          "attribute": "",
+          "raw": "https://tether-demo-widgets.github.io/embed/chat-widget.js",
+          "sri": null,
+          "loaded_by": "",
+          "runs_in": "browser"
+        }
       ],
       "cost_usd": 0.0,
       "uncertain_about": "GitHub may retire popular repository names after an owner is deleted or renamed, which can block this exact path.",
@@ -1944,26 +1954,45 @@
       "classified_blast_radius": 2,
       "blast_radius": 2,
       "blast_override_reason": "",
+      "headline": "Your site loads a script from a GitHub Pages account that no longer exists",
+      "why": "Anyone who recreates that GitHub account could publish a script your pages would load.",
+      "steps": [
+        "Open index.html:11 and remove the script tag.",
+        "Host the widget from a Pages site you control.",
+        "Do not create the missing GitHub account from this tool."
+      ],
+      "risk_type": "missing_github_pages",
       "scan_id": "demo",
-      "ts": 1793737292.527833
+      "ts": 1793816074.163994
     },
     {
       "type": "ranked",
       "target": "polyfill.io",
       "kind": "domain",
       "severity": "critical",
-      "model_severity": "high",
+      "model_severity": "info",
       "floor_reason": "compromised domain in a browser script without SRI (browser) is at least critical",
       "floor_applied": "critical",
       "ceiling_note": "",
-      "risk": "The script tag in public/index.html loads JavaScript from cdn.polyfill.io, which currently does not resolve. If a stranger gains control of polyfill.io they could serve malicious JavaScript that runs in visitors' browsers via that page.",
+      "risk": "Evidence: DNS does not resolve \u00b7 compromised domain \u00b7 Tranco rank 53571 \u00b7 referenced at docs/index.html:7 in docs \u00b7 loaded by index.html:6 in the browser compromised domain in a browser script without SRI (browser) is at least critical",
       "fix": "Remove it, or use cdnjs.cloudflare.com/polyfill or polyfill-fastly.io",
-      "evidence_line": "Evidence: DNS does not resolve \u00b7 compromised domain \u00b7 Tranco rank 53571 \u00b7 loaded by public/index.html:7 in the browser",
+      "evidence_line": "Evidence: DNS does not resolve \u00b7 compromised domain \u00b7 Tranco rank 53571 \u00b7 referenced at docs/index.html:7 in docs \u00b7 loaded by index.html:6 in the browser",
       "evidence": {
         "dns": {
           "host": "cdn.polyfill.io",
           "status": "nxdomain",
           "addresses": [],
+          "cnames": []
+        },
+        "dns_parent": {
+          "host": "polyfill.io",
+          "status": "resolves",
+          "addresses": [
+            "104.21.62.62",
+            "172.67.220.166",
+            "2606:4700:3037::ac43:dca6",
+            "2606:4700:3033::6815:3e3e"
+          ],
           "cnames": []
         },
         "rdap": {
@@ -1987,74 +2016,30 @@
       "action_ref": "",
       "action_sha_pinned": null,
       "evidence_level": "proven",
-      "explained_by": "model",
+      "explained_by": "template",
       "references": [
-        "public/index.html:7"
-      ],
-      "cost_usd": 0.0,
-      "uncertain_about": "whether polyfill.io is currently claimable for registration, as no registration data was supplied",
-      "needs_review": false,
-      "classified_blast_radius": 2,
-      "blast_radius": 2,
-      "blast_override_reason": "",
-      "scan_id": "demo",
-      "ts": 1793737292.534423
-    },
-    {
-      "type": "ranked",
-      "target": "googletagmanager.com",
-      "kind": "domain",
-      "severity": "info",
-      "model_severity": "info",
-      "floor_reason": "",
-      "floor_applied": "",
-      "ceiling_note": "",
-      "risk": "Checked and safe. Tranco rank 23.",
-      "fix": "No action needed",
-      "evidence_line": "Evidence: DNS resolves \u00b7 domain is registered \u00b7 Tranco rank 23 \u00b7 loaded by public/index.html:9 in the browser",
-      "evidence": {
-        "dns": {
-          "host": "www.googletagmanager.com",
-          "status": "resolves",
-          "addresses": [
-            "142.250.107.97",
-            "2607:f8b0:400a:809::2008"
-          ],
-          "cnames": []
+        {
+          "page_url": "",
+          "file": "docs/index.html",
+          "line": 7,
+          "tag": "script",
+          "attribute": "",
+          "raw": "https://cdn.polyfill.io/v3/polyfill.min.js",
+          "sri": null,
+          "loaded_by": "",
+          "runs_in": "docs_only"
         },
-        "rdap": {
-          "domain": "googletagmanager.com",
-          "status": "registered",
-          "registrar": "MarkMonitor Inc.",
-          "registered": "2011-11-11",
-          "expiry": "2027-11-11",
-          "days_to_expiry": 373,
-          "last_changed": "2026-10-10",
-          "transfer": null,
-          "nameservers": [
-            "ns1.google.com",
-            "ns2.google.com",
-            "ns3.google.com",
-            "ns4.google.com"
-          ],
-          "statuses": [
-            "client delete prohibited",
-            "client transfer prohibited",
-            "client update prohibited"
-          ]
-        },
-        "tranco_rank": 23
-      },
-      "tranco_rank": 23,
-      "parked": false,
-      "for_sale": false,
-      "live_signal": null,
-      "action_ref": "",
-      "action_sha_pinned": null,
-      "evidence_level": "likely",
-      "explained_by": "model",
-      "references": [
-        "public/index.html:9"
+        {
+          "page_url": "",
+          "file": "index.html",
+          "line": 6,
+          "tag": "script",
+          "attribute": "",
+          "raw": "https://cdn.polyfill.io/v3/polyfill.min.js?features=default",
+          "sri": null,
+          "loaded_by": "",
+          "runs_in": "browser"
+        }
       ],
       "cost_usd": 0.0,
       "uncertain_about": "",
@@ -2062,238 +2047,45 @@
       "classified_blast_radius": 2,
       "blast_radius": 2,
       "blast_override_reason": "",
-      "scan_id": "demo",
-      "ts": 1793737292.534613
-    },
-    {
-      "type": "ranked",
-      "target": "hcaptcha.com",
-      "kind": "domain",
-      "severity": "info",
-      "model_severity": "info",
-      "floor_reason": "",
-      "floor_applied": "",
-      "ceiling_note": "",
-      "risk": "Checked and safe. Tranco rank 231.",
-      "fix": "No action needed",
-      "evidence_line": "Evidence: DNS resolves \u00b7 domain is registered \u00b7 Tranco rank 231 \u00b7 loaded by public/index.html:10 in the browser",
-      "evidence": {
-        "dns": {
-          "host": "js.hcaptcha.com",
-          "status": "resolves",
-          "addresses": [
-            "104.19.229.21",
-            "104.19.230.21"
-          ],
-          "cnames": []
-        },
-        "rdap": {
-          "domain": "hcaptcha.com",
-          "status": "registered",
-          "registrar": "NameCheap, Inc.",
-          "registered": "2018-01-12",
-          "expiry": "2030-01-12",
-          "days_to_expiry": 1166,
-          "last_changed": "2024-12-11",
-          "transfer": null,
-          "nameservers": [
-            "eva.ns.cloudflare.com",
-            "josh.ns.cloudflare.com"
-          ],
-          "statuses": [
-            "client transfer prohibited"
-          ]
-        },
-        "tranco_rank": 231
-      },
-      "tranco_rank": 231,
-      "parked": false,
-      "for_sale": false,
-      "live_signal": null,
-      "action_ref": "",
-      "action_sha_pinned": null,
-      "evidence_level": "likely",
-      "explained_by": "model",
-      "references": [
-        "public/index.html:10"
+      "headline": "Your site loads a script from a CDN known to have served malware",
+      "why": "That CDN has been used to ship malware; pages that load it inherit that risk.",
+      "steps": [
+        "Open index.html:6 and find the script or stylesheet URL.",
+        "Replace it with a maintained CDN you control, or pin a subresource integrity hash.",
+        "Do not register or claim the old name."
       ],
-      "cost_usd": 0.0,
-      "uncertain_about": "",
-      "needs_review": false,
-      "classified_blast_radius": 2,
-      "blast_radius": 2,
-      "blast_override_reason": "",
+      "risk_type": "compromised_cdn",
       "scan_id": "demo",
-      "ts": 1793737292.5347264
+      "ts": 1793816074.1643713
     },
     {
       "type": "ranked",
-      "target": "trustline-demo-chat.github.io",
+      "target": "tether-demo-storefront.com",
       "kind": "domain",
       "severity": "critical",
-      "model_severity": "critical",
-      "floor_reason": "",
-      "floor_applied": "",
-      "ceiling_note": "",
-      "risk": "A stranger can claim the missing GitHub account and publish their own chat-widget.js, which will run in visitors' browsers through the script tag in public/index.html.",
-      "fix": "Remove or replace this reference. If this was yours, re-create it in your own account to reclaim the name.",
-      "evidence_line": "Evidence: DNS resolves \u00b7 GitHub owner does not exist \u00b7 GitHub Pages unclaimed (vulnerable) \u00b7 Tranco rank 135 \u00b7 loaded by public/index.html:14 in the browser",
-      "evidence": {
-        "dns": {
-          "host": "trustline-demo-chat.github.io",
-          "status": "resolves",
-          "addresses": [
-            "185.199.109.153",
-            "185.199.108.153",
-            "185.199.110.153",
-            "185.199.111.153",
-            "2606:50c0:8002::153",
-            "2606:50c0:8003::153",
-            "2606:50c0:8000::153",
-            "2606:50c0:8001::153"
-          ],
-          "cnames": []
-        },
-        "rdap": {
-          "domain": "github.io",
-          "status": "unknown",
-          "registrar": null,
-          "registered": null,
-          "expiry": null,
-          "days_to_expiry": null,
-          "last_changed": null,
-          "transfer": null,
-          "nameservers": [],
-          "statuses": []
-        },
-        "platform_takeover": {
-          "host": "trustline-demo-chat.github.io",
-          "status": "unclaimed",
-          "platform": "GitHub Pages",
-          "takeover": "vulnerable",
-          "signal": "There isn't a GitHub Pages site here",
-          "http_status": 404
-        },
-        "github_owner": {
-          "owner": "trustline-demo-chat",
-          "status": "missing",
-          "exists": false,
-          "kind": null,
-          "created_at": null,
-          "http_status": 404
-        },
-        "tranco_rank": 135
-      },
-      "tranco_rank": 135,
-      "parked": false,
-      "for_sale": false,
-      "live_signal": null,
-      "action_ref": "",
-      "action_sha_pinned": null,
-      "evidence_level": "proven",
-      "explained_by": "model",
-      "references": [
-        "public/index.html:14"
-      ],
-      "cost_usd": 0.0,
-      "uncertain_about": "GitHub may retire popular repository names after an owner is deleted or renamed, which can block this exact path.",
-      "needs_review": false,
-      "classified_blast_radius": 2,
-      "blast_radius": 2,
-      "blast_override_reason": "",
-      "scan_id": "demo",
-      "ts": 1793737292.53534
-    },
-    {
-      "type": "ranked",
-      "target": "stripe.com",
-      "kind": "domain",
-      "severity": "info",
       "model_severity": "info",
-      "floor_reason": "",
-      "floor_applied": "",
+      "floor_reason": "RDAP unregistered for a script/api/config download in executing position (browser) is at least critical",
+      "floor_applied": "critical",
       "ceiling_note": "",
-      "risk": "Checked and safe. Tranco rank 204.",
-      "fix": "No action needed",
-      "evidence_line": "Evidence: DNS resolves \u00b7 domain is registered \u00b7 Tranco rank 204 \u00b7 referenced at src/config.js:1 on the server",
+      "risk": "Evidence: DNS does not resolve \u00b7 domain not registered \u00b7 referenced at docs/index.html:8 in docs \u00b7 loaded by index.html:7 in the browser RDAP unregistered for a script/api/config download in executing position (browser) is at least critical",
+      "fix": "Remove or replace this reference. If this was yours, re-create it in your own account to reclaim the name.",
+      "evidence_line": "Evidence: DNS does not resolve \u00b7 domain not registered \u00b7 referenced at docs/index.html:8 in docs \u00b7 loaded by index.html:7 in the browser",
       "evidence": {
         "dns": {
-          "host": "api.stripe.com",
-          "status": "resolves",
-          "addresses": [
-            "198.202.176.175",
-            "198.137.150.175"
-          ],
+          "host": "cdn.tether-demo-storefront.com",
+          "status": "nxdomain",
+          "addresses": [],
           "cnames": []
         },
-        "rdap": {
-          "domain": "stripe.com",
-          "status": "registered",
-          "registrar": "SafeNames Ltd.",
-          "registered": "1995-09-12",
-          "expiry": "2027-09-11",
-          "days_to_expiry": 312,
-          "last_changed": "2025-10-01",
-          "transfer": null,
-          "nameservers": [
-            "ns-1087.awsdns-07.org",
-            "ns-1882.awsdns-43.co.uk",
-            "ns-423.awsdns-52.com",
-            "ns-705.awsdns-24.net"
-          ],
-          "statuses": [
-            "client delete prohibited",
-            "client transfer prohibited",
-            "client update prohibited",
-            "server delete prohibited",
-            "server transfer prohibited",
-            "server update prohibited"
-          ]
-        },
-        "tranco_rank": 204
-      },
-      "tranco_rank": 204,
-      "parked": false,
-      "for_sale": false,
-      "live_signal": null,
-      "action_ref": "",
-      "action_sha_pinned": null,
-      "evidence_level": "likely",
-      "explained_by": "model",
-      "references": [
-        "src/config.js:1"
-      ],
-      "cost_usd": 0.0,
-      "uncertain_about": "",
-      "needs_review": false,
-      "classified_blast_radius": 2,
-      "blast_radius": 2,
-      "blast_override_reason": "",
-      "scan_id": "demo",
-      "ts": 1793737292.5354931
-    },
-    {
-      "type": "ranked",
-      "target": "trustline-demo-metrics.io",
-      "kind": "domain",
-      "severity": "high",
-      "model_severity": "high",
-      "floor_reason": "",
-      "floor_applied": "",
-      "ceiling_note": "",
-      "risk": "Anyone who registers trustline-demo-metrics.io could receive event data sent to https://events.trustline-demo-metrics.io/collect from src/config.js and return crafted responses the server would trust.",
-      "fix": "Remove this reference; it points to a host that no longer resolves.",
-      "evidence_line": "Evidence: DNS does not resolve \u00b7 referenced at src/config.js:2 on the server",
-      "evidence": {
-        "dns": {
-          "host": "events.trustline-demo-metrics.io",
+        "dns_parent": {
+          "host": "tether-demo-storefront.com",
           "status": "nxdomain",
           "addresses": [],
           "cnames": []
         },
         "rdap": {
-          "domain": "trustline-demo-metrics.io",
-          "status": "unknown",
+          "domain": "tether-demo-storefront.com",
+          "status": "unregistered",
           "registrar": null,
           "registered": null,
           "expiry": null,
@@ -2311,35 +2103,64 @@
       "live_signal": null,
       "action_ref": "",
       "action_sha_pinned": null,
-      "evidence_level": "",
-      "explained_by": "model",
+      "evidence_level": "proven",
+      "explained_by": "template",
       "references": [
-        "src/config.js:2"
+        {
+          "page_url": "",
+          "file": "docs/index.html",
+          "line": 8,
+          "tag": "script",
+          "attribute": "",
+          "raw": "https://cdn.tether-demo-storefront.com/v2/cart.js",
+          "sri": null,
+          "loaded_by": "",
+          "runs_in": "docs_only"
+        },
+        {
+          "page_url": "",
+          "file": "index.html",
+          "line": 7,
+          "tag": "script",
+          "attribute": "",
+          "raw": "https://cdn.tether-demo-storefront.com/v2/cart.js",
+          "sri": null,
+          "loaded_by": "",
+          "runs_in": "browser"
+        }
       ],
       "cost_usd": 0.0,
-      "uncertain_about": "whether the domain is actually unregistered and claimable, since no registration lookup was provided",
+      "uncertain_about": "",
       "needs_review": false,
       "classified_blast_radius": 2,
       "blast_radius": 2,
       "blast_override_reason": "",
+      "headline": "Your website loads code from a domain anyone can register",
+      "why": "Anyone who registers that domain could run their code in visitors' browsers.",
+      "steps": [
+        "Open index.html:7 and remove or replace the script tag.",
+        "Point it at a host you control, or drop the dependency.",
+        "Do not register the abandoned domain yourself from this tool."
+      ],
+      "risk_type": "unregistered_script",
       "scan_id": "demo",
-      "ts": 1793737292.5362332
+      "ts": 1793816074.1647992
     },
     {
       "type": "ranked",
-      "target": "trustlinedemoassets",
+      "target": "tetherdemoshopcdn",
       "kind": "bucket",
       "severity": "high",
-      "model_severity": "high",
-      "floor_reason": "",
-      "floor_applied": "",
+      "model_severity": "info",
+      "floor_reason": "NoSuchBucket for a static asset in executing position (deploy) is at least high",
+      "floor_applied": "high",
       "ceiling_note": "",
-      "risk": "Anyone can register the missing trustlinedemoassets storage and return malicious data from the catalog URL fetched in src/config.js, which ships in deployment.",
+      "risk": "Evidence: Azure blob does not exist \u00b7 Tranco rank 58 \u00b7 referenced at docs/index.html:14 in docs \u00b7 named in src/config.js:2 in deploy NoSuchBucket for a static asset in executing position (deploy) is at least high",
       "fix": "Remove or replace this reference. If this was yours, re-create it in your own account to reclaim the name.",
-      "evidence_line": "Evidence: Azure blob does not exist \u00b7 Tranco rank 58 \u00b7 named in src/config.js:3 in deploy",
+      "evidence_line": "Evidence: Azure blob does not exist \u00b7 Tranco rank 58 \u00b7 referenced at docs/index.html:14 in docs \u00b7 named in src/config.js:2 in deploy",
       "evidence": {
         "bucket_probe": {
-          "name": "trustlinedemoassets",
+          "name": "tetherdemoshopcdn",
           "provider": "azure",
           "status": "NoSuchBucket",
           "http_status": null
@@ -2353,62 +2174,194 @@
       "action_ref": "",
       "action_sha_pinned": null,
       "evidence_level": "proven",
-      "explained_by": "model",
+      "explained_by": "template",
       "references": [
-        "src/config.js:3"
+        {
+          "page_url": "",
+          "file": "docs/index.html",
+          "line": 14,
+          "tag": "img",
+          "attribute": "",
+          "raw": "https://tetherdemoshopcdn.blob.core.windows.net/demo/banner.png",
+          "sri": null,
+          "loaded_by": "",
+          "runs_in": "docs_only"
+        },
+        {
+          "page_url": "",
+          "file": "src/config.js",
+          "line": 2,
+          "tag": "",
+          "attribute": "",
+          "raw": "https://tetherdemoshopcdn.blob.core.windows.net/catalog",
+          "sri": null,
+          "loaded_by": "",
+          "runs_in": "deploy"
+        }
       ],
       "cost_usd": 0.0,
-      "uncertain_about": "Whether this storage account name is still available for registration on Azure and how strictly the app validates catalog data",
+      "uncertain_about": "",
       "needs_review": false,
       "classified_blast_radius": 3,
       "blast_radius": 3,
       "blast_override_reason": "",
+      "headline": "Your deploy downloads files from a storage bucket that no longer exists",
+      "why": "Anyone who creates that bucket could serve files your deploy trusts.",
+      "steps": [
+        "Open src/config.js:2 and stop pointing deploys at that bucket.",
+        "Use a bucket in an account you still own.",
+        "Do not create the missing bucket from this tool."
+      ],
+      "risk_type": "nosuchbucket",
       "scan_id": "demo",
-      "ts": 1793737292.539855
+      "ts": 1793816074.1650918
     },
     {
       "type": "ranked",
-      "target": "slack.com",
+      "target": "bootcss.com",
+      "kind": "domain",
+      "severity": "low",
+      "model_severity": "info",
+      "floor_reason": "Compromised domain, but only named in docs, tests or comments, so it is low",
+      "floor_applied": "low",
+      "ceiling_note": "",
+      "risk": "Evidence: DNS resolves \u00b7 domain is registered \u00b7 compromised domain \u00b7 Tranco rank 44945 \u00b7 referenced at docs/old-cdn/index.html:7 in docs Compromised domain, but only named in docs, tests or comments, so it is low",
+      "fix": "Remove this reference; it points to a host that no longer resolves.",
+      "evidence_line": "Evidence: DNS resolves \u00b7 domain is registered \u00b7 compromised domain \u00b7 Tranco rank 44945 \u00b7 referenced at docs/old-cdn/index.html:7 in docs",
+      "evidence": {
+        "dns": {
+          "host": "cdn.bootcss.com",
+          "status": "resolves",
+          "addresses": [
+            "43.175.171.84",
+            "101.33.21.239",
+            "43.152.22.80",
+            "43.168.117.41",
+            "43.152.182.137"
+          ],
+          "cnames": [
+            "cdn.bootcss.com.cdn.dnsv1.com",
+            "aszc6gh6.slt.sched.intlscdn.com"
+          ]
+        },
+        "dns_parent": {
+          "host": "bootcss.com",
+          "status": "resolves",
+          "addresses": [
+            "128.14.165.153",
+            "98.98.253.37"
+          ],
+          "cnames": [
+            "bootcss.com.d48437e9.cdnhwcvix16.com",
+            "hcdnw.ovc.sme.cdnhwccmz121.com"
+          ]
+        },
+        "rdap": {
+          "domain": "bootcss.com",
+          "status": "registered",
+          "registrar": "DNSPod, Inc.",
+          "registered": "2012-11-12",
+          "expiry": "2028-11-12",
+          "days_to_expiry": 739,
+          "last_changed": "2025-05-13",
+          "transfer": null,
+          "nameservers": [
+            "plastic.dnspod.net",
+            "tuatara.dnspod.net"
+          ],
+          "statuses": [
+            "active"
+          ]
+        },
+        "tranco_rank": 44945
+      },
+      "tranco_rank": 44945,
+      "parked": false,
+      "for_sale": false,
+      "live_signal": null,
+      "action_ref": "",
+      "action_sha_pinned": null,
+      "evidence_level": "proven",
+      "explained_by": "template",
+      "references": [
+        {
+          "page_url": "",
+          "file": "docs/old-cdn/index.html",
+          "line": 7,
+          "tag": "script",
+          "attribute": "",
+          "raw": "https://cdn.bootcss.com/jquery/3.6.0/jquery.min.js",
+          "sri": null,
+          "loaded_by": "",
+          "runs_in": "docs_only"
+        }
+      ],
+      "cost_usd": 0.0,
+      "uncertain_about": "",
+      "needs_review": false,
+      "classified_blast_radius": 0,
+      "blast_radius": 0,
+      "blast_override_reason": "",
+      "headline": "This name only appears in docs or tests",
+      "why": "Evidence: DNS resolves \u00b7 domain is registered \u00b7 compromised domain \u00b7 Tranco rank 44945 \u00b7 referenced at docs/old-cdn/index.html:7 in docs Compromised domain, but only named in docs, tests or comments, so it is low",
+      "steps": [
+        "Optionally delete the mention at docs/old-cdn/index.html:7.",
+        "No runtime change is required."
+      ],
+      "risk_type": "inert_mention",
+      "scan_id": "demo",
+      "ts": 1793816074.1653254
+    },
+    {
+      "type": "ranked",
+      "target": "cloudflare.com",
       "kind": "domain",
       "severity": "info",
       "model_severity": "info",
       "floor_reason": "",
       "floor_applied": "",
       "ceiling_note": "",
-      "risk": "Checked and safe. Tranco rank 305.",
+      "risk": "Checked and safe. Tranco rank 2.",
       "fix": "No action needed",
-      "evidence_line": "Evidence: DNS resolves \u00b7 domain is registered \u00b7 Tranco rank 305 \u00b7 referenced at src/config.js:4 on the server",
+      "evidence_line": "Evidence: DNS resolves \u00b7 domain is registered \u00b7 Tranco rank 2 \u00b7 referenced at docs/old-cdn/index.html:8 in docs",
       "evidence": {
         "dns": {
-          "host": "hooks.slack.com",
+          "host": "cdnjs.cloudflare.com",
           "status": "resolves",
           "addresses": [
-            "52.89.90.67",
-            "54.70.179.16",
-            "35.82.91.193",
-            "54.71.95.193",
-            "54.245.50.245",
-            "44.237.180.172",
-            "35.81.85.251",
-            "44.234.235.93",
-            "54.188.33.22"
+            "104.17.25.14",
+            "104.17.24.14",
+            "2606:4700::6811:190e",
+            "2606:4700::6811:180e"
+          ],
+          "cnames": []
+        },
+        "dns_parent": {
+          "host": "cloudflare.com",
+          "status": "resolves",
+          "addresses": [
+            "104.16.133.229",
+            "104.16.132.229",
+            "2606:4700::6810:84e5",
+            "2606:4700::6810:85e5"
           ],
           "cnames": []
         },
         "rdap": {
-          "domain": "slack.com",
+          "domain": "cloudflare.com",
           "status": "registered",
-          "registrar": "MarkMonitor Inc.",
-          "registered": "1992-10-21",
-          "expiry": "2027-10-20",
-          "days_to_expiry": 351,
-          "last_changed": "2025-09-18",
+          "registrar": "Cloudflare, Inc.",
+          "registered": "2009-02-17",
+          "expiry": "2033-02-17",
+          "days_to_expiry": 2297,
+          "last_changed": "2024-01-09",
           "transfer": null,
           "nameservers": [
-            "ns-1493.awsdns-58.org",
-            "ns-166.awsdns-20.com",
-            "ns-1901.awsdns-45.co.uk",
-            "ns-606.awsdns-11.net"
+            "ns3.cloudflare.com",
+            "ns4.cloudflare.com",
+            "ns5.cloudflare.com",
+            "ns6.cloudflare.com",
+            "ns7.cloudflare.com"
           ],
           "statuses": [
             "client delete prohibited",
@@ -2419,9 +2372,9 @@
             "server update prohibited"
           ]
         },
-        "tranco_rank": 305
+        "tranco_rank": 2
       },
-      "tranco_rank": 305,
+      "tranco_rank": 2,
       "parked": false,
       "for_sale": false,
       "live_signal": null,
@@ -2430,38 +2383,156 @@
       "evidence_level": "likely",
       "explained_by": "model",
       "references": [
-        "src/config.js:4"
+        {
+          "page_url": "",
+          "file": "docs/old-cdn/index.html",
+          "line": 8,
+          "tag": "script",
+          "attribute": "",
+          "raw": "https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.21/lodash.min.js",
+          "sri": null,
+          "loaded_by": "",
+          "runs_in": "docs_only"
+        }
       ],
       "cost_usd": 0.0,
       "uncertain_about": "",
       "needs_review": false,
-      "classified_blast_radius": 2,
-      "blast_radius": 2,
+      "classified_blast_radius": 0,
+      "blast_radius": 0,
       "blast_override_reason": "",
+      "headline": "This name only appears in docs or tests",
+      "why": "Checked and safe. Tranco rank 2.",
+      "steps": [
+        "Optionally delete the mention at docs/old-cdn/index.html:8.",
+        "No runtime change is required."
+      ],
+      "risk_type": "inert_mention",
       "scan_id": "demo",
-      "ts": 1793737292.540023
+      "ts": 1793816074.1655183
     },
     {
       "type": "ranked",
-      "target": "trustline-demo-payments.dev",
-      "kind": "domain",
-      "severity": "high",
-      "model_severity": "high",
+      "target": "tether-demo-ship-artifacts",
+      "kind": "bucket",
+      "severity": "critical",
+      "model_severity": "critical",
       "floor_reason": "",
       "floor_applied": "",
       "ceiling_note": "",
-      "risk": "Anyone could register trustline-demo-payments.dev and control the hook URL in tests/fixtures/orders.json, letting them collect test order callbacks or return malicious responses when tests run.",
+      "risk": "A stranger can claim the missing tether-demo-ship-artifacts bucket and plant malicious artifacts that the deploy and release workflows will use, hijacking builds and releases.",
       "fix": "Remove or replace this reference. If this was yours, re-create it in your own account to reclaim the name.",
-      "evidence_line": "Evidence: DNS does not resolve \u00b7 domain not registered \u00b7 referenced at tests/fixtures/orders.json:3 in tests",
+      "evidence_line": "Evidence: S3 bucket does not exist \u00b7 referenced at .github/workflows/deploy.yml:13 and .github/workflows/release.yml:11 in CI",
+      "evidence": {
+        "bucket_probe": {
+          "name": "tether-demo-ship-artifacts",
+          "provider": "s3",
+          "status": "NoSuchBucket",
+          "http_status": 404
+        },
+        "tranco_rank": null,
+        "live_fetch": {
+          "url": "https://tether-demo-ship-artifacts.s3.amazonaws.com/",
+          "final_url": "https://tether-demo-ship-artifacts.s3.amazonaws.com/",
+          "status": "ok",
+          "http_status": 404,
+          "redirect_chain": [],
+          "title": "",
+          "parked": false,
+          "for_sale": false,
+          "signal": null,
+          "nameservers": [
+            "ns-328.awsdns-41.com",
+            "ns-674.awsdns-20.net",
+            "ns-1173.awsdns-18.org",
+            "ns-1620.awsdns-10.co.uk"
+          ]
+        },
+        "wayback": {
+          "url": "https://tether-demo-ship-artifacts.s3.amazonaws.com/",
+          "status": "unavailable",
+          "first_snapshot": null,
+          "last_snapshot": null,
+          "first_digest": null,
+          "last_digest": null
+        }
+      },
+      "tranco_rank": null,
+      "parked": false,
+      "for_sale": false,
+      "live_signal": null,
+      "action_ref": "",
+      "action_sha_pinned": null,
+      "evidence_level": "proven",
+      "explained_by": "model",
+      "references": [
+        {
+          "page_url": "",
+          "file": ".github/workflows/deploy.yml",
+          "line": 13,
+          "tag": "",
+          "attribute": "",
+          "raw": "s3://tether-demo-ship-artifacts",
+          "sri": null,
+          "loaded_by": "",
+          "runs_in": "ci"
+        },
+        {
+          "page_url": "",
+          "file": ".github/workflows/release.yml",
+          "line": 11,
+          "tag": "",
+          "attribute": "",
+          "raw": "s3://tether-demo-ship-artifacts",
+          "sri": null,
+          "loaded_by": "",
+          "runs_in": "ci"
+        }
+      ],
+      "cost_usd": 0.00566,
+      "uncertain_about": "",
+      "needs_review": false,
+      "classified_blast_radius": 3,
+      "blast_radius": 3,
+      "blast_override_reason": "",
+      "headline": "Your deploy downloads files from a storage bucket that no longer exists",
+      "why": "A stranger can claim the missing tether-demo-ship-artifacts bucket and plant malicious artifacts that the deploy and release workflows will use, hijacking builds and releases.",
+      "steps": [
+        "Open .github/workflows/deploy.yml:13 and stop pointing deploys at that bucket.",
+        "Use a bucket in an account you still own.",
+        "Do not create the missing bucket from this tool."
+      ],
+      "risk_type": "nosuchbucket",
+      "scan_id": "demo",
+      "ts": 1793816083.826234
+    },
+    {
+      "type": "ranked",
+      "target": "tether-demo-runtime.net",
+      "kind": "domain",
+      "severity": "critical",
+      "model_severity": "critical",
+      "floor_reason": "",
+      "floor_applied": "",
+      "ceiling_note": "",
+      "risk": "Anyone can register tether-demo-runtime.net since it is unregistered and does not resolve, then serve a malicious agent-1.4.2.tar.gz. The Dockerfile at line 3 downloads that file during the Docker build, so attacker code would land in built images.",
+      "fix": "Remove or replace this reference. If this was yours, re-create it in your own account to reclaim the name.",
+      "evidence_line": "Evidence: DNS does not resolve \u00b7 domain not registered \u00b7 referenced at Dockerfile:3 at build time",
       "evidence": {
         "dns": {
-          "host": "sandbox.trustline-demo-payments.dev",
+          "host": "downloads.tether-demo-runtime.net",
+          "status": "nxdomain",
+          "addresses": [],
+          "cnames": []
+        },
+        "dns_parent": {
+          "host": "tether-demo-runtime.net",
           "status": "nxdomain",
           "addresses": [],
           "cnames": []
         },
         "rdap": {
-          "domain": "trustline-demo-payments.dev",
+          "domain": "tether-demo-runtime.net",
           "status": "unregistered",
           "registrar": null,
           "registered": null,
@@ -2483,40 +2554,60 @@
       "evidence_level": "proven",
       "explained_by": "model",
       "references": [
-        "tests/fixtures/orders.json:3"
+        {
+          "page_url": "",
+          "file": "Dockerfile",
+          "line": 3,
+          "tag": "",
+          "attribute": "",
+          "raw": "https://downloads.tether-demo-runtime.net/agent-1.4.2.tar.gz",
+          "sri": null,
+          "loaded_by": "",
+          "runs_in": "build"
+        }
       ],
-      "cost_usd": 0.0,
-      "uncertain_about": "Whether the test suite actually sends requests to this hook or only uses it as placeholder data",
+      "cost_usd": 0.00816125,
+      "uncertain_about": "Whether the domain was previously owned by this project or by an abandoned third party.",
       "needs_review": false,
-      "classified_blast_radius": 0,
-      "blast_radius": 0,
+      "classified_blast_radius": 2,
+      "blast_radius": 2,
       "blast_override_reason": "",
+      "headline": "Your project still names a host that no longer resolves",
+      "why": "Anyone can register tether-demo-runtime.net since it is unregistered and does not resolve, then serve a malicious agent-1.4.2.tar.gz. The Dockerfile at line 3 downloads that file during the Docker build, so attacker code would land in built images.",
+      "steps": [
+        "Open Dockerfile:3 and remove or replace the reference.",
+        "Use a name you still control.",
+        "Do not register or claim the abandoned name from this tool."
+      ],
+      "risk_type": "nxdomain",
       "scan_id": "demo",
-      "ts": 1793737292.6141143
+      "ts": 1793816088.9319212
     },
     {
       "type": "ranked",
-      "target": "trustline-demo-release-artifacts",
-      "kind": "bucket",
+      "target": "github.com/tether-demo-bootstrap",
+      "kind": "domain",
       "severity": "critical",
       "model_severity": "critical",
       "floor_reason": "",
       "floor_applied": "",
       "ceiling_note": "",
-      "risk": "A stranger can claim the trustline-demo-release-artifacts bucket now and plant files that .github/workflows/deploy.yml and deploy/release.yml pull during releases.",
+      "risk": "A stranger can register the missing tether-demo-bootstrap GitHub account and publish setup/main/install.sh, which .github/workflows/deploy.yml downloads and executes in CI.",
       "fix": "Remove or replace this reference. If this was yours, re-create it in your own account to reclaim the name.",
-      "evidence_line": "Evidence: S3 bucket does not exist \u00b7 referenced at .github/workflows/deploy.yml:13 in CI \u00b7 named in deploy/release.yml:3 in deploy",
+      "evidence_line": "Evidence: GitHub owner does not exist \u00b7 Tranco rank 34 \u00b7 referenced at .github/workflows/deploy.yml:11 in CI",
       "evidence": {
-        "bucket_probe": {
-          "name": "trustline-demo-release-artifacts",
-          "provider": "s3",
-          "status": "NoSuchBucket",
+        "github_owner": {
+          "owner": "tether-demo-bootstrap",
+          "status": "missing",
+          "exists": false,
+          "kind": null,
+          "created_at": null,
           "http_status": 404
         },
-        "tranco_rank": null,
+        "tranco_rank": 34,
         "live_fetch": {
-          "url": "https://trustline-demo-release-artifacts.s3.amazonaws.com",
-          "final_url": "https://trustline-demo-release-artifacts.s3.amazonaws.com",
+          "url": "https://raw.githubusercontent.com/tether-demo-bootstrap/setup/main/install.sh",
+          "final_url": "https://raw.githubusercontent.com/tether-demo-bootstrap/setup/main/install.sh",
           "status": "ok",
           "http_status": 404,
           "redirect_chain": [],
@@ -2524,23 +2615,15 @@
           "parked": false,
           "for_sale": false,
           "signal": null,
-          "nameservers": [
-            "ns-674.awsdns-20.net",
-            "ns-1173.awsdns-18.org",
-            "ns-1620.awsdns-10.co.uk",
-            "ns-328.awsdns-41.com"
-          ]
+          "nameservers": []
         },
-        "wayback": {
-          "url": "https://trustline-demo-release-artifacts.s3.amazonaws.com",
+        "changed_hands": {
           "status": "unavailable",
-          "first_snapshot": null,
-          "last_snapshot": null,
-          "first_digest": null,
-          "last_digest": null
+          "supporting": [],
+          "reregistered_after_reference": false
         }
       },
-      "tranco_rank": null,
+      "tranco_rank": 34,
       "parked": false,
       "for_sale": false,
       "live_signal": null,
@@ -2549,39 +2632,62 @@
       "evidence_level": "proven",
       "explained_by": "model",
       "references": [
-        ".github/workflows/deploy.yml:13",
-        "deploy/release.yml:3"
+        {
+          "page_url": "",
+          "file": ".github/workflows/deploy.yml",
+          "line": 11,
+          "tag": "",
+          "attribute": "",
+          "raw": "https://raw.githubusercontent.com/tether-demo-bootstrap/setup/main/install.sh",
+          "sri": null,
+          "loaded_by": "",
+          "runs_in": "ci"
+        }
       ],
-      "cost_usd": 0.00605,
-      "uncertain_about": "Whether the bucket is still intended for releases or can be removed entirely.",
+      "cost_usd": 0.0095055,
+      "uncertain_about": "GitHub may retire popular repository names after an owner is deleted or renamed, which can block this exact path.",
       "needs_review": false,
-      "classified_blast_radius": 3,
-      "blast_radius": 3,
+      "classified_blast_radius": 2,
+      "blast_radius": 2,
       "blast_override_reason": "",
+      "headline": "Your CI runs a script from a GitHub account that no longer exists",
+      "why": "A stranger can register the missing tether-demo-bootstrap GitHub account and publish setup/main/install.sh, which .github/workflows/deploy.yml downloads and executes in CI.",
+      "steps": [
+        "Open .github/workflows/deploy.yml:11 and disable or delete that CI step.",
+        "Replace the download with a script from a repository you still own.",
+        "Do not create the missing GitHub account from this tool."
+      ],
+      "risk_type": "missing_github_ci",
       "scan_id": "demo",
-      "ts": 1793737303.627233
+      "ts": 1793816092.1179972
     },
     {
       "type": "ranked",
-      "target": "trustline-demo-cartkit.com",
+      "target": "tether-demo-checkout.com",
       "kind": "domain",
-      "severity": "critical",
-      "model_severity": "critical",
+      "severity": "high",
+      "model_severity": "high",
       "floor_reason": "",
       "floor_applied": "",
       "ceiling_note": "",
-      "risk": "Anyone can register trustline-demo-cartkit.com and serve malicious JavaScript at /v2/cart.js that will execute in visitors browsers when they load public/index.html.",
+      "risk": "Anyone can register tether-demo-checkout.com and return hostile data to the checkout API URL in src/config.js, taking over server-side checkout traffic.",
       "fix": "Remove or replace this reference. If this was yours, re-create it in your own account to reclaim the name.",
-      "evidence_line": "Evidence: DNS does not resolve \u00b7 domain not registered \u00b7 file existed since 2026-11-01 \u00b7 referenced at CHANGELOG.md:4 and docs/setup.md:3 in docs \u00b7 loaded by public/index.html:8 in the browser",
+      "evidence_line": "Evidence: DNS does not resolve \u00b7 domain not registered \u00b7 referenced at src/config.js:1 on the server",
       "evidence": {
         "dns": {
-          "host": "cdn.trustline-demo-cartkit.com",
+          "host": "api.tether-demo-checkout.com",
+          "status": "nxdomain",
+          "addresses": [],
+          "cnames": []
+        },
+        "dns_parent": {
+          "host": "tether-demo-checkout.com",
           "status": "nxdomain",
           "addresses": [],
           "cnames": []
         },
         "rdap": {
-          "domain": "trustline-demo-cartkit.com",
+          "domain": "tether-demo-checkout.com",
           "status": "unregistered",
           "registrar": null,
           "registered": null,
@@ -2592,46 +2698,7 @@
           "nameservers": [],
           "statuses": []
         },
-        "tranco_rank": null,
-        "live_fetch": {
-          "url": "https://cdn.trustline-demo-cartkit.com/v2/cart.js",
-          "final_url": "https://cdn.trustline-demo-cartkit.com/v2/cart.js",
-          "status": "blocked",
-          "http_status": null,
-          "redirect_chain": [],
-          "title": "",
-          "parked": false,
-          "for_sale": false,
-          "signal": null,
-          "nameservers": [],
-          "error": "This address can't be scanned"
-        },
-        "cert_history": {
-          "domain": "trustline-demo-cartkit.com",
-          "status": "unavailable",
-          "issuers": [],
-          "first_seen": null,
-          "last_seen": null,
-          "first_issuer_org": "",
-          "last_issuer_org": "",
-          "max_gap_days": null
-        },
-        "wayback": {
-          "url": "https://cdn.trustline-demo-cartkit.com/v2/cart.js",
-          "status": "unavailable",
-          "first_snapshot": null,
-          "last_snapshot": null,
-          "first_digest": null,
-          "last_digest": null
-        },
-        "changed_hands": {
-          "status": "ok",
-          "supporting": [],
-          "reference_date": "2026-11-01",
-          "reference_source": "file existed since",
-          "path": "CHANGELOG.md",
-          "reregistered_after_reference": false
-        }
+        "tranco_rank": null
       },
       "tranco_rank": null,
       "parked": false,
@@ -2642,40 +2709,62 @@
       "evidence_level": "proven",
       "explained_by": "model",
       "references": [
-        "CHANGELOG.md:4",
-        "docs/setup.md:3",
-        "public/index.html:8"
+        {
+          "page_url": "",
+          "file": "src/config.js",
+          "line": 1,
+          "tag": "",
+          "attribute": "",
+          "raw": "https://api.tether-demo-checkout.com/v1",
+          "sri": null,
+          "loaded_by": "",
+          "runs_in": "server"
+        }
       ],
-      "cost_usd": 0.007549999999999999,
-      "uncertain_about": "The direct URL could not be fetched because scanning was blocked, so the browser failure mode was not confirmed.",
+      "cost_usd": 0.0098375,
+      "uncertain_about": "whether the demo checkout endpoint is still needed",
       "needs_review": false,
       "classified_blast_radius": 2,
       "blast_radius": 2,
       "blast_override_reason": "",
+      "headline": "Your project still names a host that no longer resolves",
+      "why": "Anyone can register tether-demo-checkout.com and return hostile data to the checkout API URL in src/config.js, taking over server-side checkout traffic.",
+      "steps": [
+        "Open src/config.js:1 and remove or replace the reference.",
+        "Use a name you still control.",
+        "Do not register or claim the abandoned name from this tool."
+      ],
+      "risk_type": "nxdomain",
       "scan_id": "demo",
-      "ts": 1793737305.913162
+      "ts": 1793816093.0220976
     },
     {
       "type": "ranked",
-      "target": "trustline-demo-agent.net",
+      "target": "tether-demo-orders.dev",
       "kind": "domain",
-      "severity": "critical",
-      "model_severity": "critical",
+      "severity": "low",
+      "model_severity": "low",
       "floor_reason": "",
       "floor_applied": "",
       "ceiling_note": "",
-      "risk": "Anyone could register trustline-demo-agent.net and serve a malicious agent-1.4.2.tar.gz that gets pulled in by the download in Dockerfile line 3 during the Docker build.",
+      "risk": "Anyone could register tether-demo-orders.dev since it is unregistered and does not resolve, then control the hook URL found in tests/fixtures/orders.json. Exposure is limited to test runs that use that fixture.",
       "fix": "Remove or replace this reference. If this was yours, re-create it in your own account to reclaim the name.",
-      "evidence_line": "Evidence: DNS does not resolve \u00b7 domain not registered \u00b7 file existed since 2026-11-01 \u00b7 no certificates found \u00b7 referenced at Dockerfile:3 at build time",
+      "evidence_line": "Evidence: DNS does not resolve \u00b7 domain not registered \u00b7 referenced at tests/fixtures/orders.json:3 in tests",
       "evidence": {
         "dns": {
-          "host": "downloads.trustline-demo-agent.net",
+          "host": "sandbox.tether-demo-orders.dev",
+          "status": "nxdomain",
+          "addresses": [],
+          "cnames": []
+        },
+        "dns_parent": {
+          "host": "tether-demo-orders.dev",
           "status": "nxdomain",
           "addresses": [],
           "cnames": []
         },
         "rdap": {
-          "domain": "trustline-demo-agent.net",
+          "domain": "tether-demo-orders.dev",
           "status": "unregistered",
           "registrar": null,
           "registered": null,
@@ -2686,46 +2775,7 @@
           "nameservers": [],
           "statuses": []
         },
-        "tranco_rank": null,
-        "live_fetch": {
-          "url": "https://downloads.trustline-demo-agent.net/agent-1.4.2.tar.gz",
-          "final_url": "https://downloads.trustline-demo-agent.net/agent-1.4.2.tar.gz",
-          "status": "blocked",
-          "http_status": null,
-          "redirect_chain": [],
-          "title": "",
-          "parked": false,
-          "for_sale": false,
-          "signal": null,
-          "nameservers": [],
-          "error": "This address can't be scanned"
-        },
-        "cert_history": {
-          "domain": "trustline-demo-agent.net",
-          "status": "ok",
-          "issuers": [],
-          "first_seen": null,
-          "last_seen": null,
-          "first_issuer_org": "",
-          "last_issuer_org": "",
-          "max_gap_days": null
-        },
-        "wayback": {
-          "url": "https://downloads.trustline-demo-agent.net/agent-1.4.2.tar.gz",
-          "status": "unavailable",
-          "first_snapshot": null,
-          "last_snapshot": null,
-          "first_digest": null,
-          "last_digest": null
-        },
-        "changed_hands": {
-          "status": "ok",
-          "supporting": [],
-          "reference_date": "2026-11-01",
-          "reference_source": "file existed since",
-          "path": "Dockerfile",
-          "reregistered_after_reference": false
-        }
+        "tranco_rank": null
       },
       "tranco_rank": null,
       "parked": false,
@@ -2736,31 +2786,56 @@
       "evidence_level": "proven",
       "explained_by": "model",
       "references": [
-        "Dockerfile:3"
+        {
+          "page_url": "",
+          "file": "tests/fixtures/orders.json",
+          "line": 3,
+          "tag": "",
+          "attribute": "",
+          "raw": "https://sandbox.tether-demo-orders.dev/hook",
+          "sri": null,
+          "loaded_by": "",
+          "runs_in": "test"
+        }
       ],
-      "cost_usd": 0.0103355,
-      "uncertain_about": "The direct fetch was blocked so hosted content could not be viewed, but claimability does not depend on it.",
+      "cost_usd": 0.008999249999999999,
+      "uncertain_about": "",
       "needs_review": false,
-      "classified_blast_radius": 2,
-      "blast_radius": 2,
+      "classified_blast_radius": 0,
+      "blast_radius": 0,
       "blast_override_reason": "",
+      "headline": "This name only appears in docs or tests",
+      "why": "Anyone could register tether-demo-orders.dev since it is unregistered and does not resolve, then control the hook URL found in tests/fixtures/orders.json. Exposure is limited to test runs that use that fixture.",
+      "steps": [
+        "Optionally delete the mention at tests/fixtures/orders.json:3.",
+        "No runtime change is required."
+      ],
+      "risk_type": "inert_mention",
       "scan_id": "demo",
-      "ts": 1793737312.7437136
+      "ts": 1793816099.2710633
     },
     {
       "type": "done",
-      "finding_count": 14,
-      "cost_usd": 0.09206975,
-      "classify_cost_usd": 0.0,
-      "agent_cost_usd": 0.06813425000000001,
-      "rank_cost_usd": 0.0239355,
+      "finding_count": 13,
+      "cost_usd": 0.06581075,
+      "classify_cost_usd": 0,
+      "agent_cost_usd": 0.023647249999999998,
+      "rank_cost_usd": 0.0421635,
       "budget_targets": [],
       "skipped_targets": [],
+      "code_only_targets": [
+        "api.tether-demo-checkout.com",
+        "cdn.polyfill.io",
+        "cdn.tether-demo-storefront.com",
+        "tether-demo-widgets.github.io",
+        "tetherdemoshopcdn"
+      ],
       "partial": false,
-      "agent_runs": 7,
+      "agent_runs": 3,
       "rank_fallbacks": 0,
+      "code_only": false,
       "scan_id": "demo",
-      "ts": 1793737312.7447674
+      "ts": 1793816099.2730207
     }
   ]
 }

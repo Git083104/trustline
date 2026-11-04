@@ -20,6 +20,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+from dotenv import load_dotenv  # noqa: E402
+
+load_dotenv(ROOT / ".env", override=False)
+
 from fastapi.testclient import TestClient  # noqa: E402
 
 from api.main import create_app  # noqa: E402
@@ -162,16 +166,20 @@ def record(live: bool) -> dict:
 
 def record_remote(base: str, target: str) -> dict:
     """POST a live scan to a running Tether and save the stream as the demo fixture."""
+    import os
     from urllib.request import Request, urlopen
 
     base = base.rstrip("/")
     payload = json.dumps({"target": target}).encode()
     req = Request(f"{base}/api/scan", data=payload, method="POST")
     req.add_header("Content-Type", "application/json")
+    token = os.environ.get("TRUSTMAP_ADMIN_TOKEN", "").strip()
+    if token:
+        req.add_header("X-Trustmap-Token", token)
     with urlopen(req, timeout=30) as response:
         started = json.loads(response.read())
     scan_id = started["scan_id"]
-    with urlopen(f"{base}/api/scan/{scan_id}/events", timeout=120) as response:
+    with urlopen(f"{base}/api/scan/{scan_id}/events", timeout=180) as response:
         stream = response.read().decode()
     with urlopen(f"{base}/api/scan/{scan_id}", timeout=30) as response:
         report = json.loads(response.read())
@@ -199,7 +207,7 @@ def main() -> None:
     parser.add_argument("--from-url", metavar="BASE", help="record a live scan from a running Tether")
     parser.add_argument(
         "--target",
-        default="https://github.com/jwang2007/paperplane-shop",
+        default="https://github.com/Git083104/tether-demo-shop",
         help="repository to scan when --from-url is set",
     )
     args = parser.parse_args()

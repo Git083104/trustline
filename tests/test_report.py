@@ -1071,7 +1071,7 @@ def test_pages_existing_account_is_safe():
     ref = Reference(
         file="docs/index.html",
         line=1,
-        raw="https://git083104.github.io/paperplane-shop/widget.js",
+        raw="https://git083104.github.io/tether-demo-shop/widget.js",
         host_or_bucket="git083104.github.io",
         domain="git083104.github.io",
         tag="script",

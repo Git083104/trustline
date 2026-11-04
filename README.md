@@ -49,7 +49,7 @@ Some repos withheld pending maintainer notification.
 
 On the home page, **Repos to try** and **Websites to try** are public examples with an expected result from the last production warm run.
 
-The demo storefront is ours. Its risky names are planted on purpose and blocked by Content-Security-Policy, so they do not run in a visitor's browser.
+The demo storefront is ours: [Git083104/tether-demo-shop](https://github.com/Git083104/tether-demo-shop) and [git083104.github.io/tether-demo-shop](https://git083104.github.io/tether-demo-shop/). Its risky names are planted on purpose and blocked by Content-Security-Policy, so they do not run in a visitor's browser.
 
 ## Run locally
 
@@ -106,23 +106,18 @@ Meta Muse Spark (Meta Model API), Muse Code, FastAPI, Render.
 
 ## Credits and acknowledgements
 
-- [jwang2007/trustline](https://github.com/jwang2007/trustline): the original Trustline project, interface and visual design this work builds on.
-- [jwang2007/trustline-merged](https://github.com/jwang2007/trustline-merged): the merged team fork; we took its temperature-0 repeatability, agent fixes, isometric layers, tray illustration, favicons/logo and "Repos to try".
-- [matthewL687/trustline-merged](https://github.com/matthewL687/trustline-merged): the scan-budgets branch, whose per-IP limit and code-only fallback ideas we adopted.
-- [jwang2007/paperplane-shop](https://github.com/jwang2007/paperplane-shop): the demo repository and storefront.
-
 ### Team
 
 - Ben Bischoff ([@Git083104](https://github.com/Git083104)): `<ROLE>`
-- jwang ([@jwang2007](https://github.com/jwang2007)): `<ROLE>`
 - Matthew ([@matthewL687](https://github.com/matthewL687)): `<ROLE>`
 
-### Third-party data and code
+### Third-party code and data
 
+- Parts of the interface and some scanner utilities are adapted from the open-source Trustline project (https://github.com/jwang2007/trustline).
+- [matthewL687/trustline-merged](https://github.com/matthewL687/trustline-merged): the scan-budgets branch, whose per-IP limit and code-only fallback ideas we adopted.
 - [Tranco](https://tranco-list.eu/) top-sites list ID `7462X`, created 2026-10-31 (daily list 2026-10-02–2026-10-31). File and notes: `scanner/data/README.md`.
 - polyfill.io / related compromised-domain list from [Censys, July 2024](https://www.censys.com/blog/july-2-polyfill-io-supply-chain-attack-digging-into-the-web-of-compromised-domains), stored in `scanner/compromised.json`.
 - Vendored [hairline](https://github.com/lucasmarkes/hairline) Riffle (`api/static/vendor/`, MIT, `api/static/vendor/hairline-LICENSE.txt`). The live scanning screen no longer mounts the tray; the vendor files remain.
-- Hosting-platform takeover fingerprints ported from [jwang2007/trustline](https://github.com/jwang2007/trustline) `app/platforms.py` into `scanner/tools/platform_takeover.py`.
 
 ## Hackathon
 

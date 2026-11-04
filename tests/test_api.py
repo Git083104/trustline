@@ -303,17 +303,18 @@ def test_home_try_cards_have_expect_lines_and_drop_zipline():
     data = json.loads((STATIC / "targets.json").read_text())
     repos = [repo["repo"] for group in data["groups"] for repo in group["repos"]]
     assert "quantopian/zipline" not in repos
-    assert repos[:4] == [
+    assert repos[:5] == [
+        "Git083104/tether-demo-shop",
         "TryKickoff/kickoff",
         "debois/elm-mdl",
         "LeaVerou/bliss",
         "blinkfox/hexo-theme-matery",
     ]
     assert "lbryio/lbry-desktop" not in repos
-    assert repos[4:7] == ["expressjs/express", "pallets/click", "psf/requests"]
+    assert repos[5:8] == ["expressjs/express", "pallets/click", "psf/requests"]
     assert "quantopian/zipline" not in json.dumps(data)
     sites = {site["url"]: site for site in data["websites"]}
-    shop = sites["https://git083104.github.io/paperplane-shop/"]
+    shop = sites["https://git083104.github.io/tether-demo-shop/"]
     assert shop["name"] == "Demo storefront (ours)"
     assert shop["about"] == "4 problems planted on purpose"
     wiki = sites["https://www.wikipedia.org"]
