@@ -340,6 +340,34 @@ td:last-child,th:last-child{padding-right:0}
 .home-form .scan{min-height:76px;font-size:22px;padding:10px 12px}
 .demo-btn{align-self:flex-start}
 .home-art{display:flex;flex-direction:column;align-items:stretch;justify-content:center;gap:10px;min-height:240px}
+.story{margin:0 0 8px;display:flex;flex-direction:column;gap:8px}
+.story-svg{width:100%;height:auto;display:block}
+.story-line{stroke:var(--ink);stroke-width:1.2;fill:none}
+.story-hub circle{fill:var(--paper);stroke:var(--ink);stroke-width:1.2}
+.story-hub text,.story-node text{font:500 11px/1 var(--mono);fill:var(--ink)}
+.story-node circle{fill:var(--paper);stroke:var(--ink);stroke-width:1.2}
+.story-node{cursor:default}
+.story-play .tether-cdn,.story-play .tether-cdn-node{animation:cdn-break 8s linear forwards}
+.story-final .tether-cdn,.story-final .tether-cdn-node{stroke:var(--cobalt)}
+@keyframes cdn-break{0%,38%{stroke:var(--ink)}45%,100%{stroke:var(--cobalt)}}
+.story-caption-wrap{position:relative;min-height:2.6em}
+.story-caption{position:absolute;inset:0;margin:0;opacity:0;font:400 13px/1.35 var(--sans)}
+.story-play .cap-1{animation:cap1 8s linear forwards}
+.story-play .cap-2{animation:cap2 8s linear forwards}
+.story-play .cap-3{animation:cap3 8s linear forwards}
+.story-play .cap-4{animation:cap4 8s linear forwards}
+@keyframes cap1{0%,22%{opacity:1}26%,100%{opacity:0}}
+@keyframes cap2{0%,24%{opacity:0}26%,46%{opacity:1}50%,100%{opacity:0}}
+@keyframes cap3{0%,48%{opacity:0}50%,70%{opacity:1}74%,100%{opacity:0}}
+@keyframes cap4{0%,72%{opacity:0}76%,100%{opacity:1}}
+.story-final .cap-4{opacity:1}
+.story-replay{align-self:flex-start}
+@media (prefers-reduced-motion:reduce){
+  .story-play .tether-cdn,.story-play .tether-cdn-node,.story-play .story-caption{animation:none}
+  .story .tether-cdn,.story .tether-cdn-node{stroke:var(--cobalt)}
+  .story .cap-4{opacity:1}
+  .story .cap-1,.story .cap-2,.story .cap-3{opacity:0}
+}
 .home-example-label{margin:0;font:500 12px/1.3 var(--mono);letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
 .home-stack{width:min(100%,280px);height:auto;overflow:visible}
 .home-stack .tex{fill:url(#home-dots)}

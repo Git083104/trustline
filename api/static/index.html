@@ -35,6 +35,52 @@
       <button type="button" class="btn demo-btn" data-demo>Watch the demo</button>
     </div>
     <div class="cell span-2 home-art">
+      <figure class="story story-play" id="home-story">
+        <p id="story-desc" class="sr">Your site is tied to a CDN, a storage bucket, a GitHub account, an API, and analytics. In 2019 polyfill.io was trusted by 100,000 sites. In 2024 the domain was sold and malware shipped to every site. Tether marks that as Proven and tells you to fix it.</p>
+        <svg class="story-svg" viewBox="0 0 320 210" role="img" aria-labelledby="story-desc">
+          <line class="story-line tether-cdn" x1="160" y1="105" x2="160" y2="28"/>
+          <line class="story-line" x1="160" y1="105" x2="292" y2="70"/>
+          <line class="story-line" x1="160" y1="105" x2="268" y2="178"/>
+          <line class="story-line" x1="160" y1="105" x2="52" y2="178"/>
+          <line class="story-line" x1="160" y1="105" x2="28" y2="70"/>
+          <g class="story-hub">
+            <circle cx="160" cy="105" r="28"/>
+            <text x="160" y="109" text-anchor="middle">Your site</text>
+          </g>
+          <g class="story-node" tabindex="0">
+            <title>CDN sold → malware on every site</title>
+            <circle class="tether-cdn-node" cx="160" cy="22" r="8"/>
+            <text x="160" y="12" text-anchor="middle">CDN</text>
+          </g>
+          <g class="story-node" tabindex="0">
+            <title>bucket deleted → anyone can create it</title>
+            <circle cx="292" cy="70" r="8"/>
+            <text x="292" y="90" text-anchor="middle">bucket</text>
+          </g>
+          <g class="story-node" tabindex="0">
+            <title>account deleted → anyone can register it</title>
+            <circle cx="268" cy="178" r="8"/>
+            <text x="268" y="198" text-anchor="middle">GitHub</text>
+          </g>
+          <g class="story-node" tabindex="0">
+            <title>host gone → traffic goes nowhere</title>
+            <circle cx="52" cy="178" r="8"/>
+            <text x="52" y="198" text-anchor="middle">API</text>
+          </g>
+          <g class="story-node" tabindex="0">
+            <title>script still loads from a stranger</title>
+            <circle cx="28" cy="70" r="8"/>
+            <text x="28" y="90" text-anchor="middle">analytics</text>
+          </g>
+        </svg>
+        <div class="story-caption-wrap" aria-hidden="true">
+          <p class="story-caption cap-1">2019: polyfill.io trusted by 100,000 sites</p>
+          <p class="story-caption cap-2">2024: domain sold</p>
+          <p class="story-caption cap-3">malware ships to every site</p>
+          <p class="story-caption cap-4">Tether: Proven · Fix it</p>
+        </div>
+        <button type="button" class="btn story-replay" id="story-replay">Replay</button>
+      </figure>
       <p class="home-example-label">Example from the demo scan</p>
       <article class="finding ring-critical home-example">
         <div class="sevcol"><span class="finding-sev sev-critical"><span class="sev-dot"></span><span>Critical</span></span></div>

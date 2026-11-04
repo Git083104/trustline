@@ -283,6 +283,10 @@ def test_frontend_has_the_three_screens_and_no_design_switcher():
     assert "pointer-events:none" in css
     assert "Websites to try" in markup
     assert "Fix it" in markup
+    assert 'role="img"' in markup
+    assert "2019: polyfill.io trusted by 100,000 sites" in markup
+    assert "bucket deleted → anyone can create it" in markup
+    assert "story-replay" in markup
 
 
 def test_home_try_cards_have_expect_lines_and_drop_zipline():
