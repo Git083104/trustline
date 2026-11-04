@@ -293,6 +293,7 @@ def test_floor_claimable_is_critical_other_hard_is_high():
             (pages, _cl(pages, type="script", runs_in="browser"), _inv(pages, {}))
         ],
         "evidence": {
+            "github_owner": {"status": "missing", "exists": False},
             "platform_takeover": {
                 "status": "unclaimed",
                 "platform": "GitHub Pages",
@@ -767,8 +768,8 @@ async def test_fixture_scan_groups_and_ranks_claimable_first(tmp_path):
     owner_hit = next(item for item in findings if item.target == owner)
     assert owner_hit.uncertain_about == GITHUB_OWNER_NOTE
     pages_hit = next(item for item in findings if item.target == pages)
-    assert "GitHub Pages" in pages_hit.floor_reason
-    assert "vulnerable" in pages_hit.floor_reason
+    assert pages_hit.severity == "critical"
+    assert pages_hit.risk_type == "missing_github_pages" or "GitHub" in pages_hit.risk
     gone_hit = next(item for item in findings if item.target == gone)
     assert gone_hit.references == ["deploy/infra.yaml:3", "deploy/infra.yaml:5"]
     live_hit = next(item for item in findings if item.target == live)
@@ -1054,3 +1055,127 @@ def test_nxdomain_subdomain_of_live_parent_is_review_not_high():
         "A stranger could take over shadow.ele.me and serve malware.",
         reason,
     )
+
+
+def test_pages_existing_account_is_safe():
+    ref = Reference(
+        file="docs/index.html",
+        line=1,
+        raw="https://git083104.github.io/paperplane-shop/widget.js",
+        host_or_bucket="git083104.github.io",
+        domain="git083104.github.io",
+        tag="script",
+    )
+    evidence = {
+        "github_owner": {"status": "exists", "exists": True, "owner": "git083104"},
+        "platform_takeover": {
+            "status": "unclaimed",
+            "platform": "GitHub Pages",
+            "takeover": "vulnerable",
+            "host": "git083104.github.io",
+        },
+    }
+    group = {
+        "target": "git083104.github.io",
+        "kind": "domain",
+        "rows": [(ref, _cl(ref, type="script", runs_in="browser"), _inv(ref, evidence))],
+        "evidence": evidence,
+    }
+    from scanner.report import is_claimable
+
+    assert is_claimable(evidence) is False
+    assert floor_decision(group) == (None, "")
+    findings = rank(
+        group["rows"],
+        client=FakeModelClient(
+            handler=lambda request: _rank_ok(
+                severity="critical",
+                risk="Anyone can claim git083104.github.io.",
+            )
+        ),
+    )
+    assert findings[0].severity == "info"
+
+
+def test_pages_missing_account_is_claimable():
+    ref = Reference(
+        file="index.html",
+        line=12,
+        raw="https://trustline-demo-chat.github.io/widget.js",
+        host_or_bucket="trustline-demo-chat.github.io",
+        domain="trustline-demo-chat.github.io",
+        tag="script",
+    )
+    evidence = {
+        "github_owner": {"status": "missing", "exists": False, "owner": "trustline-demo-chat"},
+        "platform_takeover": {
+            "status": "unclaimed",
+            "platform": "GitHub Pages",
+            "takeover": "vulnerable",
+            "host": "trustline-demo-chat.github.io",
+        },
+    }
+    group = {
+        "target": "trustline-demo-chat.github.io",
+        "kind": "domain",
+        "rows": [(ref, _cl(ref, type="script", runs_in="browser"), _inv(ref, evidence))],
+        "evidence": evidence,
+    }
+    from scanner.report import is_claimable
+
+    assert is_claimable(evidence) is True
+    assert floor_severity(group) == "critical"
+
+
+def test_pages_missing_project_repo_is_review():
+    ref = Reference(
+        file="index.html",
+        line=1,
+        raw="https://alice.github.io/gone-app/",
+        host_or_bucket="alice.github.io",
+        domain="alice.github.io",
+    )
+    evidence = {
+        "github_owner": {"status": "exists", "exists": True, "owner": "alice"},
+        "github_repo": {"status": "missing", "exists": False},
+    }
+    group = {
+        "target": "alice.github.io",
+        "kind": "domain",
+        "rows": [(ref, _cl(ref, type="script", runs_in="browser"), _inv(ref, evidence))],
+        "evidence": evidence,
+    }
+    level, reason = floor_decision(group)
+    assert level == "low"
+    assert "only alice can recreate it" in reason
+
+
+def test_metrics_apex_nxdomain_in_src_config_is_high():
+    ref = Reference(
+        file="src/config.js",
+        line=8,
+        raw="https://events.trustline-demo-metrics.io/collect",
+        host_or_bucket="events.trustline-demo-metrics.io",
+        domain="trustline-demo-metrics.io",
+    )
+    evidence = {
+        "dns": {"status": "nxdomain", "host": "events.trustline-demo-metrics.io"},
+        "dns_parent": {"status": "nxdomain", "host": "trustline-demo-metrics.io"},
+        "rdap": {"status": "unregistered", "domain": "trustline-demo-metrics.io"},
+    }
+    group = {
+        "target": "trustline-demo-metrics.io",
+        "kind": "domain",
+        "rows": [(ref, _cl(ref, type="api", runs_in="server"), _inv(ref, evidence))],
+        "evidence": evidence,
+    }
+    level, reason = floor_decision(group)
+    assert level in {"critical", "high"}
+    assert "only the owner of" not in reason
+    findings = rank(
+        group["rows"],
+        client=FakeModelClient(handler=lambda request: _rank_ok(severity="info", risk="Looks unused.")),
+    )
+    assert findings[0].severity in {"critical", "high"}
+    assert findings[0].locations[0]["file"] == "src/config.js"
+    assert "https://events.trustline-demo-metrics.io/collect" in findings[0].locations[0].get("raw", ref.raw)

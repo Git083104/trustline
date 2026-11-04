@@ -95,14 +95,14 @@
           "run": "quick run"
         },
         {
-          "repo": "Financial-Times/polyfill-service",
-          "about": "The archived source code of polyfill.io itself · last commit June 2024",
+          "repo": "LeaVerou/bliss",
+          "about": "Tiny JS helper library · last commit 2024",
           "expect": "flagged",
-          "finding": "Its own deploy config still names cdn.polyfill.io, the domain that was sold and turned malicious. Shows the compromised list catching infrastructure code, not just script tags.",
-          "where": ".github/workflows/deploy-to-production.yml:11",
-          "checked": "polyfill.io is on Tether's compromised-CDN list; the reference is in the code (2 Nov 2026).",
-          "targets": 29,
-          "run": "medium run"
+          "finding": "The demo page loads polyfill.min.js from polyfill.io with no integrity hash.",
+          "where": "index.html:282",
+          "checked": "Live script src https://polyfill.io/v3/polyfill.min.js?features=blissfuljs in index.html (3 Nov 2026).",
+          "targets": 8,
+          "run": "quick run"
         }
       ]
     },

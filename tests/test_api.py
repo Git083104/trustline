@@ -508,4 +508,7 @@ def test_frontend_falls_back_when_the_event_stream_cannot_open():
     assert "catch" in script.split("new EventSource")[1][:200]
     assert "Live updates aren't available" in script
     assert "skipped_targets" in script
+    assert "code_only_targets" in script
+    assert "files ignored by .tether.yml" in script
+    assert "Checked by code only" in script
     assert "partial" in script

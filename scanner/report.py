@@ -47,6 +47,7 @@ from scanner.extract import (
     is_bucket_ref,
     is_github_action_ref,
     is_github_owner_ref,
+    is_github_pages_host,
     is_website_source,
     website_coverage,
 )
@@ -77,6 +78,7 @@ class ScanOutcome:
     rank_cost_usd: float = 0.0
     budget_targets: list[str] = field(default_factory=list)
     skipped_targets: list[str] = field(default_factory=list)
+    code_only_targets: list[str] = field(default_factory=list)
     skip_reasons: list[str] = field(default_factory=list)
     classify_rule_n: int = 0
     classify_model_n: int = 0
@@ -392,6 +394,27 @@ def executing_runs_in(rows: list[tuple[Reference, Classification, Investigation]
     )
 
 
+def _pages_account_exists(evidence: dict[str, Any]) -> bool:
+    owner = evidence.get("github_owner") or {}
+    if str(owner.get("status", "")).lower() not in {"exists", "ok"}:
+        return False
+    platform = evidence.get("platform_takeover") or {}
+    host = str(platform.get("host") or "")
+    return (
+        str(platform.get("platform") or "").lower() == "github pages"
+        or is_github_pages_host(host)
+    )
+
+
+def _pages_host_from_group(group: dict[str, Any] | None) -> str:
+    if not group:
+        return ""
+    target = str(group.get("target") or "")
+    if is_github_pages_host(target):
+        return target
+    return ""
+
+
 def is_claimable(evidence: dict[str, Any]) -> bool:
     evidence = consistent_evidence(evidence)
     bucket = evidence.get("bucket_probe") or {}
@@ -400,9 +423,19 @@ def is_claimable(evidence: dict[str, Any]) -> bool:
     platform = evidence.get("platform_takeover") or {}
     if bucket.get("status") == "NoSuchBucket":
         return True
-    if str(rdap.get("status", "")).lower() == "unregistered":
-        return True
     if str(owner.get("status", "")).lower() == "missing":
+        return True
+    plat_host = str(platform.get("host") or rdap.get("domain") or "")
+    pages_plat = (
+        str(platform.get("platform") or "").lower() == "github pages"
+        or is_github_pages_host(plat_host)
+    )
+    if pages_plat or _pages_account_exists(evidence):
+        return False
+    if str(rdap.get("status", "")).lower() == "unregistered":
+        host = str(rdap.get("domain") or platform.get("host") or "")
+        if is_github_pages_host(host):
+            return False
         return True
     return (
         str(platform.get("status", "")).lower() == "unclaimed"
@@ -414,6 +447,10 @@ def skip_model_rank(group: dict[str, Any]) -> bool:
     evidence = group["evidence"]
     ref0 = group["rows"][0][0]
     cl0 = group["rows"][0][1]
+    if _pages_host_from_group(group):
+        owner = evidence.get("github_owner") or {}
+        if str(owner.get("status", "")).lower() in {"exists", "ok"}:
+            return True
     if (
         is_claimable(evidence)
         or is_proven_ownership(evidence)
@@ -442,6 +479,10 @@ def template_risk(group: dict[str, Any]) -> str:
     if is_proven_ownership(group.get("evidence") or {}):
         return f"{line} {reregistered_risk(group)}".strip()
     if skip_model_rank(group):
+        pages = _pages_host_from_group(group)
+        owner = (group.get("evidence") or {}).get("github_owner") or {}
+        if pages and str(owner.get("status", "")).lower() in {"exists", "ok"}:
+            return f"{line} GitHub account still exists."
         return f"{line} Claimable or listed as compromised; no model rank.".strip()
     return f"{line} Ranking skipped; using lookup facts.".strip()
 
@@ -832,6 +873,20 @@ def floor_decision(group: dict[str, Any]) -> tuple[str | None, str]:
     if bucket.get("status") == "NoSuchBucket":
         return _claimable_now_floor(group, "NoSuchBucket", where)
     owner = evidence.get("github_owner") or {}
+    pages_host = _pages_host_from_group(group)
+    if pages_host:
+        login = github_login(group["rows"][0][0]) if group.get("rows") else pages_host.split(".", 1)[0]
+        if str(owner.get("status", "")).lower() == "missing":
+            return _claimable_now_floor(group, "GitHub Pages account missing", where)
+        if str(owner.get("status", "")).lower() in {"exists", "ok"}:
+            repo = evidence.get("github_repo") or {}
+            if str(repo.get("status", "")).lower() == "missing":
+                who = login or "that account"
+                return (
+                    "low",
+                    f"only {who} can recreate it",
+                )
+        return None, ""
     if str(owner.get("status", "")).lower() == "missing":
         return _claimable_now_floor(group, "GitHub owner missing", where)
     repo = evidence.get("github_repo") or {}
@@ -887,6 +942,15 @@ def floor_decision(group: dict[str, Any]) -> tuple[str | None, str]:
         return "high", note
     if str(dns.get("status", "")).lower() == "nxdomain":
         return _nxdomain_floor(group, evidence, dns, where)
+    parent_dns = evidence.get("dns_parent") or {}
+    if (
+        str(parent_dns.get("status", "")).lower() == "nxdomain"
+        and str(rdap.get("status", "")).lower() != "registered"
+    ):
+        return (
+            "high",
+            f"Apex NXDOMAIN in executing position ({where}) is at least high",
+        )
     return _executing_list_floor(group, evidence, where)
 
 
@@ -903,12 +967,12 @@ def _nxdomain_floor(
         "nxdomain",
     }
     host_is_apex = bool(parent) and host == parent
-    if dangling or parent_unregistered:
-        return (
-            "high",
-            f"NXDOMAIN in executing position ({where}) is at least high",
-        )
-    if host_is_apex:
+    parent_dns = evidence.get("dns_parent") or {}
+    rdap_registered = str(rdap.get("status", "")).lower() == "registered"
+    parent_nx = (
+        str(parent_dns.get("status", "")).lower() == "nxdomain" and not rdap_registered
+    )
+    if dangling or parent_unregistered or parent_nx or host_is_apex:
         return (
             "high",
             f"NXDOMAIN in executing position ({where}) is at least high",
@@ -1265,6 +1329,25 @@ def _finding_from_rank(
     from scanner.copy import decorate
     from scanner.inert import is_inert_path
 
+    if _pages_host_from_group(group):
+        owner = evidence.get("github_owner") or {}
+        if str(owner.get("status", "")).lower() in {"exists", "ok"}:
+            repo = evidence.get("github_repo") or {}
+            cap = "low" if str(repo.get("status", "")).lower() == "missing" else "info"
+            login = github_login(group["rows"][0][0]) if group.get("rows") else ""
+            note = (
+                f"only {login} can recreate it"
+                if cap == "low"
+                else "GitHub account still exists"
+            )
+            if SEVERITY_ORDER[finding.severity] < SEVERITY_ORDER[cap]:
+                finding = finding.model_copy(
+                    update={
+                        "severity": cap,
+                        "final_severity": cap,
+                        "ceiling_note": note,
+                    }
+                )
     if group["rows"] and all(is_inert_path(ref.file) for ref, _cl, _inv in group["rows"]):
         if is_claimable(evidence):
             if SEVERITY_ORDER[finding.severity] < SEVERITY_ORDER["low"]:
@@ -1319,6 +1402,7 @@ async def run_scan(
 ) -> ScanOutcome:
     clock = clock or ScanClock()
     skipped: list[str] = []
+    code_only_hosts: list[str] = []
     origin_owner = ""
     origin_repo = ""
     file_texts: dict[str, str] = {}
@@ -1363,6 +1447,7 @@ async def run_scan(
         logs=class_logs,
         clock=clock,
         skipped=skipped,
+        code_only_hosts=code_only_hosts,
         code_only=code_only,
     )
     pairs = list(zip(refs, classified, strict=True))
@@ -1387,6 +1472,7 @@ async def run_scan(
             on_event=on_event,
             clock=clock,
             skipped_hosts=skipped,
+            code_only_hosts=code_only_hosts,
             github_owner=origin_owner,
             github_repo=origin_repo,
             code_only=code_only,
@@ -1433,6 +1519,7 @@ async def run_scan(
         }
     )
     unique_skipped = sorted(set(skipped))
+    unique_code_only = sorted(set(code_only_hosts) | set(fallbacks))
     if unique_skipped:
         log.warning(
             "scan skipped %s because %s",
@@ -1456,6 +1543,7 @@ async def run_scan(
         rank_cost_usd=sum(log.cost_usd for log in rank_logs),
         budget_targets=budget,
         skipped_targets=unique_skipped,
+        code_only_targets=unique_code_only,
         skip_reasons=list(clock.skip_events),
         classify_rule_n=clock.classify_rule_n,
         classify_model_n=clock.classify_model_n,

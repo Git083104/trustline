@@ -85,7 +85,13 @@
     fixEditN: $("fix-edit-n"),
     fixDownload: $("fix-download"),
     skippedToggle: $("skipped-toggle"),
-    skippedList: $("skipped-list")
+    skippedList: $("skipped-list"),
+    ignoredSummary: $("ignored-summary"),
+    ignoredToggle: $("ignored-toggle"),
+    ignoredList: $("ignored-list"),
+    codeOnlySummary: $("code-only-summary"),
+    codeOnlyToggle: $("code-only-toggle"),
+    codeOnlyList: $("code-only-list")
   };
 
   var state = {
@@ -994,6 +1000,27 @@
     el.resMeta.textContent = "Scanned " + fileBit + timeBit + " · found " + svc + " · " + need;
   }
 
+  function bindCollapsible(toggle, list, names, showLabel) {
+    if (!toggle || !list) { return; }
+    list.replaceChildren();
+    if (!names.length) {
+      toggle.hidden = true;
+      list.hidden = true;
+      return;
+    }
+    toggle.hidden = false;
+    toggle.textContent = showLabel || "Show list";
+    names.slice(0, 40).forEach(function (name) {
+      list.appendChild(make("li", null, name));
+    });
+    list.hidden = true;
+    toggle.onclick = function () {
+      var open = !list.hidden;
+      list.hidden = open;
+      toggle.textContent = open ? (showLabel || "Show list") : "Hide list";
+    };
+  }
+
   function renderAllTargets(findings) {
     var wrap = make("div", "table-wrap");
     var table = make("table", "table");
@@ -1071,6 +1098,28 @@
     renderChips(findings);
     renderMeta(report);
     setRecordedLabel(el.resRecorded, report);
+    var ignored = ((report.coverage || {}).ignored_files) || [];
+    if (el.ignoredSummary) {
+      if (ignored.length) {
+        el.ignoredSummary.hidden = false;
+        el.ignoredSummary.textContent = ignored.length + " files ignored by .tether.yml";
+      } else {
+        el.ignoredSummary.hidden = true;
+        el.ignoredSummary.textContent = "";
+      }
+    }
+    bindCollapsible(el.ignoredToggle, el.ignoredList, ignored, "Show list");
+    var codeOnly = report.code_only_targets || [];
+    if (el.codeOnlySummary) {
+      if (codeOnly.length) {
+        el.codeOnlySummary.hidden = false;
+        el.codeOnlySummary.textContent = "Checked by code only (" + codeOnly.length + ")";
+      } else {
+        el.codeOnlySummary.hidden = true;
+        el.codeOnlySummary.textContent = "";
+      }
+    }
+    bindCollapsible(el.codeOnlyToggle, el.codeOnlyList, codeOnly, "Show list");
     if (el.partial) {
       var skipped = report.skipped_targets || [];
       if (report.code_only) {
@@ -1082,20 +1131,7 @@
       } else if (skipped.length) {
         el.partial.hidden = false;
         el.partial.textContent = "Partial scan: " + skipped.length + " targets not checked (time limit).";
-        if (el.skippedToggle && el.skippedList) {
-          el.skippedToggle.hidden = false;
-          el.skippedToggle.textContent = "Show list";
-          el.skippedList.replaceChildren();
-          skipped.slice(0, 20).forEach(function (name) {
-            el.skippedList.appendChild(make("li", null, name));
-          });
-          el.skippedList.hidden = true;
-          el.skippedToggle.onclick = function () {
-            var open = !el.skippedList.hidden;
-            el.skippedList.hidden = open;
-            el.skippedToggle.textContent = open ? "Show list" : "Hide list";
-          };
-        }
+        bindCollapsible(el.skippedToggle, el.skippedList, skipped, "Show list");
       } else {
         el.partial.hidden = true;
         el.partial.textContent = "";

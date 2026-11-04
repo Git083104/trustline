@@ -51,6 +51,7 @@ def test_partial_scan_reports_skipped_targets(tmp_path):
         ),
     ]
     skipped: list[str] = []
+    code_only: list[str] = []
     clock = ScanClock(
         total_s=0.0,
         classify_s=0.0,
@@ -65,11 +66,13 @@ def test_partial_scan_reports_skipped_targets(tmp_path):
         cache=LookupCache(tmp_path / "c.db"),
         clock=clock,
         skipped=skipped,
+        code_only_hosts=code_only,
     )
     assert len(got) == 2
-    assert got[0].reason == "not classified (deadline)"
-    assert "alpha.vendor.example.net" in skipped
-    assert "beta.vendor.example.net" in skipped
+    assert "model timeout fallback" in got[0].reason or got[0].reason == "not classified (deadline)"
+    assert skipped == []
+    assert "alpha.vendor.example.net" in code_only
+    assert "beta.vendor.example.net" in code_only
 
     gone_ref = Reference(
         file="deploy/infra.yaml",

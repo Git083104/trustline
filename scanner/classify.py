@@ -321,6 +321,7 @@ def classify(
     logs: list[CallLog] | None = None,
     clock: ScanClock | None = None,
     skipped: list[str] | None = None,
+    code_only_hosts: list[str] | None = None,
     code_only: bool = False,
 ) -> list[Classification]:
     chosen = refs if include_filtered else actionable(refs)
@@ -363,14 +364,14 @@ def classify(
             hosts = []
             for index in chunk:
                 ref = chosen[index]
-                results[index] = _deadline_classification(ref)
+                results[index] = _fallback_classification(ref)
                 hosts.append(ref.host_or_bucket)
-                if skipped is not None:
-                    skipped.append(ref.host_or_bucket)
+                if code_only_hosts is not None:
+                    code_only_hosts.append(ref.host_or_bucket)
             if clock is not None:
                 clock.note_skip(
                     "classify",
-                    "stage budget exhausted before model batch",
+                    "stage budget exhausted; used file-shape rules",
                     hosts,
                 )
             return
@@ -390,14 +391,13 @@ def classify(
                 ref = chosen[index]
                 guessed = _fallback_classification(ref)
                 results[index] = guessed
-                if isinstance(exc, TimeoutError) and guessed.reason == SKIPPED_CLASSIFY:
-                    hosts.append(ref.host_or_bucket)
-                    if skipped is not None:
-                        skipped.append(ref.host_or_bucket)
+                hosts.append(ref.host_or_bucket)
+                if code_only_hosts is not None:
+                    code_only_hosts.append(ref.host_or_bucket)
             if hosts and clock is not None:
                 clock.note_skip(
                     "classify",
-                    f"model batch exceeded {timeout_s}s timeout",
+                    f"model batch exceeded {timeout_s}s; used file-shape rules",
                     hosts,
                 )
             else:

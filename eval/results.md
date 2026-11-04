@@ -1,24 +1,5 @@
 # Eval results
 
-## 3 Nov 2026 — subdomain gold remap (old vs new)
-
-The scanner floor did not change. Gold did: `forum.lbry.tech` under registered `lbry.tech` is
-review/low, same as any other NXDOMAIN child of a live parent. `quandl.com` was already
-expiry-only → info.
-
-Revised-rubric **all labels** (trustmap vs both baselines):
-
-| when | trustmap gold_ch_caught | trustmap FA | trustmap recall | baseline original caught / FA | baseline revised caught / FA |
-|---|---|---|---|---|---|
-| before (lbry.tech still gold high) | 3/4 | 1 | 0.750 | 4 / 45 | 4 / 14 |
-| after (lbry.tech remapped to low) | 3/3 | 1 | 1.000 | 3 / 46 | 3 / 10 |
-
-Trustmap still flags the three remaining real threats (`quantopian-orchestration`, both
-`polyfill.io` rows) and still has one false alarm. Baseline (revised) now also treats
-registered-parent subdomain NXDOMAIN as low, so it no longer “misses” `lbry.tech` against
-the new gold; its false alarms drop from 14 to 10. Baseline (original) still flags every
-NXDOMAIN as high, so its false-alarm count rises by one (`lbry.tech` is no longer gold).
-
 ## Labels remapped under the revised rubric
 
 Expiry-only targets mapped to info; NXDOMAIN subdomains of a registered parent mapped to low. `eval/labels.jsonl` was not edited.
@@ -36,7 +17,7 @@ precision@10 ranks labeled targets only and is capped by the few gold critical/h
 |---|---|---|---|---|---|---|---|
 | baseline (original) | 0.056 | 0.102 | 49 | 5 | 44 | 1.000 | 0.00000000 |
 | baseline (revised) | 0.033 | 0.231 | 13 | 3 | 10 | 0.600 | 0.00000000 |
-| trustmap | 0.044 | 0.750 | 4 | 3 | 1 | 0.600 | 0.06271900 |
+| trustmap | 0.044 | 0.750 | 4 | 3 | 1 | 0.600 | 0.93641200 |
 
 #### Confusion (baseline original, gold \ predicted)
 | gold \ pred | critical | high | medium | low | info |
@@ -62,7 +43,7 @@ precision@10 ranks labeled targets only and is capped by the few gold critical/h
 | critical | 1 | 0 | 0 | 0 | 0 |
 | high | 2 | 0 | 0 | 1 | 1 |
 | medium | 1 | 0 | 0 | 0 | 0 |
-| low | 0 | 0 | 1 | 12 | 0 |
+| low | 0 | 0 | 0 | 13 | 0 |
 | info | 0 | 0 | 0 | 7 | 122 |
 
 ### Human-labeled only
@@ -112,7 +93,7 @@ precision@10 ranks labeled targets only and is capped by the few gold critical/h
 |---|---|---|---|---|---|---|---|
 | baseline (original) | 0.033 | 0.061 | 49 | 3 | 46 | 1.000 | 0.00000000 |
 | baseline (revised) | 0.033 | 0.231 | 13 | 3 | 10 | 1.000 | 0.00000000 |
-| trustmap | 0.033 | 0.750 | 4 | 3 | 1 | 1.000 | 0.06271900 |
+| trustmap | 0.033 | 0.750 | 4 | 3 | 1 | 1.000 | 0.93641200 |
 
 #### Confusion (baseline original, gold \ predicted)
 | gold \ pred | critical | high | medium | low | info |
@@ -138,7 +119,7 @@ precision@10 ranks labeled targets only and is capped by the few gold critical/h
 | critical | 1 | 0 | 0 | 0 | 0 |
 | high | 2 | 0 | 0 | 0 | 0 |
 | medium | 1 | 0 | 0 | 0 | 0 |
-| low | 0 | 0 | 1 | 13 | 0 |
+| low | 0 | 0 | 0 | 14 | 0 |
 | info | 0 | 0 | 0 | 7 | 123 |
 
 ### Human-labeled only
@@ -198,7 +179,7 @@ finding_evidence: {"dns": {"status": "nxdomain", "host": "forum.lbry.tech"}, "tr
 ### https://github.com/debois/elm-mdl `polyfill.io` gold=high
 label_evidence: {"dns": {"status": "nxdomain", "host": "cdn.polyfill.io"}, "rdap": {"status": "unknown", "domain": "polyfill.io", "days_to_expiry": null}}
 trustmap: target=polyfill.io model_severity=high final_severity=critical floor_reason=compromised domain in a browser script without SRI (browser) is at least critical
-finding_evidence: {"dns": {"status": "nxdomain", "host": "cdn.polyfill.io"}, "tranco_rank": 53571, "rdap": {"status": "unknown", "domain": "polyfill.io", "days_to_expiry": null}, "cert_history": {"status": "unavailable", "domain": "polyfill.io"}, "wayback": {"status": "ok"}}
+finding_evidence: {"dns": {"status": "nxdomain", "host": "cdn.polyfill.io"}, "tranco_rank": 53571, "rdap": {"status": "unknown", "domain": "polyfill.io", "days_to_expiry": null}, "cert_history": {"status": "unavailable", "domain": "polyfill.io"}, "wayback": {"status": "ok"}, "changed_hands": {"status": "ok"}}
 
 ### https://github.com/TryKickoff/kickoff `polyfill.io` gold=high
 label_evidence: {"dns": {"status": "nxdomain", "host": "cdn.polyfill.io"}, "rdap": {"status": "unknown", "domain": "polyfill.io", "days_to_expiry": null}}
@@ -215,7 +196,7 @@ finding_evidence: {"bucket_probe": {"status": "NoSuchBucket", "name": "quantopia
 ### https://github.com/debois/elm-mdl `polyfill.io` gold=high
 label_evidence: {"dns": {"status": "nxdomain", "host": "cdn.polyfill.io"}, "rdap": {"status": "unknown", "domain": "polyfill.io", "days_to_expiry": null}}
 trustmap: target=polyfill.io model_severity=high final_severity=critical floor_reason=compromised domain in a browser script without SRI (browser) is at least critical
-finding_evidence: {"dns": {"status": "nxdomain", "host": "cdn.polyfill.io"}, "tranco_rank": 53571, "rdap": {"status": "unknown", "domain": "polyfill.io", "days_to_expiry": null}, "cert_history": {"status": "unavailable", "domain": "polyfill.io"}, "wayback": {"status": "ok"}}
+finding_evidence: {"dns": {"status": "nxdomain", "host": "cdn.polyfill.io"}, "tranco_rank": 53571, "rdap": {"status": "unknown", "domain": "polyfill.io", "days_to_expiry": null}, "cert_history": {"status": "unavailable", "domain": "polyfill.io"}, "wayback": {"status": "ok"}, "changed_hands": {"status": "ok"}}
 
 ### https://github.com/TryKickoff/kickoff `polyfill.io` gold=high
 label_evidence: {"dns": {"status": "nxdomain", "host": "cdn.polyfill.io"}, "rdap": {"status": "unknown", "domain": "polyfill.io", "days_to_expiry": null}}

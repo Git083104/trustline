@@ -1,3 +1,7 @@
 ignore:
   - design/reference/**
   - api/demo_scan.json
+  - api/demo_pages.html
+  - api/static/targets.json
+  - scripts/smoke.py
+  - scripts/warm.py

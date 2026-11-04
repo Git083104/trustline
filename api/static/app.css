@@ -390,6 +390,7 @@ td:last-child,th:last-child{padding-right:0}
 .tab{appearance:none;border:0;background:none;padding:0 12px;font:500 14px/1 var(--sans);cursor:pointer;color:var(--muted)}
 .tab[aria-selected="true"]{color:var(--ink);box-shadow:inset 0 -2px 0 var(--cobalt)}
 .partial-banner{padding:10px 12px;border:1px solid var(--rule);color:var(--cobalt)}
+.res-note{margin:8px 0 0;color:var(--muted);font:400 14px/1.4 var(--sans)}
 .work-toggle{margin:16px 0}
 [hidden]{display:none !important}
 .sr-only,.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}

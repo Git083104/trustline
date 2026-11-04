@@ -12,6 +12,7 @@ from scanner.config import (
     MAX_AGENT_TOOL_CALLS,
     MAX_INVESTIGATION_CONCURRENCY,
     PRECHECK_CONCURRENCY,
+    PRECHECK_TIMEOUT_S,
     SCAN_COST_CAP_USD,
 )
 from scanner.deadline import ScanClock
@@ -80,6 +81,9 @@ def has_hard_signal(evidence: dict[str, Any]) -> bool:
     dns = evidence.get("dns") or {}
     if str(dns.get("status", "")).lower() == "nxdomain":
         return True
+    parent_dns = evidence.get("dns_parent") or {}
+    if str(parent_dns.get("status", "")).lower() == "nxdomain":
+        return True
     rdap = evidence.get("rdap") or {}
     if str(rdap.get("status", "")).lower() == "unregistered":
         return True
@@ -107,6 +111,9 @@ def precheck_conclusive(ref: Reference, evidence: dict[str, Any]) -> bool:
         return True
     dns = evidence.get("dns") or {}
     if str(dns.get("status", "")).lower() == "nxdomain":
+        return True
+    parent_dns = evidence.get("dns_parent") or {}
+    if str(parent_dns.get("status", "")).lower() == "nxdomain":
         return True
     rdap = evidence.get("rdap") or {}
     return str(rdap.get("status", "")).lower() == "unregistered"
@@ -161,12 +168,19 @@ def tranco_checked_safe(ref: Reference, evidence: dict[str, Any]) -> bool:
     return True
 
 
+async def _timed_tool(name: str, args: dict[str, Any], ctx: ToolContext) -> dict[str, Any]:
+    try:
+        return await asyncio.wait_for(run_tool(name, args, ctx), timeout=PRECHECK_TIMEOUT_S)
+    except asyncio.TimeoutError:
+        return {"status": "timeout"}
+
+
 async def precheck(
     ref: Reference, cl: Classification, ctx: ToolContext
 ) -> dict[str, Any]:
     evidence: dict[str, Any] = {}
     if cl.type == "bucket" or _is_bucket_ref(ref):
-        evidence["bucket_probe"] = await run_tool(
+        evidence["bucket_probe"] = await _timed_tool(
             "bucket_probe",
             {
                 "name": ref.host_or_bucket,
@@ -178,34 +192,40 @@ async def precheck(
     if is_github_action_ref(ref):
         login = github_login(ref)
         if login:
-            evidence["github_owner"] = await run_tool(
+            evidence["github_owner"] = await _timed_tool(
                 "github_owner", {"owner": login}, ctx
             )
-        evidence["github_repo"] = (
-            await ctx.github_repo(
-                ref.action_owner, ref.action_repo, cache=ctx.cache
-            )
-        ).model_dump(mode="json")
+        try:
+            evidence["github_repo"] = (
+                await asyncio.wait_for(
+                    ctx.github_repo(
+                        ref.action_owner, ref.action_repo, cache=ctx.cache
+                    ),
+                    timeout=PRECHECK_TIMEOUT_S,
+                )
+            ).model_dump(mode="json")
+        except asyncio.TimeoutError:
+            evidence["github_repo"] = {"status": "timeout"}
         return _attach_tranco(ref, evidence)
     if is_github_owner_ref(ref):
         login = github_login(ref)
         if login:
-            evidence["github_owner"] = await run_tool(
+            evidence["github_owner"] = await _timed_tool(
                 "github_owner", {"owner": login}, ctx
             )
         return _attach_tranco(ref, evidence)
-    evidence["dns"] = await run_tool("dns", {"host": ref.host_or_bucket}, ctx)
+    evidence["dns"] = await _timed_tool("dns", {"host": ref.host_or_bucket}, ctx)
     domain = ref.domain or ""
     host = (ref.host_or_bucket or "").lower()
     parent = domain.lower()
     if parent and parent != host:
-        evidence["dns_parent"] = await run_tool("dns", {"host": parent}, ctx)
+        evidence["dns_parent"] = await _timed_tool("dns", {"host": parent}, ctx)
     if domain:
-        evidence["rdap"] = await run_tool("rdap", {"domain": domain}, ctx)
+        evidence["rdap"] = await _timed_tool("rdap", {"domain": domain}, ctx)
     dns = evidence.get("dns") or {}
     cnames = list(dns.get("cnames") or [])
     if matching_platform(ref.host_or_bucket, cnames):
-        evidence["platform_takeover"] = await run_tool(
+        evidence["platform_takeover"] = await _timed_tool(
             "platform_takeover",
             {
                 "host": ref.host_or_bucket,
@@ -216,7 +236,7 @@ async def precheck(
         )
     login = github_login(ref)
     if login:
-        evidence["github_owner"] = await run_tool(
+        evidence["github_owner"] = await _timed_tool(
             "github_owner", {"owner": login}, ctx
         )
     return _attach_tranco(ref, consistent_evidence(evidence))
@@ -288,6 +308,7 @@ async def investigate(
     on_event: OnEvent | None = None,
     clock: ScanClock | None = None,
     skipped_hosts: list[str] | None = None,
+    code_only_hosts: list[str] | None = None,
     github_owner: str = "",
     github_repo: str = "",
     code_only: bool = False,
@@ -325,6 +346,17 @@ async def investigate(
             continue
         if should_investigate(ref, cl, evidence):
             eligible.append((ref, cl, evidence))
+        else:
+            held.append(
+                Investigation(
+                    file=ref.file,
+                    line=ref.line,
+                    host_or_bucket=ref.host_or_bucket,
+                    status="done",
+                    summary="code rules",
+                    evidence=evidence,
+                )
+            )
     if code_only or muse_overloaded():
         return [
             Investigation(
@@ -370,6 +402,8 @@ async def investigate(
                         other_ref, other_cl, other_ev = eligible[index]
                         results[index] = _deadline_skip(other_ref, other_cl, other_ev)
                         hosts.append(other_ref.host_or_bucket)
+                    if code_only_hosts is not None:
+                        code_only_hosts.extend(hosts)
                     clock.note_skip(
                         "agent",
                         "stage budget exhausted before tool loop; kept code verdict",
@@ -378,8 +412,10 @@ async def investigate(
                     return
                 if spent >= cost_cap:
                     for index in members:
-                        other_ref, other_cl, _ = eligible[index]
-                        results[index] = _budget_skip(other_ref, other_cl)
+                        other_ref, other_cl, other_ev = eligible[index]
+                        results[index] = _budget_skip(other_ref, other_cl, other_ev)
+                        if code_only_hosts is not None:
+                            code_only_hosts.append(other_ref.host_or_bucket)
                     return
             inv = await investigate_one(
                 ref,
@@ -422,6 +458,8 @@ async def investigate(
                 results[index] = _deadline_skip(other_ref, other_cl, other_ev)
                 hosts.append(other_ref.host_or_bucket)
             if hosts:
+                if code_only_hosts is not None:
+                    code_only_hosts.extend(hosts)
                 clock.note_skip(
                     "agent",
                     "stage budget exhausted during tool loop; kept code verdict",
@@ -614,13 +652,16 @@ def _event_target(ref: Reference, cl: Classification) -> str:
     return ref.domain or ref.host_or_bucket
 
 
-def _budget_skip(ref: Reference, cl: Classification) -> Investigation:
+def _budget_skip(
+    ref: Reference, cl: Classification, evidence: dict[str, Any] | None = None
+) -> Investigation:
     return Investigation(
         file=ref.file,
         line=ref.line,
         host_or_bucket=ref.host_or_bucket,
         status="budget",
         summary=BUDGET_NOTE,
+        evidence=evidence or {},
     )
 
 

@@ -75,7 +75,13 @@ def _ctx(tmp_path, **impls) -> ToolContext:
         return PlatformTakeoverResult(host=host, status="skipped")
 
     async def fake_github_owner(owner, cache=None, **kwargs):
-        missing = "missing" in owner.lower()
+        name = owner.lower()
+        missing = "missing" in name or name in {
+            "gone",
+            "trustline-demo-chat",
+            "trustmap-demo-pages",
+            "trustmap-missing-owner-a3f91c2e",
+        }
         return GithubOwnerResult(
             owner=owner,
             status="missing" if missing else "exists",
@@ -262,7 +268,9 @@ async def test_skips_filtered_and_low_blast(tmp_path):
         client=_scripted_client(),
         ctx=_ctx(tmp_path),
     )
-    assert results == []
+    assert [item.host_or_bucket for item in results] == ["api.vendor.example.net"]
+    assert results[0].summary == "code rules"
+    assert results[0].trace == []
 
 
 @pytest.mark.asyncio

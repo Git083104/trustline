@@ -166,14 +166,17 @@ class Coverage:
     reason: str = ""
 
     ignored_non_hosts: int = 0
+    ignored_files: list[str] = field(default_factory=list)
 
-    def as_dict(self) -> dict[str, int | bool | str]:
+    def as_dict(self) -> dict[str, int | bool | str | list[str]]:
         return {
             "files_scanned": self.files_scanned,
             "files_total": self.files_total,
             "truncated": self.truncated,
             "reason": self.reason,
             "ignored_non_hosts": self.ignored_non_hosts,
+            "ignored_files": list(self.ignored_files),
+            "ignored_file_count": len(self.ignored_files),
         }
 
 
@@ -328,6 +331,7 @@ def _extract_dir(root: Path) -> ExtractResult:
     used_bytes = 0
     truncated = False
     reason = ""
+    ignored_files: list[str] = []
     for path in candidates:
         size = _file_size(path)
         if size is None:
@@ -338,6 +342,7 @@ def _extract_dir(root: Path) -> ExtractResult:
             continue
         rel = path.relative_to(root).as_posix()
         if ignored_by_globs(rel, ignore):
+            ignored_files.append(rel)
             continue
         if scanned >= file_cap:
             truncated = True
@@ -366,6 +371,7 @@ def _extract_dir(root: Path) -> ExtractResult:
             truncated=truncated,
             reason=reason,
             ignored_non_hosts=ignored,
+            ignored_files=ignored_files,
         ),
         file_texts={name: texts[name] for name in needed if name in texts},
     )
@@ -574,6 +580,11 @@ def is_github_owner_ref(ref: Reference) -> bool:
     return github_login(ref) is not None and ref.host_or_bucket.lower().startswith(
         "github.com/"
     )
+
+
+def is_github_pages_host(host: str) -> bool:
+    name = (host or "").lower().rstrip(".")
+    return name.endswith(".github.io") and name != "github.io"
 
 
 def github_login(ref: Reference) -> str | None:

@@ -44,6 +44,26 @@ def test_tether_yml_ignore(tmp_path: Path):
     assert "cdn.polyfill.io" not in hosts
     assert "cdn-assets-trustmap-7f3k2.com" in hosts
     assert load_ignore_globs(tmp_path)
+    cov = extract_scan(str(tmp_path)).coverage
+    assert len(cov.ignored_files) >= 2
+    assert "api/demo_scan.json" in cov.ignored_files
+
+
+def test_repo_tether_yml_ignores_demo_and_smoke_paths():
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    globs = load_ignore_globs(root)
+    assert globs
+    from scanner.inert import ignored_by_globs
+
+    for rel in (
+        "api/demo_pages.html",
+        "api/static/targets.json",
+        "scripts/smoke.py",
+        "scripts/warm.py",
+    ):
+        assert ignored_by_globs(rel, globs)
 
 
 def test_inert_rows_are_not_executing():
