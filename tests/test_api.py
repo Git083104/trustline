@@ -358,8 +358,15 @@ def test_frontend_never_writes_report_text_as_html():
 
 def test_frontend_keeps_only_the_scan_id_in_the_url():
     script = (STATIC / "app.js").read_text()
+    markup = (STATIC / "index.html").read_text()
     assert '"?scan=" + encodeURIComponent(id)' in script
     assert '"?demo=1"' in script
+    assert "history.pushState" in script
+    assert "Scan in progress:" in script
+    assert "This scan is no longer available. Scan again." in script
+    assert 'id="scan-resume"' in markup
+    go_home = script.split("function goHome()", 1)[1].split("function ", 1)[0]
+    assert "closeSource" not in go_home
 
 
 def test_frontend_handles_every_documented_sse_event():

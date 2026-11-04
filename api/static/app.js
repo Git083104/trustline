@@ -75,6 +75,9 @@
     feed: $("feed"),
     callsUsed: $("calls-used"),
     skip: $("skip-report"),
+    resume: $("scan-resume"),
+    resumeText: $("scan-resume-text"),
+    resumeView: $("scan-resume-view"),
     resTarget: $("res-target"),
     resKind: $("res-kind"),
     resRecorded: $("res-recorded"),
@@ -218,7 +221,7 @@
     el.scanning.hidden = screen !== "scanning";
     el.results.hidden = screen !== "results";
     window.scrollTo(0, 0);
-    if (screen === "home") { onScroll(); }
+    if (screen === "home") { onScroll(); renderResumeBar(); }
   }
 
   function closeSource() {
@@ -236,11 +239,79 @@
     }
   }
 
+  function scanQuery() {
+    var path = window.location.pathname || "/";
+    if (state.demo) { return path + "?demo=1"; }
+    if (state.scanId) { return path + "?scan=" + encodeURIComponent(state.scanId); }
+    return path;
+  }
+
+  function pushView(view, replace) {
+    var data = { view: view, scanId: state.scanId || "", demo: !!state.demo };
+    if (replace) { history.replaceState(data, "", scanQuery()); }
+    else { history.pushState(data, "", scanQuery()); }
+  }
+
+  function stageName() {
+    return STAGES[state.stage] || "Scan";
+  }
+
+  function renderResumeBar() {
+    if (!el.resume) { return; }
+    var live = (state.scanId || state.demo) && !state.finished;
+    if (!live) {
+      el.resume.hidden = true;
+      return;
+    }
+    el.resume.hidden = false;
+    if (el.resumeText) {
+      el.resumeText.textContent = "Scan in progress: " + (state.target || "scan") + " · " + stageName() + " · ";
+    }
+  }
+
+  function viewRunningScan() {
+    if (state.finished && state.report) {
+      showResults(state.report);
+      return;
+    }
+    if (!state.source && !state.demo && state.scanId) {
+      connectStream("/api/scan/" + encodeURIComponent(state.scanId) + "/events", {
+        kind: state.kind,
+        target: state.target,
+        scanId: state.scanId,
+        demo: false
+      }, false);
+    }
+    pushView("scanning");
+    show("scanning");
+  }
+
   function goHome() {
-    closeSource();
     clearErrors();
-    history.replaceState({}, "", window.location.pathname);
-    state.report = null;
+    pushView("home");
+    show("home");
+  }
+
+  function applyHistory(data) {
+    var view = (data && data.view) || "home";
+    if (view === "scanning") {
+      if (!state.source && !state.demo && state.scanId && !state.finished) {
+        connectStream("/api/scan/" + encodeURIComponent(state.scanId) + "/events", {
+          kind: state.kind,
+          target: state.target,
+          scanId: state.scanId,
+          demo: false
+        }, false);
+      }
+      show("scanning");
+      return;
+    }
+    if (view === "results") {
+      if (state.report) { showResults(state.report, true); }
+      else if (state.scanId && !state.demo) { loadReport(); }
+      else { show("home"); }
+      return;
+    }
     show("home");
   }
 
@@ -551,7 +622,18 @@
   }
 
   function beginStream(url, meta) {
-    resetScan(meta);
+    connectStream(url, meta, true);
+  }
+
+  function connectStream(url, meta, reset) {
+    if (reset !== false) { resetScan(meta); }
+    else {
+      state.kind = meta.kind || state.kind;
+      state.target = meta.target || state.target;
+      state.scanId = meta.scanId;
+      state.demo = meta.demo;
+    }
+    if (state.source) { return; }
     var source;
     try {
       source = new EventSource(url);
@@ -688,6 +770,7 @@
       renderLayers();
       loadReport();
     }
+    if (state.screen === "home") { renderResumeBar(); }
   }
 
   function loadReport() {
@@ -700,6 +783,10 @@
       .then(function (report) {
         state.report = report;
         el.skip.disabled = false;
+        if (state.screen === "home") {
+          renderResumeBar();
+          return;
+        }
         showResults(report);
       })
       .catch(function () {
@@ -748,13 +835,13 @@
           return;
         }
         var id = String(out.body.scan_id);
-        history.replaceState({}, "", "?scan=" + encodeURIComponent(id));
         beginStream("/api/scan/" + encodeURIComponent(id) + "/events", {
           kind: out.body.kind,
           target: out.body.target,
           scanId: id,
           demo: false
         });
+        history.pushState({ view: "scanning", scanId: id, demo: false }, "", "?scan=" + encodeURIComponent(id));
       })
       .catch(function () {
         showError("The scan could not be started.", function () { startScan(raw); });
@@ -762,13 +849,13 @@
   }
 
   function startDemo() {
-    history.replaceState({}, "", "?demo=1");
     beginStream("/api/scan/demo/events", {
       kind: "",
       target: "",
       scanId: "demo",
       demo: true
     });
+    history.pushState({ view: "scanning", scanId: "demo", demo: true }, "", "?demo=1");
     // The demo report is a checked-in fixture, so "Skip to report" can work at once.
     fetch("/api/scan/demo")
       .then(function (res) { return res.json(); })
@@ -812,7 +899,7 @@
       })
       .catch(function () {
         show("home");
-        showError("That scan is no longer available. Run it again.");
+        showError("This scan is no longer available. Scan again.");
       });
   }
 
@@ -1193,10 +1280,15 @@
     el.tabTrace.appendChild(card);
   }
 
-  function showResults(report) {
+  function showResults(report, fromHistory) {
     closeSource();
     state.report = report;
     state.finished = true;
+    if (!fromHistory) { pushView("results"); }
+    try {
+      sessionStorage.setItem("tether-view", "results");
+      sessionStorage.setItem("tether-scan", state.demo ? "demo" : (state.scanId || ""));
+    } catch (err) {}
     show("results");
 
     el.resTarget.textContent = report.target || state.target;
@@ -1509,6 +1601,12 @@
   el.skip.addEventListener("click", function () {
     if (state.report) { showResults(state.report); }
   });
+  if (el.resumeView) {
+    el.resumeView.addEventListener("click", viewRunningScan);
+  }
+  window.addEventListener("popstate", function (event) {
+    applyHistory(event.state || {});
+  });
   if (el.badgeCopy) {
     el.badgeCopy.addEventListener("click", function () {
       var value = el.badgeSnippet ? el.badgeSnippet.textContent : "";
@@ -1528,9 +1626,28 @@
 
   var params = new URLSearchParams(window.location.search);
   var scanParam = params.get("scan");
-  if (params.get("demo") === "1") {
-    startDemo();
-  } else if (scanParam && /^[A-Za-z0-9_-]+$/.test(scanParam)) {
+  var savedView = "";
+  var savedScan = "";
+  try {
+    savedView = sessionStorage.getItem("tether-view") || "";
+    savedScan = sessionStorage.getItem("tether-scan") || "";
+  } catch (err) {}
+  if (scanParam && /^[A-Za-z0-9_-]+$/.test(scanParam)) {
     openScanId(scanParam);
+  } else if (params.get("demo") === "1") {
+    if (savedView === "results" && savedScan === "demo") {
+      fetch("/api/scan/demo")
+        .then(function (res) { return res.json(); })
+        .then(function (report) {
+          state.demo = true;
+          state.scanId = "demo";
+          showResults(report, true);
+        })
+        .catch(function () { startDemo(); });
+    } else {
+      startDemo();
+    }
+  } else {
+    history.replaceState({ view: "home", scanId: "", demo: false }, "", window.location.pathname);
   }
 })();

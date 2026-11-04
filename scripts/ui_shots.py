@@ -134,8 +134,25 @@ def main() -> int:
                 page.goto(f"http://127.0.0.1:{PORT}/", wait_until="networkidle")
                 page.wait_for_selector("text=Websites to try")
                 page.wait_for_selector("text=Repos to try")
-                page.wait_for_selector("text=See the full scan")
+                page.wait_for_selector("#hero-canvas")
                 page.wait_for_selector("text=Demo storefront")
+                canvas = page.locator("#hero-canvas")
+                box = canvas.bounding_box()
+                before = page.evaluate("() => window.heroStats && window.heroStats.frames")
+                if box:
+                    page.mouse.move(box["x"] + box["width"] * 0.4, box["y"] + box["height"] * 0.5)
+                    page.mouse.down()
+                    page.mouse.move(box["x"] + box["width"] * 0.7, box["y"] + box["height"] * 0.45, steps=8)
+                    page.mouse.up()
+                page.wait_for_timeout(400)
+                after = page.evaluate("() => window.heroStats || {}")
+                frames_after = after.get("frames") or 0
+                if before is not None and frames_after <= before:
+                    errors.append(f"{label} hero: drag did not produce a new frame")
+                else:
+                    print(
+                        f"PASS  hero drag {label}  avgMs={after.get('avgMs')} frames={frames_after}"
+                    )
                 page.screenshot(path=str(OUT / f"home-{label}.png"), full_page=True)
                 _assert_layout(page, width=width, label=f"home-{label}", errors=errors)
                 home_fails = page.evaluate(HOME_ONLY_JS)
@@ -149,7 +166,18 @@ def main() -> int:
 
                 page.get_by_role("button", name="Watch the demo").click()
                 page.wait_for_selector("#screen-scanning", state="visible")
+                page.wait_for_selector("text=Now checking")
                 page.wait_for_timeout(1800)
+                page.get_by_role("button", name="Tether").click()
+                page.wait_for_selector("#page-home", state="visible")
+                page.wait_for_selector("text=Scan in progress")
+                page.get_by_role("button", name="View").click()
+                page.wait_for_selector("#screen-scanning", state="visible")
+                page.go_back()
+                page.wait_for_selector("#page-home", state="visible")
+                page.go_forward()
+                page.wait_for_selector("#screen-scanning", state="visible")
+                print(f"PASS  navigation {label}")
                 page.screenshot(path=str(OUT / f"scanning-{label}.png"), full_page=True)
                 _assert_layout(page, width=width, label=f"scanning-{label}", errors=errors)
 
@@ -157,8 +185,13 @@ def main() -> int:
                 page.get_by_role("button", name="Skip to report").click()
                 page.wait_for_selector("#screen-results", state="visible", timeout=15_000)
                 page.wait_for_selector("#screen-results .finding")
+                if page.locator("#badge-copy").count():
+                    page.screenshot(path=str(OUT / f"results-badge-{label}.png"), full_page=True)
                 page.screenshot(path=str(OUT / f"results-{label}.png"), full_page=True)
                 _assert_layout(page, width=width, label=f"results-{label}", errors=errors)
+                page.reload(wait_until="networkidle")
+                page.wait_for_selector("#screen-results", state="visible", timeout=15_000)
+                print(f"PASS  results reload {label}")
 
                 details = page.get_by_role("button", name="Details")
                 if details.count():
@@ -179,6 +212,13 @@ def main() -> int:
                 _assert_layout(page, width=width, label=f"fix-it-{label}", errors=errors)
 
                 page.get_by_role("button", name="Show the work").click()
+                page.get_by_role("tab", name="Agent trace").click()
+                if page.locator(".feed-k").count():
+                    page.wait_for_selector("text=Question")
+                page.screenshot(path=str(OUT / f"tab-agent-{label}.png"), full_page=True)
+                later = page.get_by_text("never run, so there's nothing to fix")
+                if later.count():
+                    page.screenshot(path=str(OUT / f"review-later-{label}.png"), full_page=True)
                 for name in ("Fix first", "All targets", "Agent trace", "Raw JSON"):
                     page.get_by_role("tab", name=name).click()
                     page.screenshot(

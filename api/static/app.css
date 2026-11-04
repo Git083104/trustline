@@ -339,6 +339,7 @@ td:last-child,th:last-child{padding-right:0}
 .home-form .scan-cell{min-height:76px;border:1px solid var(--cobalt);padding:0}
 .home-form .scan{min-height:76px;font-size:22px;padding:10px 12px}
 .demo-btn{align-self:flex-start}
+.scan-resume{margin:10px 0 0;display:flex;flex-wrap:wrap;gap:8px;align-items:center;font:400 13px/1.4 var(--mono);color:var(--ink)}
 .home-art{display:flex;flex-direction:column;align-items:stretch;justify-content:center;gap:10px;min-height:240px}
 .hero-fig{margin:0;display:block}
 .hero-canvas{display:block;width:100%;max-width:100%;cursor:grab;touch-action:none;background:transparent}
