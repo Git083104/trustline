@@ -71,6 +71,7 @@ def test_placeholder_home_and_demo_button():
         assert css.status_code == 200
         assert js.status_code == 200
         assert "EventSource" in js.text
+        assert "locRank" in js.text
         demo = client.get("/api/scan/demo/events", params={"speed": "0"})
         assert demo.status_code == 200
         types = [item.get("type") for item in _parse_sse(demo.text)]

@@ -36,3 +36,25 @@ def test_decorate_writes_code_headlines_and_steps():
     prompt = assistant_prompt(out)
     assert "index.html:9" in prompt
     assert "Do not register" in prompt
+
+
+def test_what_to_do_lists_executing_location_before_docs():
+    item = Finding(
+        target="polyfill.io",
+        kind="domain",
+        references=["README.md:4", "index.html:8"],
+        severity="critical",
+        model_severity="critical",
+        final_severity="critical",
+        classified_blast_radius=3,
+        ranked_blast_radius=3,
+        risk="compromised",
+        fix="replace with maintained source",
+        evidence={},
+        locations=[
+            {"file": "README.md", "line": 4, "runs_in": "docs_only"},
+            {"file": "index.html", "line": 8, "runs_in": "browser", "tag": "script"},
+        ],
+    )
+    out = decorate(item)
+    assert out.steps[0].startswith("Open index.html:8")

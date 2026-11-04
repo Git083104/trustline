@@ -774,28 +774,46 @@
 
   /* ---------- report helpers (all code-derived) ---------- */
 
+  function locRank(ref) {
+    var file = "";
+    var runs = "";
+    if (typeof ref === "string") { file = ref.split(":")[0]; }
+    else if (ref && typeof ref === "object") {
+      file = String(ref.file || "");
+      runs = String(ref.runs_in || "");
+    }
+    var lower = file.toLowerCase();
+    if (runs === "test" || runs === "docs_only" || /\.md$/.test(lower) || /\.json$/.test(lower)
+        || /(^|\/)(tests|test|docs|design|examples|fixtures)\//.test(lower)) {
+      return 2;
+    }
+    if (/package\.json$|manifest\.json$|\.config\.|docker-compose|\.github\/workflows\//.test(lower)) {
+      return 1;
+    }
+    return 0;
+  }
+
+  function locLine(ref) {
+    if (typeof ref === "string") { return ref; }
+    if (!ref || typeof ref !== "object") { return ""; }
+    if (ref.file) { return ref.file + (ref.line ? ":" + ref.line : ""); }
+    if (ref.page_url) { return ref.page_url + (ref.line ? ":" + ref.line : ""); }
+    if (ref.file_line) { return ref.file_line; }
+    return "";
+  }
+
+  function sortedRefs(item) {
+    var refs = (item.locations && item.locations.length ? item.locations : item.references) || [];
+    return refs.slice().sort(function (a, b) { return locRank(a) - locRank(b); });
+  }
+
   function locationLines(item) {
-    var refs = item.references || [];
-    var lines = refs.map(function (ref) {
-      if (typeof ref === "string") { return ref; }
-      if (!ref || typeof ref !== "object") { return ""; }
-      if (ref.file) { return ref.file + (ref.line ? ":" + ref.line : ""); }
-      if (ref.page_url) { return ref.page_url + (ref.line ? ":" + ref.line : ""); }
-      return "";
-    }).filter(Boolean);
+    var lines = sortedRefs(item).map(locLine).filter(Boolean);
     return { shown: lines.slice(0, 3).join(", "), more: Math.max(0, lines.length - 3) };
   }
 
   function whereUsed(item) {
-    var refs = item.references || [];
-    return refs.map(function (ref) {
-      if (typeof ref === "string") { return ref; }
-      if (!ref || typeof ref !== "object") { return ""; }
-      if (ref.page_url) { return ref.page_url + (ref.line ? ":" + ref.line : ""); }
-      if (ref.file_line) { return ref.file_line; }
-      if (ref.file) { return ref.file + (ref.line ? ":" + ref.line : ""); }
-      return "";
-    }).filter(Boolean).join(", ");
+    return sortedRefs(item).map(locLine).filter(Boolean).join(", ");
   }
 
   function evidenceText(item) {

@@ -38,11 +38,24 @@ WHY = {
 }
 
 
+def _loc_priority(loc: dict[str, Any]) -> int:
+    from scanner.inert import is_config_file, is_inert_path
+
+    path = str(loc.get("file") or "")
+    runs = str(loc.get("runs_in") or "")
+    if is_inert_path(path) or runs in {"test", "docs_only"}:
+        return 2
+    if is_config_file(path):
+        return 1
+    return 0
+
+
 def _first_loc(item: Finding) -> str:
-    for loc in item.locations or []:
-        if isinstance(loc, dict) and loc.get("file"):
-            line = loc.get("line") or 1
-            return f"{loc['file']}:{line}"
+    locs = [loc for loc in item.locations or [] if isinstance(loc, dict) and loc.get("file")]
+    locs.sort(key=_loc_priority)
+    for loc in locs:
+        line = loc.get("line") or 1
+        return f"{loc['file']}:{line}"
     if item.references:
         ref = item.references[0]
         if isinstance(ref, str):
