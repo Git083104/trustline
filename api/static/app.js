@@ -1276,30 +1276,22 @@
         if (!data) { return; }
         if (list && data.groups) {
           list.replaceChildren();
-          var ordered = [];
-          function take(index, n) {
-            var repos = ((data.groups[index] || {}).repos || []).slice(0, n);
-            repos.forEach(function (repo) { ordered.push(repo); });
-          }
-          take(0, 2);
-          take(1, 2);
-          take(3, 2);
           data.groups.forEach(function (group) {
             (group.repos || []).forEach(function (repo) {
-              if (ordered.indexOf(repo) < 0) { ordered.push(repo); }
-            });
-          });
-          ordered.forEach(function (repo) {
               var btn = make("button", "repo-chip");
               btn.type = "button";
               btn.appendChild(make("span", "repo-chip-name", repo.repo));
-              btn.appendChild(make("span", "repo-chip-about", repo.about || repo.finding || ""));
+              if (repo.about) {
+                btn.appendChild(make("span", "repo-chip-about", repo.about));
+              }
+              btn.appendChild(make("span", "repo-chip-expect", repo.expect || ""));
               btn.addEventListener("click", function () {
                 el.target.value = "https://github.com/" + repo.repo;
                 syncInput();
                 el.target.focus();
               });
               list.appendChild(btn);
+            });
           });
           if (more) {
             more.hidden = list.children.length <= 6;
@@ -1317,7 +1309,10 @@
             var btn = make("button", "repo-chip");
             btn.type = "button";
             btn.appendChild(make("span", "repo-chip-name", site.name || site.url));
-            btn.appendChild(make("span", "repo-chip-about", site.about || ""));
+            if (site.about) {
+              btn.appendChild(make("span", "repo-chip-about", site.about));
+            }
+            btn.appendChild(make("span", "repo-chip-expect", site.expect || ""));
             btn.addEventListener("click", function () {
               el.target.value = site.url;
               syncInput();

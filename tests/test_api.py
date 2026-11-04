@@ -272,6 +272,35 @@ def test_frontend_has_the_three_screens_and_no_design_switcher():
     assert "Fix it" in markup
 
 
+def test_home_try_cards_have_expect_lines_and_drop_zipline():
+    data = json.loads((STATIC / "targets.json").read_text())
+    repos = [repo["repo"] for group in data["groups"] for repo in group["repos"]]
+    assert "quantopian/zipline" not in repos
+    assert repos[:5] == [
+        "TryKickoff/kickoff",
+        "debois/elm-mdl",
+        "LeaVerou/bliss",
+        "blinkfox/hexo-theme-matery",
+        "lbryio/lbry-desktop",
+    ]
+    assert repos[5:8] == ["expressjs/express", "pallets/click", "psf/requests"]
+    assert "quantopian/zipline" not in json.dumps(data)
+    sites = {site["url"]: site for site in data["websites"]}
+    shop = sites["https://git083104.github.io/paperplane-shop/"]
+    assert shop["name"] == "Demo storefront (ours)"
+    assert shop["about"] == "4 problems planted on purpose"
+    wiki = sites["https://www.wikipedia.org"]
+    assert wiki["name"] == "wikipedia.org"
+    assert wiki["about"] == "Control: should come back clean"
+    assert wiki["about"].count("should come back clean") == 1
+    for item in data["websites"] + [repo for group in data["groups"] for repo in group["repos"]]:
+        assert str(item.get("expect") or "").startswith("Expect:")
+    js = (STATIC / "app.js").read_text()
+    assert "repo-chip-expect" in js
+    css = (STATIC / "app.css").read_text()
+    assert "text-overflow:ellipsis" not in css.split(".repo-chip-name")[1].split("}")[0]
+
+
 def test_results_layout_and_feed_wording_ship():
     css = (STATIC / "app.css").read_text()
     js = (STATIC / "app.js").read_text()

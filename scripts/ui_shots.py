@@ -76,7 +76,32 @@ def _assert_layout(page, *, width: int, label: str, errors: list[str]) -> None:
         print(f"PASS  layout {label}  findings text column + no overflow")
 
 
+HOME_ONLY_JS = """
+() => {
+  const fails = [];
+  const width = window.innerWidth;
+  for (const node of document.querySelectorAll('.repo-chip-name')) {
+    if (node.scrollWidth > node.clientWidth + 1) {
+      fails.push(`truncated title: ${node.textContent}`);
+    }
+  }
+  const text = document.body.innerText;
+  if (!text.includes('Demo storefront (ours)')) fails.push('missing storefront title');
+  if (!text.includes('4 problems planted on purpose')) fails.push('missing storefront line');
+  if (!text.includes('wikipedia.org')) fails.push('missing wikipedia title');
+  if ((text.match(/Control: should come back clean/g) || []).length !== 1) {
+    fails.push('wikipedia control line should appear once');
+  }
+  if (document.documentElement.scrollWidth > width + 1) {
+    fails.push(`document scrollWidth ${document.documentElement.scrollWidth} > ${width}`);
+  }
+  return fails;
+}
+"""
+
+
 def main() -> int:
+    home_only = "--home-only" in sys.argv
     OUT.mkdir(parents=True, exist_ok=True)
     server = subprocess.Popen(
         [
@@ -113,6 +138,14 @@ def main() -> int:
                 page.wait_for_selector("text=Demo storefront")
                 page.screenshot(path=str(OUT / f"home-{label}.png"), full_page=True)
                 _assert_layout(page, width=width, label=f"home-{label}", errors=errors)
+                home_fails = page.evaluate(HOME_ONLY_JS)
+                if home_fails:
+                    errors.extend(f"{label} home: {item}" for item in home_fails)
+                else:
+                    print(f"PASS  home copy {label}")
+                if home_only:
+                    page.close()
+                    continue
 
                 page.get_by_role("button", name="Watch the demo").click()
                 page.wait_for_selector("#screen-scanning", state="visible")

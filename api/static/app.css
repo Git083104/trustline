@@ -335,7 +335,7 @@ td:last-child,th:last-child{padding-right:0}
 .home-stack .tex{fill:url(#home-dots)}
 .repos-title{font:500 21px/1.2 var(--display);letter-spacing:-.02em;margin:0 0 12px}
 .repo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px}
-.repo-grid.is-collapsed{max-height:112px;overflow:hidden}
+.repo-grid.is-collapsed{max-height:200px;overflow:hidden}
 .finding-headline{margin:0 0 6px;font:500 18px/1.3 var(--display);letter-spacing:-.02em}
 .finding-why{margin:8px 0;color:var(--ink)}
 .why-k,.steps-k{display:block;font:500 12px/1.3 var(--mono);text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:4px}
@@ -347,10 +347,11 @@ td:last-child,th:last-child{padding-right:0}
 .fix-item{border-top:1px solid var(--rule);padding:12px 0;display:grid;gap:8px}
 .fix-advanced{margin:12px 0 8px;color:var(--muted)}
 .skipped-list{margin:8px 0 0;padding-left:1.2em;font:400 13px/1.4 var(--mono)}
-.repo-chip{appearance:none;border:1px solid var(--rule);border-radius:0;background:var(--paper);color:var(--ink);text-align:left;padding:8px 10px;height:62px;min-height:44px;cursor:pointer;display:flex;flex-direction:column;gap:4px;overflow:hidden}
+.repo-chip{appearance:none;border:1px solid var(--rule);border-radius:0;background:var(--paper);color:var(--ink);text-align:left;padding:8px 10px;height:auto;min-height:44px;cursor:pointer;display:flex;flex-direction:column;gap:4px;overflow:visible}
 .repo-chip:hover{border-color:var(--cobalt);color:var(--cobalt)}
-.repo-chip-name{font:500 13px/1.25 var(--mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.repo-chip-about{font:400 12px/1.3 var(--sans);color:var(--muted);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.repo-chip-name{font:500 13px/1.25 var(--mono);overflow:visible;text-overflow:unset;white-space:normal;overflow-wrap:anywhere}
+.repo-chip-about{font:400 12px/1.3 var(--sans);color:var(--muted)}
+.repo-chip-expect{font:500 12px/1.3 var(--mono);color:var(--ink)}
 .repo-more{margin-top:10px}
 .fix-panel{margin:12px 0 18px}
 .fix-diff{white-space:pre-wrap;overflow:auto;max-height:360px;font:400 12px/1.45 var(--mono);border:1px solid var(--rule);padding:12px;background:var(--paper)}

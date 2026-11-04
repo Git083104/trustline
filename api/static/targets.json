@@ -1,108 +1,122 @@
 {
-  "checked": "2026-11-02",
-  "note": "Picked and checked on 2 Nov 2026. Owners can fix things or let more lapse at any time, so the live scan is the final word.",
+  "checked": "2026-11-04",
+  "note": "Expect lines from the 4 Nov 2026 production warm run. Owners can fix things or let more lapse at any time, so the live scan is the final word.",
   "websites": [
     {
       "url": "https://git083104.github.io/paperplane-shop/",
-      "name": "Demo storefront (ours): 4 problems planted on purpose",
-      "about": "polyfill.io, an unregistered script domain, a deleted Pages account, and a missing Azure container"
+      "name": "Demo storefront (ours)",
+      "about": "4 problems planted on purpose",
+      "expect": "Expect: 3 critical · 1 high · polyfill.io, trustline-demo-cartkit.com, trustline-demo-chat.github.io, trustlinedemoassets"
     },
     {
       "url": "https://git083104.github.io/paperplane-shop/abandoned/",
       "name": "Abandoned widget",
-      "about": "loads a script from a deleted GitHub Pages account"
+      "about": "loads a script from a deleted GitHub Pages account",
+      "expect": "Expect: 1 critical · trustline-demo-chat.github.io"
     },
     {
       "url": "https://git083104.github.io/paperplane-shop/old-cdn/",
       "name": "Old CDN",
-      "about": "loads from cdn.bootcss.com plus a script without an integrity hash"
+      "about": "loads from cdn.bootcss.com plus a script without an integrity hash",
+      "expect": "Expect: 1 critical · bootcss.com"
     },
     {
       "url": "https://www.wikipedia.org",
-      "name": "Control: should come back clean",
-      "about": "should come back clean"
+      "name": "wikipedia.org",
+      "about": "Control: should come back clean",
+      "expect": "Expect: clean"
     }
   ],
   "groups": [
     {
       "title": "Finds real problems",
-      "blurb": "Popular projects nobody maintains anymore, each with something Tether should flag.",
-      "repos": [
-        {
-          "repo": "ElemeFE/element",
-          "about": "Element UI for Vue 2 · 54k stars · last push April 2024",
-          "expect": "flagged",
-          "finding": "CI runs actions-cool/maintain-one-comment@v1.2.1, an Action whose repository GitHub has disabled, and pins it to a tag rather than a commit. A big repo: 73 targets in one scan.",
-          "where": ".github/workflows/preview-deploy.yml:38",
-          "checked": "GitHub shows “This repository has been disabled.” (3 Nov 2026). The owner account still exists, so nobody else can claim the name.",
-          "targets": 73,
-          "run": "long run"
-        },
-        {
-          "repo": "quantopian/zipline",
-          "about": "Algorithmic trading library · 17.5k stars · last commit October 2020",
-          "expect": "critical",
-          "finding": "A deleted S3 bucket in CI; details withheld until the maintainers are notified",
-          "where": ".github/workflows/ci.yaml:31",
-          "checked": "NoSuchBucket in the team's live eval run (1 Nov 2026).",
-          "targets": 67,
-          "run": "long run"
-        },
-        {
-          "repo": "blinkfox/hexo-theme-matery",
-          "about": "Hexo blog theme · last commit May 2023",
-          "expect": "critical",
-          "finding": "Loads Vue and MathJax from cdn.bootcss.com, a CDN tied to the operator behind the polyfill.io attack. Blogs that use these features run that script in every visitor's browser.",
-          "where": "layout/bb.ejs:28",
-          "checked": "bootcss.com is on Tether's compromised-CDN list; the reference is in the code (2 Nov 2026).",
-          "targets": 62,
-          "run": "long run"
-        },
-        {
-          "repo": "lbryio/lbry-desktop",
-          "about": "LBRY desktop app · 3.5k stars · LBRY shut down in 2023",
-          "expect": "high",
-          "finding": "The report page links to forum.lbry.tech, which no longer resolves. lbry.tech itself was about 70 days from expiring on 1 Nov 2026.",
-          "where": "ui/page/report/view.jsx:116",
-          "checked": "NXDOMAIN in the team's live eval run (1 Nov 2026).",
-          "targets": 62,
-          "run": "long run"
-        }
-      ]
-    },
-    {
-      "title": "polyfill.io, still loading",
-      "blurb": "Smaller repos that still load the CDN that served malware to over 100,000 sites in 2024.",
+      "blurb": "Public repos whose latest production scan still has something to fix today.",
       "repos": [
         {
           "repo": "TryKickoff/kickoff",
           "about": "Front-end starter kit · last commit May 2017",
-          "expect": "critical",
+          "expect": "Expect: 1 critical · 1 high · polyfill.io, imgur.com",
           "finding": "index.html loads https://cdn.polyfill.io/v2/polyfill.min.js with no integrity hash.",
           "where": "index.html:38",
-          "checked": "Critical in the team's eval run (1 Nov 2026); the reference is still there (2 Nov 2026).",
-          "targets": 40,
+          "checked": "Production warm 4 Nov 2026.",
+          "targets": 41,
           "run": "medium run"
         },
         {
           "repo": "debois/elm-mdl",
           "about": "Material Design Lite for Elm · last commit August 2018",
-          "expect": "high",
+          "expect": "Expect: 2 critical · elm-lang.org, polyfill.io",
           "finding": "The demo page loads polyfill.js from cdn.polyfill.io.",
           "where": "demo/page.html:32",
-          "checked": "High in the team's eval run (1 Nov 2026); the reference is still there (2 Nov 2026).",
-          "targets": 22,
+          "checked": "Production warm 4 Nov 2026.",
+          "targets": 23,
           "run": "quick run"
         },
         {
           "repo": "LeaVerou/bliss",
           "about": "Tiny JS helper library · last commit 2024",
-          "expect": "flagged",
+          "expect": "Expect: 1 critical · polyfill.io",
           "finding": "The demo page loads polyfill.min.js from polyfill.io with no integrity hash.",
           "where": "index.html:282",
-          "checked": "Live script src https://polyfill.io/v3/polyfill.min.js?features=blissfuljs in index.html (3 Nov 2026).",
-          "targets": 8,
+          "checked": "Production warm 4 Nov 2026.",
+          "targets": 20,
           "run": "quick run"
+        },
+        {
+          "repo": "blinkfox/hexo-theme-matery",
+          "about": "Hexo blog theme · last commit May 2023",
+          "expect": "Expect: 2 critical · bootcss.com, disqus.com",
+          "finding": "Loads Vue and MathJax from cdn.bootcss.com.",
+          "where": "layout/bb.ejs:28",
+          "checked": "Production warm 4 Nov 2026.",
+          "targets": 64,
+          "run": "long run"
+        },
+        {
+          "repo": "lbryio/lbry-desktop",
+          "about": "LBRY desktop app · 3.5k stars · LBRY shut down in 2023",
+          "expect": "Expect: 1 critical · lbryshare.com",
+          "finding": "lbryshare.com is claimable. forum.lbry.tech no longer resolves, but only the owner of lbry.tech can recreate that subdomain.",
+          "where": "ui/page/report/view.jsx:116",
+          "checked": "Production warm 4 Nov 2026.",
+          "targets": 63,
+          "run": "long run"
+        }
+      ]
+    },
+    {
+      "title": "Clean controls",
+      "blurb": "Well-kept projects. A good scan should come back with nothing to fix today.",
+      "repos": [
+        {
+          "repo": "expressjs/express",
+          "about": "Node.js web framework · actively maintained",
+          "expect": "Expect: clean",
+          "finding": "19 targets: Node and npm sites, docs and badge services.",
+          "where": "",
+          "checked": "Production warm 4 Nov 2026.",
+          "targets": 19,
+          "run": "quick run"
+        },
+        {
+          "repo": "pallets/click",
+          "about": "Python command-line library · actively maintained",
+          "expect": "Expect: clean",
+          "finding": "21 targets, almost all documentation links.",
+          "where": "",
+          "checked": "Production warm 4 Nov 2026.",
+          "targets": 21,
+          "run": "quick run"
+        },
+        {
+          "repo": "psf/requests",
+          "about": "Python HTTP library · actively maintained",
+          "expect": "Expect: clean",
+          "finding": "62 targets, mostly links in its docs and history file.",
+          "where": "",
+          "checked": "Production warm 4 Nov 2026.",
+          "targets": 62,
+          "run": "long run"
         }
       ]
     },
@@ -113,83 +127,57 @@
         {
           "repo": "Pixabay/jQuery-autoComplete",
           "about": "jQuery plugin · last commit March 2016",
-          "expect": "mostly safe",
-          "finding": "Four targets, including a stylesheet on cdn.rawgit.com, a CDN that shut down in 2019.",
+          "expect": "Expect: clean",
+          "finding": "Five targets, including a stylesheet on cdn.rawgit.com.",
           "where": "demo.html:9",
-          "checked": "In the team's eval set with nothing critical or high (1 Nov 2026).",
-          "targets": 4,
+          "checked": "Production warm 4 Nov 2026: nothing to fix today.",
+          "targets": 5,
           "run": "quick run"
         },
         {
           "repo": "oncebot/pushbar.js",
           "about": "Drawer plugin · last commit December 2019",
-          "expect": "mostly safe",
+          "expect": "Expect: clean",
           "finding": "Four targets: a CDN link, the demo page, the author's site and a donation link.",
           "where": "README.md",
-          "checked": "In the team's eval set with nothing critical or high (1 Nov 2026).",
+          "checked": "Production warm 4 Nov 2026: nothing to fix today.",
           "targets": 4,
           "run": "quick run"
         },
         {
           "repo": "sammy007/monero-stratum",
           "about": "Monero mining pool server · last commit October 2019",
-          "expect": "mostly safe",
+          "expect": "Expect: clean",
           "finding": "Six targets, including the block explorer its dashboard links to.",
           "where": "www/index.html",
-          "checked": "In the team's eval set with nothing critical or high (1 Nov 2026).",
+          "checked": "Production warm 4 Nov 2026: nothing to fix today.",
           "targets": 6,
           "run": "quick run"
         }
       ]
     },
     {
-      "title": "Clean controls",
-      "blurb": "Well-kept projects. A good scan should come back mostly safe.",
+      "title": "Longer runs",
+      "blurb": "Bigger public repos. Slow; useful as a stress test. Latest production scan had nothing to fix today.",
       "repos": [
         {
-          "repo": "expressjs/express",
-          "about": "Node.js web framework · actively maintained",
-          "expect": "mostly safe",
-          "finding": "18 targets: Node and npm sites, docs and badge services.",
-          "where": "",
-          "checked": "In the team's eval set with nothing critical or high (1 Nov 2026).",
-          "targets": 18,
-          "run": "quick run"
-        },
-        {
-          "repo": "pallets/click",
-          "about": "Python command-line library · actively maintained",
-          "expect": "mostly safe",
-          "finding": "19 targets, almost all documentation links.",
-          "where": "",
-          "checked": "Gather layer run on 2 Nov 2026: 19 targets.",
-          "targets": 19,
-          "run": "quick run"
-        },
-        {
-          "repo": "psf/requests",
-          "about": "Python HTTP library · actively maintained",
-          "expect": "mostly safe",
-          "finding": "61 targets, mostly links in its docs and history file.",
-          "where": "",
-          "checked": "In the team's eval set with nothing critical or high (1 Nov 2026).",
-          "targets": 61,
+          "repo": "ElemeFE/element",
+          "about": "Element UI for Vue 2 · 54k stars · last push April 2024",
+          "expect": "Expect: clean",
+          "finding": "A large scan (about 70 targets). Latest production run had nothing to fix today; a disabled GitHub Action stays in Review.",
+          "where": ".github/workflows/preview-deploy.yml:38",
+          "checked": "Production warm 4 Nov 2026: 0 Fix-today.",
+          "targets": 74,
           "run": "long run"
-        }
-      ]
-    },
-    {
-      "title": "Stress test",
-      "blurb": "A huge repo. Slow and costly; on Vercel the agent stage stops early so the scan can finish.",
-      "repos": [
+        },
         {
           "repo": "angular/angular.js",
           "about": "AngularJS · end of life since 2022",
-          "expect": "big run",
-          "finding": "7,412 outside references across 194 targets.",
+          "expect": "Expect: clean",
+          "finding": "A huge repo (about 190 targets). Slow. Latest production warm had nothing to fix today.",
           "where": "",
-          "checked": "Gather layer run on 2 Nov 2026.",
-          "targets": 194,
+          "checked": "Production warm 4 Nov 2026.",
+          "targets": 193,
           "run": "very long run"
         }
       ]
