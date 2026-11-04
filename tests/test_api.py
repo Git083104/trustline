@@ -73,6 +73,9 @@ def test_placeholder_home_and_demo_button():
         assert "EventSource" in js.text
         assert "locRank" in js.text
         assert "no answer in time" in js.text
+        assert "They never run, so there's nothing to fix." in js.text
+        assert "+N more" in js.text or " more" in js.text
+        assert 'return "compromised"' in js.text
         assert 'feed-k", "Question"' in js.text or "Question" in js.text
         demo = client.get("/api/scan/demo/events", params={"speed": "0"})
         assert demo.status_code == 200

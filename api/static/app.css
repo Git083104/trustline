@@ -393,6 +393,12 @@ td:last-child,th:last-child{padding-right:0}
 .partial-banner{padding:10px 12px;border:1px solid var(--rule);color:var(--cobalt)}
 .res-note{margin:8px 0 0;color:var(--muted);font:400 14px/1.4 var(--sans)}
 .work-toggle{margin:16px 0}
+.group-btn{display:flex;flex-wrap:wrap;align-items:center;gap:8px;width:100%;text-align:left}
+.group-tag{flex:none}
+.group-row{display:flex;flex-wrap:wrap;gap:8px;align-items:baseline;padding:6px 0;border-bottom:1px solid var(--hair)}
+.group-row-sep{color:var(--muted)}
+.group-row-target{font:500 13px/1.4 var(--mono)}
+.group-row-note{color:var(--muted);font:400 13px/1.4 var(--sans)}
 [hidden]{display:none !important}
 .sr-only,.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 @media (max-width:860px){

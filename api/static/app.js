@@ -826,7 +826,41 @@
   }
 
   function whereUsed(item) {
-    return sortedRefs(item).map(locLine).filter(Boolean).join(", ");
+    var lines = sortedRefs(item).map(locLine).filter(Boolean);
+    if (lines.length <= 3) { return lines.join(", "); }
+    return lines.slice(0, 3).join(", ") + " +" + (lines.length - 3) + " more";
+  }
+
+  function isInertItem(item) {
+    var refs = sortedRefs(item);
+    if (!refs.length) { return false; }
+    return refs.every(function (ref) { return locRank(ref) === 2; });
+  }
+
+  function fileBucket(ref) {
+    var file = typeof ref === "string" ? ref.split(":")[0] : String((ref && ref.file) || "");
+    var lower = file.toLowerCase();
+    if (/(^|\/)(tests|test|__tests__|spec|fixtures)\//.test(lower) || /(^|\/)test_/.test(lower)) {
+      return "tests";
+    }
+    return "docs";
+  }
+
+  function inertPlace(item) {
+    var tests = {};
+    var docs = {};
+    sortedRefs(item).forEach(function (ref) {
+      var file = typeof ref === "string" ? ref.split(":")[0] : String((ref && ref.file) || "");
+      if (!file) { return; }
+      if (fileBucket(ref) === "tests") { tests[file] = true; }
+      else { docs[file] = true; }
+    });
+    var t = Object.keys(tests).length;
+    var d = Object.keys(docs).length;
+    var bits = [];
+    if (t) { bits.push("in tests (" + t + (t === 1 ? " file)" : " files)")); }
+    if (d) { bits.push("in docs (" + d + (d === 1 ? " file)" : " files)")); }
+    return bits.join(" · ");
   }
 
   function evidenceText(item) {
@@ -835,6 +869,9 @@
 
   function ownerStatus(item) {
     var evidence = item.evidence || {};
+    if (/compromis/i.test(String(item.evidence_line || item.risk || ""))) {
+      return "compromised";
+    }
     var rdap = evidence.rdap || {};
     var dns = evidence.dns || {};
     var bucket = evidence.bucket_probe || {};
@@ -978,6 +1015,7 @@
     items.forEach(function (item) {
       var row = make("div", "group-row");
       row.appendChild(make("span", "group-row-target", item.target));
+      row.appendChild(make("span", "group-row-sep", "·"));
       row.appendChild(make("span", "group-row-note", evidenceText(item) || whereUsed(item)));
       rows.appendChild(row);
     });
@@ -1202,9 +1240,31 @@
     if (!fix.length) {
       el.tabFix.appendChild(make("div", "empty-note", "No critical or high findings in this scan."));
     }
-    if (later.length) {
-      el.tabFix.appendChild(collapsedGroup("Later", "low",
-        "Review later (" + later.length + ")", later));
+    var inertLater = later.filter(isInertItem);
+    var restLater = later.filter(function (item) { return !isInertItem(item); });
+    if (inertLater.length) {
+      var n = inertLater.length;
+      var inertWrap = collapsedGroup(
+        "Review",
+        "low",
+        n + " names in tests and docs no longer exist. They never run, so there's nothing to fix.",
+        []
+      );
+      var inertRows = inertWrap.querySelector(".group-rows");
+      inertLater.forEach(function (item) {
+        var row = make("div", "group-row");
+        row.appendChild(make("span", "group-row-target", item.target));
+        row.appendChild(make("span", "group-row-sep", "·"));
+        row.appendChild(make("span", "group-row-note", ownerStatus(item)));
+        row.appendChild(make("span", "group-row-sep", "·"));
+        row.appendChild(make("span", "group-row-note", inertPlace(item)));
+        inertRows.appendChild(row);
+      });
+      el.tabFix.appendChild(inertWrap);
+    }
+    if (restLater.length) {
+      el.tabFix.appendChild(collapsedGroup("Review", "low",
+        restLater.length + " to look at later", restLater));
     }
     if (safe.length) {
       el.tabFix.appendChild(collapsedGroup("Safe", "safe",
