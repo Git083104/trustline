@@ -321,6 +321,11 @@ def test_frontend_has_the_three_screens_and_no_design_switcher():
     assert "pointer-events:none" in css
     assert "Websites to try" in markup
     assert 'id="sites-planted"' in markup
+    assert "Your recent scans" in markup
+    assert "Saved only in this browser." in markup
+    assert "Saved on this device" in markup
+    assert "tether-recent-scans" in js
+    assert "localStorage" in js
     assert "Fix it" in markup
     assert "No safe automatic edits; follow the steps above." in markup
     assert "fix-no-edits" in markup

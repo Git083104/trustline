@@ -161,3 +161,25 @@ def test_fix_it_opens_panel_and_patch_when_edits_exist(fix_ui_url):
         assert page.get_by_text("Fix plan").is_visible()
         assert page.get_by_role("link", name="Download .patch").is_visible()
         page.close()
+
+
+def test_recent_scans_persist_and_clear(fix_ui_url):
+    with sync_playwright() as playwright:
+        page = playwright.chromium.launch().new_page()
+        _scan(page, fix_ui_url, "/edits")
+        page.get_by_role("button", name="Tether").click()
+        page.wait_for_selector("#page-home", state="visible")
+        page.wait_for_selector("#recent-scans:not([hidden])")
+        assert page.get_by_text("Your recent scans").is_visible()
+        assert page.get_by_text("Saved only in this browser.").is_visible()
+        page.locator("#recent-list button").first.click()
+        page.wait_for_selector("#screen-results", state="visible")
+        page.reload(wait_until="networkidle")
+        page.wait_for_selector("#screen-results:not([hidden]), #page-home:not([hidden])")
+        if page.locator("#screen-results:not([hidden])").count():
+            page.get_by_role("button", name="Tether").click()
+            page.wait_for_selector("#page-home", state="visible")
+        page.wait_for_selector("#recent-scans:not([hidden])")
+        page.get_by_role("button", name="Clear history").click()
+        assert page.locator("#recent-scans").is_hidden()
+        page.close()

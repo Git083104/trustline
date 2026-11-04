@@ -38,6 +38,12 @@
         <span id="scan-resume-text"></span>
         <button type="button" class="btn" id="scan-resume-view">View</button>
       </p>
+      <section id="recent-scans" class="recent-scans" hidden>
+        <h2 class="repos-title">Your recent scans</h2>
+        <div id="recent-list" class="repo-grid"></div>
+        <button type="button" class="btn" id="recent-clear">Clear history</button>
+        <p class="recent-note">Saved only in this browser.</p>
+      </section>
     </div>
     <div class="cell span-2 home-art">
       <figure class="hero-fig" id="home-hero-fig">
@@ -135,6 +141,7 @@
           <span id="res-target"></span>
           <span id="res-kind" hidden></span>
           <span id="res-recorded" hidden></span>
+          <span id="res-saved-note" hidden>Saved on this device</span>
         </div>
         <h2 id="res-headline" class="verdict"></h2>
         <div id="res-chips" class="res-chips"></div>

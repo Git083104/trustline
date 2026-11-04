@@ -57,6 +57,8 @@
     unavailable: "unavailable",
     error: "failed"
   };
+  var HISTORY_KEY = "tether-recent-scans";
+  var HISTORY_MAX = 10;
   var POLL_EVERY_MS = 1500;
   var POLL_LIMIT = 240;   // ~6 minutes of waiting before offering a retry
   var FOUND_BUCKETS = [
@@ -93,6 +95,10 @@
     resume: $("scan-resume"),
     resumeText: $("scan-resume-text"),
     resumeView: $("scan-resume-view"),
+    recent: $("recent-scans"),
+    recentList: $("recent-list"),
+    recentClear: $("recent-clear"),
+    resSavedNote: $("res-saved-note"),
     resTarget: $("res-target"),
     resKind: $("res-kind"),
     resRecorded: $("res-recorded"),
@@ -139,6 +145,7 @@
     target: "",
     scanId: "",
     demo: false,
+    fromDevice: false,
     source: null,
     timer: null,
     startedAt: 0,
@@ -237,7 +244,7 @@
     el.scanning.hidden = screen !== "scanning";
     el.results.hidden = screen !== "results";
     window.scrollTo(0, 0);
-    if (screen === "home") { onScroll(); renderResumeBar(); }
+    if (screen === "home") { onScroll(); renderResumeBar(); renderRecent(); }
   }
 
   function closeSource() {
@@ -283,6 +290,131 @@
     if (el.resumeText) {
       el.resumeText.textContent = "Scan in progress: " + (state.target || "scan") + " · " + stageName() + " · ";
     }
+  }
+
+  function readHistory() {
+    try {
+      var raw = window.localStorage.getItem(HISTORY_KEY);
+      var parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (err) {
+      return [];
+    }
+  }
+
+  function persistHistory(entries) {
+    var copy = entries.slice(0, HISTORY_MAX).map(function (item) {
+      return {
+        scan_id: item.scan_id,
+        target: item.target,
+        kind: item.kind,
+        finished: item.finished,
+        counts: item.counts,
+        headlines: item.headlines,
+        report: item.report || null
+      };
+    });
+    for (;;) {
+      try {
+        window.localStorage.setItem(HISTORY_KEY, JSON.stringify(copy));
+        return;
+      } catch (err) {
+        var dropped = false;
+        for (var i = copy.length - 1; i >= 0; i--) {
+          if (copy[i].report) {
+            copy[i] = Object.assign({}, copy[i], { report: null });
+            dropped = true;
+            break;
+          }
+        }
+        if (!dropped) {
+          if (!copy.length) { return; }
+          copy.pop();
+        }
+      }
+    }
+  }
+
+  function timeAgo(ts) {
+    var sec = Math.max(0, (Date.now() - Number(ts || 0)) / 1000);
+    if (sec < 60) { return "just now"; }
+    if (sec < 3600) { return Math.floor(sec / 60) + " min ago"; }
+    if (sec < 86400) { return Math.floor(sec / 3600) + " hr ago"; }
+    return Math.floor(sec / 86400) + " d ago";
+  }
+
+  function saveHistory(report) {
+    if (state.demo || !report) { return; }
+    try {
+      var id = String(state.scanId || report.scan_id || "");
+      if (!id) { return; }
+      var findings = sortFindings(report.findings || []);
+      var counts = { critical: 0, high: 0, medium: 0, low: 0, info: 0 };
+      findings.forEach(function (item) {
+        if (counts[item.severity] != null) { counts[item.severity] += 1; }
+      });
+      var headlines = findings.slice(0, 3).map(function (item) {
+        return item.headline || item.target || "";
+      }).filter(Boolean);
+      var entries = readHistory().filter(function (item) { return item.scan_id !== id; });
+      entries.unshift({
+        scan_id: id,
+        target: report.target || state.target || "",
+        kind: report.kind || state.kind || "",
+        finished: Date.now(),
+        counts: counts,
+        headlines: headlines,
+        report: report
+      });
+      persistHistory(entries);
+    } catch (err) {}
+  }
+
+  function renderRecent() {
+    if (!el.recent || !el.recentList) { return; }
+    var entries = [];
+    try { entries = readHistory(); } catch (err) { entries = []; }
+    if (!entries.length) {
+      el.recent.hidden = true;
+      el.recentList.replaceChildren();
+      return;
+    }
+    el.recent.hidden = false;
+    el.recentList.replaceChildren();
+    entries.forEach(function (item) {
+      var btn = make("button", "repo-chip");
+      btn.type = "button";
+      btn.appendChild(make("span", "repo-chip-name", item.target || item.scan_id));
+      btn.appendChild(make("span", "recent-time", timeAgo(item.finished)));
+      var chips = make("span", "recent-chips");
+      ["critical", "high", "medium"].forEach(function (sev) {
+        var n = (item.counts || {})[sev] || 0;
+        if (n) {
+          chips.appendChild(make("span", "sev-badge sev-" + (SEV_KEY[sev] || sev), n + " " + (SEV_LABEL[sev] || sev)));
+        }
+      });
+      if (chips.childNodes.length) { btn.appendChild(chips); }
+      if (item.headlines && item.headlines[0]) {
+        btn.appendChild(make("span", "repo-chip-about", item.headlines[0]));
+      }
+      btn.addEventListener("click", function () { openScanId(item.scan_id); });
+      el.recentList.appendChild(btn);
+    });
+  }
+
+  function openSaved(id) {
+    var match = null;
+    try {
+      match = readHistory().filter(function (item) { return item.scan_id === id; })[0];
+    } catch (err) { match = null; }
+    if (!match || !match.report) { return false; }
+    state.scanId = id;
+    state.demo = false;
+    state.fromDevice = true;
+    state.elapsedMs = 0;
+    state.report = match.report;
+    showResults(match.report);
+    return true;
   }
 
   function viewRunningScan() {
@@ -669,6 +801,7 @@
     state.target = meta.target;
     state.scanId = meta.scanId;
     state.demo = meta.demo;
+    state.fromDevice = false;
     state.report = null;
     state.finished = false;
     state.streamed = false;
@@ -965,20 +1098,30 @@
       .then(function (res) {
         if (res.status === 409) {
           reattach(id);
-          return null;
+          return { skip: true };
         }
+        if (res.status === 404) { return { missing: true }; }
         if (!res.ok) { throw new Error("scan " + res.status); }
         return res.json();
       })
       .then(function (report) {
-        if (!report) { return; }
+        if (!report || report.skip) { return; }
+        if (report.missing) {
+          if (!openSaved(id)) {
+            show("home");
+            showError("This scan is no longer available. Scan again.");
+          }
+          return;
+        }
         state.scanId = id;
         state.demo = false;
+        state.fromDevice = false;
         state.elapsedMs = 0;
         state.report = report;
         showResults(report);
       })
       .catch(function () {
+        if (openSaved(id)) { return; }
         show("home");
         showError("This scan is no longer available. Scan again.");
       });
@@ -1371,6 +1514,8 @@
       sessionStorage.setItem("tether-scan", state.demo ? "demo" : (state.scanId || ""));
     } catch (err) {}
     show("results");
+    saveHistory(report);
+    if (el.resSavedNote) { el.resSavedNote.hidden = !state.fromDevice; }
 
     el.resTarget.textContent = report.target || state.target;
     var kind = report.kind || state.kind;
@@ -1732,6 +1877,12 @@
   if (el.resumeView) {
     el.resumeView.addEventListener("click", viewRunningScan);
   }
+  if (el.recentClear) {
+    el.recentClear.addEventListener("click", function () {
+      try { window.localStorage.removeItem(HISTORY_KEY); } catch (err) {}
+      renderRecent();
+    });
+  }
   window.addEventListener("popstate", function (event) {
     applyHistory(event.state || {});
   });
@@ -1751,6 +1902,7 @@
 
   syncInput();
   loadRepos();
+  renderRecent();
 
   var params = new URLSearchParams(window.location.search);
   var scanParam = params.get("scan");
