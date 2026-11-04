@@ -59,8 +59,13 @@ CONFIG_OK = frozenset(
         "manifest.json",
         "action.yml",
         "action.yaml",
+        "docker-compose.yml",
+        "docker-compose.yaml",
+        "compose.yml",
+        "compose.yaml",
     }
 )
+DATA_SUFFIXES = frozenset({".json", ".csv", ".jsonl", ".ndjson"})
 
 
 def _posix(path: str) -> str:
@@ -74,9 +79,23 @@ def is_config_file(path: str) -> bool:
         return True
     if ".config." in name or name.endswith(".config.js") or name.endswith(".config.ts"):
         return True
-    if posix.startswith(".github/workflows/") and name.endswith((".yml", ".yaml")):
+    orig = path.replace("\\", "/")
+    if ".github/workflows/" in orig and name.endswith((".yml", ".yaml")):
+        return True
+    if name.startswith("docker-compose.") or name.startswith("_config.") or name.startswith("config."):
         return True
     return False
+
+
+def is_data_file(path: str) -> bool:
+    if is_config_file(path):
+        return False
+    posix = _posix(path).lower()
+    name = posix.rsplit("/", 1)[-1]
+    suffix = Path(name).suffix.lower()
+    if name.endswith(".jsonl") or name.endswith(".ndjson"):
+        return True
+    return suffix in DATA_SUFFIXES
 
 
 def is_inert_path(path: str) -> bool:
@@ -84,6 +103,8 @@ def is_inert_path(path: str) -> bool:
     name = posix.rsplit("/", 1)[-1]
     if is_config_file(path) and not _in_inert_dir(posix):
         return False
+    if is_data_file(path):
+        return True
     if posix.endswith(".md"):
         return True
     if name == "demo_scan.json" or posix.endswith("/demo_scan.json"):

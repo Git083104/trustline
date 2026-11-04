@@ -25,7 +25,12 @@ def test_inert_paths():
     assert is_inert_path("examples/demo.js")
     assert not is_inert_path("package.json")
     assert not is_inert_path(".github/workflows/ci.yml")
+    assert not is_inert_path("docker-compose.yml")
     assert not is_inert_path("src/app.py")
+    assert is_inert_path("api/static/targets.json")
+    assert is_inert_path("public/static/targets.json")
+    assert is_inert_path("eval/labels.jsonl")
+    assert is_inert_path("recordings/scan.csv")
     assert is_source_code("src/app.py")
     assert not is_source_code(".github/workflows/ci.yml")
 
@@ -64,6 +69,30 @@ def test_repo_tether_yml_ignores_demo_and_smoke_paths():
         "scripts/warm.py",
     ):
         assert ignored_by_globs(rel, globs)
+
+
+def test_polyfill_in_data_file_is_not_fix_today():
+    ref = _ref("api/static/targets.json", "cdn.polyfill.io")
+    cl = Classification(
+        id="1",
+        file=ref.file,
+        line=1,
+        host_or_bucket=ref.host_or_bucket,
+        type="script",
+        runs_in="browser",
+        blast_radius=3,
+        confidence=1,
+        reason="test",
+    )
+    inv = Investigation(file=ref.file, line=1, host_or_bucket=ref.host_or_bucket, status="done")
+    group = {
+        "target": "polyfill.io",
+        "rows": [(ref, cl, inv)],
+        "evidence": {"dns": {"status": "nxdomain", "host": "cdn.polyfill.io"}},
+    }
+    assert executing_runs_in(group["rows"]) is False
+    level, _reason = floor_decision(group)
+    assert level not in {"critical", "high"}
 
 
 def test_inert_rows_are_not_executing():
