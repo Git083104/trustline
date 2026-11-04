@@ -181,9 +181,7 @@ def main() -> int:
                 page.screenshot(path=str(OUT / f"scanning-{label}.png"), full_page=True)
                 _assert_layout(page, width=width, label=f"scanning-{label}", errors=errors)
 
-                page.wait_for_selector("#skip-report:not([disabled])", timeout=15_000)
-                page.get_by_role("button", name="Skip to report").click()
-                page.wait_for_selector("#screen-results", state="visible", timeout=15_000)
+                page.wait_for_selector("#screen-results", state="visible", timeout=120_000)
                 page.wait_for_selector("#screen-results .finding")
                 if page.locator("#badge-copy").count():
                     page.screenshot(path=str(OUT / f"results-badge-{label}.png"), full_page=True)

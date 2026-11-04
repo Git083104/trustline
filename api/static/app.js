@@ -74,7 +74,6 @@
     clock: $("scan-clock"),
     feed: $("feed"),
     callsUsed: $("calls-used"),
-    skip: $("skip-report"),
     resume: $("scan-resume"),
     resumeText: $("scan-resume-text"),
     resumeView: $("scan-resume-view"),
@@ -609,7 +608,6 @@
     renderLayers();
     renderPips();
     renderFound();
-    el.skip.disabled = true;
     tick();
     state.timer = setInterval(tick, 250);
     show("scanning");
@@ -782,7 +780,6 @@
       })
       .then(function (report) {
         state.report = report;
-        el.skip.disabled = false;
         if (state.screen === "home") {
           renderResumeBar();
           return;
@@ -856,12 +853,10 @@
       demo: true
     });
     history.pushState({ view: "scanning", scanId: "demo", demo: true }, "", "?demo=1");
-    // The demo report is a checked-in fixture, so "Skip to report" can work at once.
     fetch("/api/scan/demo")
       .then(function (res) { return res.json(); })
       .then(function (report) {
         state.report = report;
-        el.skip.disabled = false;
         if (report.recorded_at) {
           window.__tetherRecordedAt = report.recorded_at;
           setRecordedLabel(el.scanRecorded, report);
@@ -1598,9 +1593,6 @@
       el.workPanel.hidden = open;
     });
   }
-  el.skip.addEventListener("click", function () {
-    if (state.report) { showResults(state.report); }
-  });
   if (el.resumeView) {
     el.resumeView.addEventListener("click", viewRunningScan);
   }
