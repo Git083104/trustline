@@ -278,7 +278,7 @@ def test_results_layout_and_feed_wording_ship():
     assert "62px minmax(0,1fr) auto" not in css
     assert "72px minmax(0,1fr)" in css
     assert "doesn't resolve" in js
-    assert 'parts.join(" · ")' in js
+    assert "needs fixing today" in js
     assert "replayed" in js
     assert "repo-chip" in js
 

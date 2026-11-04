@@ -34,19 +34,16 @@
       </form>
       <button type="button" class="btn demo-btn" data-demo>Watch the demo</button>
     </div>
-    <div class="cell span-2 home-art" aria-hidden="true">
-      <svg class="home-stack" viewBox="0 0 260 220" role="img">
-        <defs>
-          <pattern id="home-dots" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="matrix(1 .5 -1 .5 0 0)">
-            <circle cx="1.5" cy="1.5" r=".9" fill="#F3F2EE" opacity=".38"/>
-          </pattern>
-        </defs>
-        <g class="slab" data-state="done"><polygon class="side" points="20,183 90,218 90,228 20,193"/><polygon class="side" points="90,218 160,183 160,193 90,228"/><polygon class="top" points="90,148 160,183 90,218 20,183"/><polygon class="tex" points="90,148 160,183 90,218 20,183"/></g>
-        <g class="slab" data-state="done"><polygon class="side" points="20,143 90,178 90,188 20,153"/><polygon class="side" points="90,178 160,143 160,153 90,188"/><polygon class="top" points="90,108 160,143 90,178 20,143"/><polygon class="tex" points="90,108 160,143 90,178 20,143"/></g>
-        <g class="slab" data-state="running"><polygon class="side" points="20,103 90,138 90,148 20,113"/><polygon class="side" points="90,138 160,103 160,113 90,148"/><polygon class="top" points="90,68 160,103 90,138 20,103"/><polygon class="tex" points="90,68 160,103 90,138 20,103"/></g>
-        <g class="slab"><polygon class="side" points="20,63 90,98 90,108 20,73"/><polygon class="side" points="90,98 160,63 160,73 90,108"/><polygon class="top" points="90,28 160,63 90,98 20,63"/><polygon class="tex" points="90,28 160,63 90,98 20,63"/></g>
-        <g class="slab"><polygon class="side" points="20,23 90,58 90,68 20,33"/><polygon class="side" points="90,58 160,23 160,33 90,68"/><polygon class="top" points="90,-12 160,23 90,58 20,23"/><polygon class="tex" points="90,-12 160,23 90,58 20,23"/></g>
-      </svg>
+    <div class="cell span-2 home-art">
+      <article class="finding ring-critical home-example">
+        <div class="sevcol"><span class="finding-sev sev-critical"><span class="sev-dot"></span><span>Critical</span></span></div>
+        <div class="finding-main">
+          <p class="finding-headline">Your deploy downloads files from a storage bucket that no longer exists</p>
+          <p class="finding-why">A stranger can claim the missing S3 bucket and plant files the shop pulls during releases.</p>
+          <p class="home-example-meta"><span class="finding-where" title="Proven: checked directly, e.g. the registry says no one owns this domain">Proven</span> · Found in 70s</p>
+          <button type="button" class="btn" data-demo>See the full scan</button>
+        </div>
+      </article>
     </div>
   </div>
   <section class="row try-row" id="repos" aria-label="Repos and websites to try">
@@ -136,9 +133,15 @@
         <div id="res-chips" class="res-chips"></div>
         <div id="res-meta" class="res-meta"></div>
         <p id="partial-banner" class="partial-banner" hidden></p>
+        <button type="button" id="skipped-toggle" class="btn" hidden>Show list</button>
+        <ol id="skipped-list" class="skipped-list" hidden></ol>
         <button type="button" id="fix-it" class="btn" hidden>Fix it</button>
         <div id="fix-panel" class="fix-panel" hidden>
-          <pre id="fix-diff" class="fix-diff"></pre>
+          <h3 class="fix-plan-title">Fix plan</h3>
+          <div id="fix-items"></div>
+          <p id="fix-advanced" class="fix-advanced" hidden>
+            Advanced: download patch for safe automatic edits (<span id="fix-edit-n">0</span> changes)
+          </p>
           <a id="fix-download" class="btn" download="tether.patch" href="#">Download .patch</a>
         </div>
       </div>

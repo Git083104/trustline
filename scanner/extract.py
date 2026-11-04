@@ -24,8 +24,24 @@ from scanner.config import (
     SKIP_FILE_NAMES,
     SKIP_NAME_SUFFIXES,
 )
+from scanner.inert import ignored_by_globs, load_ignore_globs
 from scanner.models import Reference
 from scanner.tools.github_owner import GITHUB_RESERVED
+
+JUNK_REASONS = frozenset(
+    {
+        "placeholder",
+        "ip_address",
+        "reserved_tld",
+        "reserved_domain",
+        "no_public_suffix",
+        "single_label",
+        "not_a_host",
+    }
+)
+RESERVED_SUFFIXES = frozenset(
+    {"example", "test", "invalid", "localhost", "local", "internal", "lan", "home.arpa"}
+)
 
 _EXTRACT = tldextract.TLDExtract(suffix_list_urls=(), cache_dir=False)
 
@@ -149,12 +165,15 @@ class Coverage:
     truncated: bool
     reason: str = ""
 
+    ignored_non_hosts: int = 0
+
     def as_dict(self) -> dict[str, int | bool | str]:
         return {
             "files_scanned": self.files_scanned,
             "files_total": self.files_total,
             "truncated": self.truncated,
             "reason": self.reason,
+            "ignored_non_hosts": self.ignored_non_hosts,
         }
 
 
@@ -183,6 +202,17 @@ def _scan_byte_cap() -> int:
 
 def empty_coverage() -> Coverage:
     return Coverage(files_scanned=0, files_total=0, truncated=False, reason="")
+
+
+def drop_junk_refs(refs: list[Reference]) -> tuple[list[Reference], int]:
+    kept: list[Reference] = []
+    ignored = 0
+    for ref in refs:
+        if ref.filter_reason in JUNK_REASONS:
+            ignored += 1
+            continue
+        kept.append(ref)
+    return kept, ignored
 
 
 def website_coverage() -> Coverage:
@@ -289,6 +319,7 @@ def _github_origin(root: Path) -> tuple[str, str] | None:
 def _extract_dir(root: Path) -> ExtractResult:
     found: dict[tuple[str, str, int], Reference] = {}
     texts: dict[str, str] = {}
+    ignore = load_ignore_globs(root)
     candidates = _candidate_files(root)
     files_total = len(candidates)
     file_cap = _scan_file_cap()
@@ -305,6 +336,9 @@ def _extract_dir(root: Path) -> ExtractResult:
             continue
         if not _should_read(path):
             continue
+        rel = path.relative_to(root).as_posix()
+        if ignored_by_globs(rel, ignore):
+            continue
         if scanned >= file_cap:
             truncated = True
             reason = "file_cap"
@@ -313,7 +347,6 @@ def _extract_dir(root: Path) -> ExtractResult:
             truncated = True
             reason = "byte_cap"
             break
-        rel = path.relative_to(root).as_posix()
         try:
             text = path.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
@@ -323,6 +356,7 @@ def _extract_dir(root: Path) -> ExtractResult:
         texts[rel] = text
         _scan_text(rel, text, found)
     refs = sorted(found.values(), key=lambda ref: (ref.file, ref.line, ref.raw))
+    refs, ignored = drop_junk_refs(refs)
     needed = {ref.file for ref in refs}
     return ExtractResult(
         references=refs,
@@ -331,6 +365,7 @@ def _extract_dir(root: Path) -> ExtractResult:
             files_total=files_total,
             truncated=truncated,
             reason=reason,
+            ignored_non_hosts=ignored,
         ),
         file_texts={name: texts[name] for name in needed if name in texts},
     )
@@ -634,6 +669,7 @@ def _registrable(host: str) -> str:
 
 
 _PLACEHOLDER_CHARS = frozenset("{}<>$")
+_TEMPLATE_MARKERS = ("${", "{{", "}}", "%s", "%d", "%r", "`", "|")
 
 
 def _filter_reason(
@@ -643,21 +679,42 @@ def _filter_reason(
         if _is_placeholder(host_or_bucket):
             return "placeholder"
         return None
+    if not host or " " in host or _is_not_a_host(host, host_or_bucket):
+        return "not_a_host"
     if _is_ip(host):
         return "ip_address"
+    if host.lower() in {"localhost", "local"}:
+        return "reserved_tld"
+    if "." not in host.strip("[]"):
+        return "single_label"
     if _is_placeholder(host) or _is_placeholder(host_or_bucket):
         return "placeholder"
     psl_suffix = _suffix(host)
     last_label = host.rsplit(".", 1)[-1].lower() if host else ""
-    if psl_suffix in RESERVED_TLDS or last_label in RESERVED_TLDS:
+    if (
+        psl_suffix in RESERVED_TLDS
+        or last_label in RESERVED_TLDS
+        or psl_suffix in RESERVED_SUFFIXES
+        or last_label in RESERVED_SUFFIXES
+        or host.lower().endswith(".home.arpa")
+    ):
         return "reserved_tld"
-    if domain.lower() in RFC2606_DOMAINS:
+    if domain.lower() in RFC2606_DOMAINS or domain.lower().endswith(".example"):
         return "reserved_domain"
     if not psl_suffix:
         return "no_public_suffix"
     if domain.lower() in ALLOWLIST_DOMAINS or host.lower() in ALLOWLIST_DOMAINS:
         return "allowlisted"
     return None
+
+
+def _is_not_a_host(host: str, host_or_bucket: str) -> bool:
+    blob = f"{host} {host_or_bucket}".lower()
+    if any(mark in blob for mark in _TEMPLATE_MARKERS):
+        return True
+    if "<" in host or ">" in host:
+        return True
+    return False
 
 
 def _is_ip(host: str) -> bool:

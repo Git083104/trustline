@@ -1,0 +1,3 @@
+ignore:
+  - design/reference/**
+  - api/demo_scan.json

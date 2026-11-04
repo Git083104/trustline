@@ -59,7 +59,12 @@ async def test_extract_website_fixture(site_server):
         for ref in refs
         if ref.host_or_bucket != "127.0.0.1"
     ]
-    assert got == EXPECTED["references"]
+    from scanner.extract import JUNK_REASONS
+
+    expected = [
+        item for item in EXPECTED["references"] if item.get("filter_reason") not in JUNK_REASONS
+    ]
+    assert got == expected
     polyfill = _by_host(refs)["cdn.polyfill.io"]
     assert polyfill.page_url.startswith(site_server)
     assert polyfill.sri is False

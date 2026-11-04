@@ -6,7 +6,7 @@ import time
 import uuid
 from typing import Any, AsyncIterator
 
-from api.limits import CODE_ONLY_BANNER
+from api.limits import CODE_ONLY_BANNER, OVERLOAD_BANNER
 from scanner.events import finding_public
 from scanner.report import ScanOutcome
 
@@ -73,10 +73,15 @@ class Job:
             "coverage": outcome.coverage,
             "agent_runs": outcome.agent_runs,
             "rank_fallbacks": outcome.rank_fallbacks,
-            "code_only": self.code_only or outcome.code_only,
+            "code_only": self.code_only or outcome.code_only or outcome.muse_overloaded,
             "code_only_banner": (
-                CODE_ONLY_BANNER if self.code_only or outcome.code_only else ""
+                OVERLOAD_BANNER
+                if outcome.muse_overloaded
+                else CODE_ONLY_BANNER
+                if self.code_only or outcome.code_only
+                else ""
             ),
+            "muse_overloaded": outcome.muse_overloaded,
             "findings": [finding_public(item) for item in outcome.findings],
         }
         self.status = "done"

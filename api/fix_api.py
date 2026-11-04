@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from scanner.copy import assistant_prompt, decorate, issue_markdown
 from scanner.fix import FixPlan, propose_fixes, write_pr_copy
 from scanner.models import Finding, Severity
 
@@ -15,6 +16,14 @@ def findings_from_public(rows: list[dict[str, Any]]) -> list[Finding]:
         refs = row.get("references") or []
         locations = [item for item in refs if isinstance(item, dict)]
         strings = [item for item in refs if isinstance(item, str)]
+        if not locations:
+            for item in strings:
+                file, _, line = str(item).rpartition(":")
+                loc = {"file": file or str(item), "line": int(line) if line.isdigit() else 1}
+                lowered = loc["file"].replace("\\", "/").lower()
+                if ".github/workflows/" in lowered:
+                    loc["runs_in"] = "ci"
+                locations.append(loc)
         if not strings:
             strings = [
                 f"{item.get('file', 'index.html')}:{item.get('line', 1)}"
@@ -22,7 +31,7 @@ def findings_from_public(rows: list[dict[str, Any]]) -> list[Finding]:
             ] or ["index.html:1"]
         severity = row.get("severity") or "info"
         out.append(
-            Finding(
+            decorate(Finding(
                 target=row["target"],
                 kind=row.get("kind") or "domain",
                 references=strings,
@@ -38,7 +47,7 @@ def findings_from_public(rows: list[dict[str, Any]]) -> list[Finding]:
                 locations=locations,
                 action_ref=row.get("action_ref") or "",
                 action_sha_pinned=row.get("action_sha_pinned"),
-            )
+            ))
         )
     _ = Severity
     return out
@@ -63,11 +72,28 @@ def demo_file_texts() -> dict[str, str]:
     return {}
 
 
-def plan_to_dict(plan: FixPlan) -> dict[str, Any]:
+def plan_to_dict(plan: FixPlan, findings: list[Finding] | None = None) -> dict[str, Any]:
+    items = []
+    for item in findings or []:
+        if item.severity not in {"critical", "high"}:
+            continue
+        title, body = issue_markdown(item)
+        items.append(
+            {
+                "target": item.target,
+                "headline": item.headline or title,
+                "steps": item.steps,
+                "issue_title": title,
+                "issue_body": body,
+                "prompt": assistant_prompt(item),
+            }
+        )
     return {
         "title": plan.title,
         "body": plan.body,
         "patch": plan.patch,
+        "edit_count": len(plan.edits),
+        "items": items,
         "edits": [
             {
                 "file": edit.file,

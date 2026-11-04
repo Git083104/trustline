@@ -122,4 +122,8 @@ def finding_public(item: Finding) -> dict[str, Any]:
         "classified_blast_radius": item.classified_blast_radius,
         "blast_radius": item.ranked_blast_radius,
         "blast_override_reason": item.blast_override_reason,
+        "headline": item.headline,
+        "why": item.why,
+        "steps": item.steps,
+        "risk_type": item.risk_type,
     }

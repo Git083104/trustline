@@ -14,7 +14,7 @@ from scanner.config import (
     WEBSITE_MAX_JS_FILES,
     WEBSITE_PAGE_MAX_BYTES,
 )
-from scanner.extract import TRAILING_JUNK, URL_RE, _classify_http_url
+from scanner.extract import TRAILING_JUNK, URL_RE, _classify_http_url, drop_junk_refs
 from scanner.models import Reference
 from scanner.ssrf import (
     ScanBlockedError,
@@ -189,6 +189,7 @@ class WebsiteScan:
     html: str
     url: str
     csp_blocks_external_scripts: bool = False
+    ignored_non_hosts: int = 0
 
 
 class _PageParser(HTMLParser):
@@ -368,9 +369,11 @@ async def extract_website_scan(
                 found.setdefault(key, ref)
 
     refs = sorted(found.values(), key=lambda item: (item.file, item.line, item.raw))
+    refs, ignored = drop_junk_refs(refs)
     return WebsiteScan(
         references=refs,
         html=page.body,
         url=page.url,
         csp_blocks_external_scripts=blocks,
+        ignored_non_hosts=ignored,
     )

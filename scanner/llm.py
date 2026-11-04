@@ -30,9 +30,64 @@ T = TypeVar("T", bound=BaseModel)
 
 FAILURE_LIMIT = 300
 STEADY_PARAMS: dict[str, Any] = {"temperature": 0}
+OVERLOAD_BACKOFF_S = (1.0, 3.0)
+OVERLOAD_TRIP = 5
 log = logging.getLogger("trustmap")
 _steady_lock = threading.Lock()
 _process_steady: dict[str, Any] | None = None
+_overload_lock = threading.Lock()
+_overload_streak = 0
+_overload_tripped = False
+
+
+class OverloadError(Exception):
+    """Meta API 429/5xx after retries. Scan continues with a code verdict."""
+
+
+def muse_overloaded() -> bool:
+    with _overload_lock:
+        return _overload_tripped
+
+
+def reset_overload_for_tests() -> None:
+    global _overload_streak, _overload_tripped
+    with _overload_lock:
+        _overload_streak = 0
+        _overload_tripped = False
+
+
+def _note_overload() -> None:
+    global _overload_streak, _overload_tripped
+    with _overload_lock:
+        _overload_streak += 1
+        if _overload_streak >= OVERLOAD_TRIP:
+            _overload_tripped = True
+
+
+def _note_ok() -> None:
+    global _overload_streak
+    with _overload_lock:
+        _overload_streak = 0
+
+
+def is_overload_error(exc: BaseException) -> bool:
+    text = str(exc).lower()
+    if "overloaded" in text or "temporarily unavailable" in text:
+        return True
+    status = getattr(exc, "status_code", None) or getattr(exc, "status", None)
+    try:
+        status = int(status) if status is not None else None
+    except (TypeError, ValueError):
+        status = None
+    if status in {429, 500, 502, 503, 504}:
+        return True
+    response = getattr(exc, "response", None)
+    code = getattr(response, "status_code", None) if response is not None else None
+    try:
+        code = int(code) if code is not None else None
+    except (TypeError, ValueError):
+        code = None
+    return code in {429, 500, 502, 503, 504}
 
 
 def reset_steady_for_tests() -> None:
@@ -378,6 +433,7 @@ def call_json(
 
     last_error: Exception | None = None
     attempts = (LLM_MAX_RETRIES if retries is None else retries) + 1
+    overload_tries = 0
     for _ in range(attempts):
         started = time.perf_counter()
         try:
@@ -394,6 +450,19 @@ def call_json(
                 timeout_s,
             )
         except TimeoutError as exc:
+            last_error = exc
+            break
+        except Exception as exc:
+            if is_overload_error(exc):
+                last_error = OverloadError(str(exc))
+                if overload_tries >= 2:
+                    _note_overload()
+                    break
+                delay = OVERLOAD_BACKOFF_S[min(overload_tries, len(OVERLOAD_BACKOFF_S) - 1)]
+                overload_tries += 1
+                if delay:
+                    time.sleep(delay * (0.7 + 0.6 * (hash((model, _)) % 100) / 100))
+                continue
             last_error = exc
             break
         latency_ms = (time.perf_counter() - started) * 1000
@@ -413,11 +482,14 @@ def call_json(
             if extra_check is not None:
                 extra_check(parsed)
             cache.set_json(key, {"data": parsed.model_dump(mode="json"), "api_usage": usage})
+            _note_ok()
             return parsed, log
         except (json.JSONDecodeError, ValidationError, ValueError) as exc:
             last_error = exc
             continue
     if isinstance(last_error, TimeoutError):
+        raise last_error
+    if isinstance(last_error, OverloadError):
         raise last_error
     raise ValueError(f"model returned invalid JSON after retries: {last_error}")
 

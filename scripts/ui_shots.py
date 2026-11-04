@@ -18,7 +18,10 @@ LAYOUT_JS = """
 ({ minRatio, maxLines }) => {
   const fails = [];
   const width = window.innerWidth;
-  const findings = [...document.querySelectorAll('.finding')];
+  const findings = [...document.querySelectorAll('.finding')].filter((card) => {
+    const box = card.getBoundingClientRect();
+    return box.width > 0 && box.height > 0;
+  });
   for (const card of findings) {
     const text = card.querySelector('.finding-main');
     if (!text) {
@@ -106,6 +109,8 @@ def main() -> int:
                 page.goto(f"http://127.0.0.1:{PORT}/", wait_until="networkidle")
                 page.wait_for_selector("text=Websites to try")
                 page.wait_for_selector("text=Repos to try")
+                page.wait_for_selector("text=See the full scan")
+                page.wait_for_selector("text=Demo storefront")
                 page.screenshot(path=str(OUT / f"home-{label}.png"), full_page=True)
                 _assert_layout(page, width=width, label=f"home-{label}", errors=errors)
 
@@ -118,7 +123,7 @@ def main() -> int:
                 page.wait_for_selector("#skip-report:not([disabled])", timeout=15_000)
                 page.get_by_role("button", name="Skip to report").click()
                 page.wait_for_selector("#screen-results", state="visible", timeout=15_000)
-                page.wait_for_selector(".finding")
+                page.wait_for_selector("#screen-results .finding")
                 page.screenshot(path=str(OUT / f"results-{label}.png"), full_page=True)
                 _assert_layout(page, width=width, label=f"results-{label}", errors=errors)
 
@@ -133,6 +138,10 @@ def main() -> int:
 
                 page.get_by_role("button", name="Fix it").click()
                 page.wait_for_selector("#fix-panel", state="visible")
+                page.wait_for_selector("text=Fix plan")
+                page.wait_for_selector("text=Copy as GitHub issue")
+                page.wait_for_selector("text=Copy prompt for your coding assistant")
+                page.get_by_role("button", name="Copy as GitHub issue").first.click()
                 page.screenshot(path=str(OUT / f"fix-it-{label}.png"), full_page=True)
                 _assert_layout(page, width=width, label=f"fix-it-{label}", errors=errors)
 

@@ -18,6 +18,7 @@ DAILY_LIMIT_MSG = "Daily limit reached, try the demo"
 HOURLY_LIMIT_MSG = "Hourly limit reached, try the demo"
 BUSY_MSG = "Busy, try again in a minute"
 CODE_ONLY_BANNER = "Daily AI budget reached: this scan used code rules only."
+OVERLOAD_BANNER = "Muse Spark is overloaded right now; remaining targets used code rules."
 HOUR_S = 3600
 
 
@@ -172,7 +173,14 @@ class LimitsStore:
             return HOURLY_LIMIT_MSG
         return None
 
-    def admit(self, ip: str, scan_id: str, reserve_usd: float | None = None) -> AdmitResult:
+    def admit(
+        self,
+        ip: str,
+        scan_id: str,
+        reserve_usd: float | None = None,
+        *,
+        admin: bool = False,
+    ) -> AdmitResult:
         reserve_usd = self.scan_reserve if reserve_usd is None else reserve_usd
         day = self.day_key()
         cutoff = self._now() - HOUR_S
@@ -186,7 +194,7 @@ class LimitsStore:
                 "SELECT COUNT(*) FROM scan_starts WHERE ip = ? AND ts >= ?",
                 (ip, cutoff),
             ).fetchone()[0]
-            if starts >= self.ip_per_hour:
+            if (not admin) and starts >= self.ip_per_hour:
                 conn.execute("ROLLBACK")
                 return AdmitResult(error=HOURLY_LIMIT_MSG)
             committed = conn.execute(

@@ -18,8 +18,9 @@ from urllib.parse import urlparse
 import yaml
 from pydantic import BaseModel, Field
 
-from scanner.compromised import POLYFILL_HOSTS
+from scanner.compromised import POLYFILL_HOSTS, compromised_status
 from scanner.extract import SHA_RE, USES_RE
+from scanner.inert import is_inert_path, is_source_code
 from scanner.llm import ModelClient, call_json
 from scanner.lookups import LookupCache, _github_headers
 from scanner.models import Finding
@@ -76,9 +77,27 @@ def finding_id(item: Finding) -> str:
 
 def skip_file(path: str) -> bool:
     posix = path.replace("\\", "/").lower()
+    if is_inert_path(posix) or is_source_code(posix):
+        return True
     if posix.endswith(".md"):
         return True
     return bool(SKIP_PATH_RE.search(posix))
+
+
+def _part_of_multiline(text: str, line_no: int) -> bool:
+    lines = text.splitlines()
+    if not (1 <= line_no <= len(lines)):
+        return False
+    line = lines[line_no - 1].rstrip()
+    if line.endswith(("\\", ",", "{", "(", "[")):
+        return True
+    if line_no > 1 and lines[line_no - 2].rstrip().endswith(("\\", ",", "{", "(", "[")):
+        return True
+    return False
+
+
+def _already_edited(before: str) -> bool:
+    return "TETHER:" in before or "cdnjs.cloudflare.com/polyfill" in before
 
 
 def _claim_evidence(evidence: dict[str, Any]) -> str:
@@ -267,8 +286,13 @@ def propose_fixes(
                         break
             if not before.strip():
                 continue
+            if _already_edited(before) or _part_of_multiline(working[file_key], line_no):
+                continue
+            lower = file_key.lower()
+            html = lower.endswith((".html", ".htm"))
+            workflow = ".github/workflows/" in lower.replace("\\", "/") or lower.endswith((".yml", ".yaml"))
 
-            if item.action_ref and not item.action_sha_pinned:
+            if item.action_ref and not item.action_sha_pinned and workflow:
                 match = USES_RE.match(before.strip())
                 if match and resolve_sha and item.action_ref:
                     owner = loc.get("action_owner") or ""
@@ -284,13 +308,26 @@ def propose_fixes(
                         apply_edit(file_key, line_no, before, after, item, "pin-sha")
                         continue
 
-            if POLYFILL_RE.search(before) or _is_polyfill_url(raw):
+            if html and (POLYFILL_RE.search(before) or _is_polyfill_url(raw)):
                 after = POLYFILL_RE.sub(POLYFILL_CDN, before)
                 if after != before:
                     apply_edit(file_key, line_no, before, after, item, "polyfill")
                     continue
 
-            if claimable and runs not in SKIP_RUNS:
+            repo_st = str((evidence.get("github_repo") or {}).get("status", "")).lower()
+            if workflow and item.action_ref and repo_st in {"missing", "disabled", "not_found"}:
+                note = TETHER_NOTE.format(host=item.target, evidence="GitHub Action missing")
+                after = _comment_line(file_key, before, note)
+                apply_edit(file_key, line_no, before, after, item, "disable-ci")
+                continue
+
+            if html and compromised_status(item.target, "") and not _is_polyfill_url(raw):
+                note = TETHER_NOTE.format(host=item.target, evidence="known compromised CDN")
+                after = _comment_line(file_key, before, note)
+                apply_edit(file_key, line_no, before, after, item, "remove-tag")
+                continue
+
+            if claimable and runs not in SKIP_RUNS and (html or workflow):
                 note = TETHER_NOTE.format(
                     host=item.target, evidence=_claim_evidence(evidence)
                 )
@@ -299,8 +336,9 @@ def propose_fixes(
                 continue
 
             if (
-                not claimable
-                and loc.get("tag") == "script"
+                html
+                and not claimable
+                and loc.get("tag") in {"script", "link"}
                 and loc.get("sri") is False
                 and _versioned_stable(raw)
                 and fetch_body is not None

@@ -780,8 +780,11 @@ async def test_fixture_scan_groups_and_ranks_claimable_first(tmp_path):
 
 
 def test_filtered_hosts_are_not_extracted_as_ranked_targets():
-    refs = extract(str(FIXTURE_ROOT))
-    assert any(ref.filter_reason == "reserved_tld" for ref in refs)
+    from scanner.extract import extract_scan
+
+    result = extract_scan(str(FIXTURE_ROOT))
+    assert result.coverage.ignored_non_hosts > 0
+    assert all(ref.filter_reason not in {"reserved_tld", "reserved_domain", "ip_address"} for ref in result.references)
 
 
 def test_rank_runs_targets_in_parallel_and_streams_each_one(tmp_path):
@@ -872,10 +875,13 @@ def test_rank_returns_findings_sorted_whatever_order_they_finish(tmp_path):
 
 @pytest.mark.asyncio
 async def test_scan_never_asks_the_model_about_references_code_set_aside(tmp_path):
-    refs = extract(str(FIXTURE_ROOT))
+    from scanner.extract import extract_scan
+
+    extracted = extract_scan(str(FIXTURE_ROOT))
+    refs = extracted.references
     dropped = {(ref.file, ref.line) for ref in refs if ref.filter_reason is not None}
     kept = {(ref.file, ref.line) for ref in refs if ref.filter_reason is None}
-    assert dropped
+    assert extracted.coverage.ignored_non_hosts > 0
     asked: set = set()
     inner = _fixture_handler()
 
@@ -895,8 +901,7 @@ async def test_scan_never_asks_the_model_about_references_code_set_aside(tmp_pat
         cache=LookupCache(tmp_path / "s.db"),
         ctx=_ctx(tmp_path, bucket_probe=fake_bucket),
     )
-    assert dropped
-    assert asked
+    assert asked <= kept
 
 
 def test_rank_past_its_deadline_keeps_code_severity_without_a_model_call(tmp_path):

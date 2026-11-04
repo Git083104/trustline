@@ -15,8 +15,8 @@ from scanner.config import (
     SCAN_COST_CAP_USD,
 )
 from scanner.deadline import ScanClock
-from scanner.llm import CallLog, ModelClient, ToolTurn, cost_usd
-from scanner.llm import _run_timed, _tokens
+from scanner.llm import CallLog, ModelClient, OverloadError, ToolTurn, cost_usd, is_overload_error, muse_overloaded
+from scanner.llm import OVERLOAD_BACKOFF_S, _note_ok, _note_overload, _run_timed, _tokens
 from scanner.lookups import consistent_evidence
 from scanner.models import (
     Classification,
@@ -122,7 +122,14 @@ def _tranco_domain(ref: Reference) -> str:
 
 
 def _attach_tranco(ref: Reference, evidence: dict[str, Any]) -> dict[str, Any]:
-    evidence["tranco_rank"] = tranco_rank(_tranco_domain(ref))
+    host_rank = tranco_rank(_tranco_domain(ref))
+    parent = (ref.domain or _tranco_domain(ref) or "").lower()
+    rank = host_rank
+    if (not isinstance(rank, int) or rank > TOP_SAFE_RANK) and parent:
+        parent_rank = tranco_rank(parent)
+        if isinstance(parent_rank, int):
+            rank = parent_rank
+    evidence["tranco_rank"] = rank
     return evidence
 
 
@@ -130,11 +137,18 @@ def tranco_checked_safe(ref: Reference, evidence: dict[str, Any]) -> bool:
     rank = evidence.get("tranco_rank")
     if not isinstance(rank, int):
         rank = tranco_rank(_tranco_domain(ref))
+    parent = (ref.domain or _tranco_domain(ref) or "").lower()
+    if (not isinstance(rank, int) or rank > TOP_SAFE_RANK) and parent:
+        rank = tranco_rank(parent)
     if not isinstance(rank, int) or rank > TOP_SAFE_RANK:
         return False
     dns = evidence.get("dns") or {}
     repo = evidence.get("github_repo") or {}
     dns_ok = str(dns.get("status", "")).lower() == "resolves"
+    parent_dns = evidence.get("dns_parent") or {}
+    if parent and parent != (ref.host_or_bucket or "").lower() and parent_dns:
+        if str(parent_dns.get("status", "")).lower() != "resolves":
+            return False
     repo_live = str(repo.get("status", "")).lower() == "exists"
     # GitHub Action precheck records the repo, not DNS; a live repo on a
     # Tranco-listed host is still a code verdict.
@@ -182,6 +196,10 @@ async def precheck(
         return _attach_tranco(ref, evidence)
     evidence["dns"] = await run_tool("dns", {"host": ref.host_or_bucket}, ctx)
     domain = ref.domain or ""
+    host = (ref.host_or_bucket or "").lower()
+    parent = domain.lower()
+    if parent and parent != host:
+        evidence["dns_parent"] = await run_tool("dns", {"host": parent}, ctx)
     if domain:
         evidence["rdap"] = await run_tool("rdap", {"domain": domain}, ctx)
     dns = evidence.get("dns") or {}
@@ -307,7 +325,7 @@ async def investigate(
             continue
         if should_investigate(ref, cl, evidence):
             eligible.append((ref, cl, evidence))
-    if code_only:
+    if code_only or muse_overloaded():
         return [
             Investigation(
                 file=ref.file,
@@ -484,7 +502,7 @@ async def investigate_one(
             turn, log = await asyncio.to_thread(
                 _model_turn, client, messages, tools, timeout_s
             )
-        except TimeoutError:
+        except (TimeoutError, OverloadError):
             break
         cost_total += log.cost_usd
         trace.append(
@@ -625,17 +643,38 @@ def _model_turn(
     tools: list[dict[str, Any]],
     timeout_s: float | None = None,
 ) -> tuple[ToolTurn, CallLog]:
-    turn = _run_timed(
-        lambda: client.complete_turn(
-            model=AGENT_MODEL,
-            system=AGENT_SYSTEM_PROMPT,
-            messages=messages,
-            tools=tools,
-            reasoning_effort=AGENT_REASONING_EFFORT,
-            timeout_s=timeout_s,
-        ),
-        timeout_s,
-    )
+    last: Exception | None = None
+    turn: ToolTurn | None = None
+    for attempt in range(3):
+        try:
+            turn = _run_timed(
+                lambda: client.complete_turn(
+                    model=AGENT_MODEL,
+                    system=AGENT_SYSTEM_PROMPT,
+                    messages=messages,
+                    tools=tools,
+                    reasoning_effort=AGENT_REASONING_EFFORT,
+                    timeout_s=timeout_s,
+                ),
+                timeout_s,
+            )
+            _note_ok()
+            break
+        except Exception as exc:
+            if is_overload_error(exc) or isinstance(exc, OverloadError):
+                last = OverloadError(str(exc))
+                if attempt >= 2:
+                    _note_overload()
+                    break
+                delay = OVERLOAD_BACKOFF_S[min(attempt, len(OVERLOAD_BACKOFF_S) - 1)]
+                if delay:
+                    import time
+                    time.sleep(delay * 0.85)
+                continue
+            raise
+    if turn is None:
+        _note_overload()
+        raise last or OverloadError("agent overloaded")
     in_tok, out_tok, usage = _tokens(turn.usage)
     log = CallLog(
         model=AGENT_MODEL,

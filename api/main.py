@@ -164,12 +164,13 @@ def create_app(
     @app.get("/api/scan/demo/fix")
     def demo_fix() -> dict[str, Any]:
         report = demo_report()
+        findings = findings_from_public(report.get("findings") or [])
         plan = plan_for(
-            findings_from_public(report.get("findings") or []),
+            findings,
             demo_file_texts(),
             client=None,
         )
-        return plan_to_dict(plan)
+        return plan_to_dict(plan, findings)
 
     @app.get("/api/scan/demo/fix.patch")
     def demo_fix_patch() -> PlainTextResponse:
@@ -197,7 +198,10 @@ def create_app(
             return JSONResponse(status_code=503, content={"error": LIVE_UNCONFIGURED})
         ip = client_ip(request, hops=limit_store.trusted_hops)
         job = Job(kind=kind, target=target)
-        admitted = limit_store.admit(ip, job.scan_id, cost_cap)
+        admin_token = os.environ.get("TRUSTMAP_ADMIN_TOKEN", "").strip()
+        presented = request.headers.get("x-trustmap-token", "").strip()
+        admin = bool(admin_token) and presented == admin_token
+        admitted = limit_store.admit(ip, job.scan_id, cost_cap, admin=admin)
         if admitted.error:
             return JSONResponse(status_code=429, content={"error": admitted.error})
         job.code_only = admitted.code_only
@@ -295,7 +299,7 @@ def create_app(
             (job.report or {}).get("findings") or []
         )
         plan = plan_for(findings, job.file_texts, client=client())
-        return plan_to_dict(plan)
+        return plan_to_dict(plan, findings)
 
     @app.get("/api/scan/{scan_id}/fix.patch")
     def scan_fix_patch(scan_id: str) -> PlainTextResponse:

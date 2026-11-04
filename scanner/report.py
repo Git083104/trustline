@@ -53,7 +53,7 @@ from scanner.extract import (
 from scanner.tools.platform_takeover import matching_platform
 from scanner.tranco import tranco_rank
 from scanner.website import extract_website_scan
-from scanner.llm import CallLog, ModelClient, call_json
+from scanner.llm import CallLog, ModelClient, OverloadError, call_json, muse_overloaded
 from scanner.lookups import LookupCache, consistent_evidence
 from scanner.models import (
     Classification,
@@ -89,6 +89,7 @@ class ScanOutcome:
     file_texts: dict[str, str] = field(default_factory=dict)
     source_html: str = ""
     code_only: bool = False
+    muse_overloaded: bool = False
 
     @property
     def cost_usd(self) -> float:
@@ -383,7 +384,12 @@ def cited_unknown(risk: str, evidence: dict[str, Any]) -> list[str]:
 
 
 def executing_runs_in(rows: list[tuple[Reference, Classification, Investigation]]) -> bool:
-    return any(cl.runs_in in EXECUTING for _, cl, _ in rows)
+    from scanner.inert import is_inert_path
+
+    return any(
+        cl.runs_in in EXECUTING and not is_inert_path(ref.file)
+        for ref, cl, _ in rows
+    )
 
 
 def is_claimable(evidence: dict[str, Any]) -> bool:
@@ -744,9 +750,7 @@ def apply_website_roles(
 
 def _reference_locations(group: dict[str, Any]) -> list[dict[str, Any]]:
     locations = []
-    for ref, _cl, _inv in group.get("rows") or []:
-        if not ref.page_url:
-            continue
+    for ref, cl, _inv in group.get("rows") or []:
         locations.append(
             {
                 "page_url": ref.page_url,
@@ -757,7 +761,7 @@ def _reference_locations(group: dict[str, Any]) -> list[dict[str, Any]]:
                 "raw": ref.raw,
                 "sri": ref.sri,
                 "loaded_by": ref.loaded_by,
-                "runs_in": _cl.runs_in,
+                "runs_in": cl.runs_in,
             }
         )
     return locations
@@ -1025,9 +1029,9 @@ def rank(
 
     def rank_one(index: int) -> None:
         group = groups[index]
-        known = skip_model_rank(group) or code_only
+        known = skip_model_rank(group) or code_only or muse_overloaded()
         remaining = clock.remaining_stage() if clock is not None else RANK_TIMEOUT_S
-        if code_only:
+        if code_only or muse_overloaded():
             finding = _template_finding(group, deadline=False)
         elif not known and clock is not None and remaining < 0.05:
             finding = _template_finding(group, deadline=True)
@@ -1053,11 +1057,11 @@ def rank(
                     logs=group_logs[index],
                     timeout_s=timeout_s,
                 )
-            except TimeoutError:
+            except (TimeoutError, OverloadError):
                 finding = _template_finding(group, deadline=True)
                 if fallbacks is not None:
                     fallbacks.append(group["target"])
-                if clock is not None:
+                if clock is not None and not muse_overloaded():
                     clock.note_skip(
                         "rank",
                         f"model call exceeded {timeout_s}s; kept code verdict",
@@ -1234,7 +1238,7 @@ def _finding_from_rank(
             action_ref = ref.action_ref
             action_sha_pinned = ref.action_sha_pinned
             break
-    return Finding(
+    finding = Finding(
         target=group["target"],
         kind=group["kind"],
         references=refs,
@@ -1258,6 +1262,20 @@ def _finding_from_rank(
         action_sha_pinned=action_sha_pinned,
         evidence_level=level,
     )
+    from scanner.copy import decorate
+    from scanner.inert import is_inert_path
+
+    if group["rows"] and all(is_inert_path(ref.file) for ref, _cl, _inv in group["rows"]):
+        if is_claimable(evidence):
+            if SEVERITY_ORDER[finding.severity] < SEVERITY_ORDER["low"]:
+                finding = finding.model_copy(
+                    update={"severity": "low", "final_severity": "low", "ceiling_note": "inert file"}
+                )
+        elif finding.severity in FIX_TODAY:
+            finding = finding.model_copy(
+                update={"severity": "info", "final_severity": "info", "ceiling_note": "inert file"}
+            )
+    return decorate(finding)
 
 
 async def scan(
@@ -1309,9 +1327,11 @@ async def run_scan(
     if is_website_source(source):
         extracted_web = await extract_website_scan(source)
         refs = extracted_web.references
-        coverage = website_coverage().as_dict()
         source_html = extracted_web.html
         file_texts["index.html"] = extracted_web.html
+        web_cov = website_coverage()
+        web_cov.ignored_non_hosts = extracted_web.ignored_non_hosts
+        coverage = web_cov.as_dict()
     else:
         # Cloning and reading a repository blocks; keep it off the event loop so
         # the scan's own SSE stream keeps flowing while it runs.
@@ -1448,6 +1468,7 @@ async def run_scan(
         file_texts=file_texts,
         source_html=source_html,
         code_only=code_only,
+        muse_overloaded=muse_overloaded(),
     )
 
 

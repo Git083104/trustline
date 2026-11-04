@@ -14,13 +14,14 @@ from scanner.config import (
     CLASSIFY_REASONING_EFFORT,
 )
 from scanner.deadline import ScanClock
+from scanner.inert import is_inert_path
 from scanner.extract import (
     actionable,
     is_bucket_ref,
     is_github_action_ref,
     is_github_owner_ref,
 )
-from scanner.llm import ModelClient, call_json, redact_secrets
+from scanner.llm import ModelClient, OverloadError, call_json, muse_overloaded, redact_secrets
 from scanner.lookups import LookupCache
 from scanner.models import (
     Classification,
@@ -206,8 +207,9 @@ def classify_by_rule(ref: Reference) -> Classification | None:
     url_path = raw_l.split("?", 1)[0]
     host = (ref.domain or ref.host_or_bucket or "").lower()
 
-    if _docs_only_file(lowered, name):
-        return _rule(ref, "docs_link", "docs_only", 0, "docs-only file")
+    if is_inert_path(lowered) or _docs_only_file(lowered, name):
+        runs = "test" if any(part in lowered.split("/") for part in ("tests", "test", "__tests__", "spec", "fixtures")) else "docs_only"
+        return _rule(ref, "docs_link", runs, 0, "inert file")
     if _url_in_comment(context, ref.raw):
         return _rule(ref, "docs_link", "docs_only", 0, "comment URL")
     if is_bucket_ref(ref) or raw_l.startswith("s3://") or _cloud_object_url(raw_l, host):
@@ -336,7 +338,7 @@ def classify(
         clock.classify_rule_n = rule_n
         clock.classify_model_n = model_n
     log.info("classify rules=%s model=%s", rule_n, model_n)
-    if code_only:
+    if code_only or muse_overloaded():
         if clock is not None:
             clock.classify_model_n = 0
         for index in pending:
@@ -353,6 +355,10 @@ def classify(
 
     def work(batch_index: int) -> None:
         chunk = chunks[batch_index]
+        if muse_overloaded():
+            for index in chunk:
+                results[index] = _fallback_classification(chosen[index])
+            return
         if clock is not None and clock.expired():
             hosts = []
             for index in chunk:
@@ -378,13 +384,13 @@ def classify(
                 logs=batch_logs[batch_index],
                 timeout_s=timeout_s,
             )
-        except TimeoutError:
+        except (TimeoutError, OverloadError) as exc:
             hosts = []
             for index in chunk:
                 ref = chosen[index]
                 guessed = _fallback_classification(ref)
                 results[index] = guessed
-                if guessed.reason == SKIPPED_CLASSIFY:
+                if isinstance(exc, TimeoutError) and guessed.reason == SKIPPED_CLASSIFY:
                     hosts.append(ref.host_or_bucket)
                     if skipped is not None:
                         skipped.append(ref.host_or_bucket)
@@ -395,10 +401,7 @@ def classify(
                     hosts,
                 )
             else:
-                log.warning(
-                    "classify model batch exceeded %ss; used file-shape fallback",
-                    timeout_s,
-                )
+                log.warning("classify used file-shape fallback (%s)", type(exc).__name__)
             return
         for index, item in zip(chunk, classified, strict=True):
             results[index] = item

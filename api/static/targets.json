@@ -4,17 +4,22 @@
   "websites": [
     {
       "url": "https://git083104.github.io/paperplane-shop/",
-      "name": "paperplane-shop",
-      "about": "Live storefront: polyfill.io, an unregistered script domain, a deleted Pages account"
+      "name": "Demo storefront (ours): 4 problems planted on purpose",
+      "about": "polyfill.io, an unregistered script domain, a deleted Pages account, and a missing Azure container"
     },
     {
-      "url": "https://example.com",
-      "name": "example.com",
-      "about": "should come back clean"
+      "url": "https://git083104.github.io/paperplane-shop/abandoned/",
+      "name": "Abandoned widget",
+      "about": "loads a script from a deleted GitHub Pages account"
+    },
+    {
+      "url": "https://git083104.github.io/paperplane-shop/old-cdn/",
+      "name": "Old CDN",
+      "about": "loads from cdn.bootcss.com plus a script without an integrity hash"
     },
     {
       "url": "https://www.wikipedia.org",
-      "name": "wikipedia.org",
+      "name": "Control: should come back clean",
       "about": "should come back clean"
     }
   ],

@@ -124,9 +124,8 @@ def test_comments_js_with_slashes():
         evidence={"bucket_probe": {"status": "NoSuchBucket"}},
     )
     plan = propose_fixes([item], files)
-    text = plan.files["src/config.js"]
-    assert text.startswith("// TETHER: gone")
-    assert "# " not in text
+    assert not plan.edits
+    assert plan.files["src/config.js"] == files["src/config.js"]
 
 
 def test_comments_out_claimable_script():
@@ -235,3 +234,75 @@ def test_syntax_reparse_rejects_broken_html_edit(tmp_path: Path):
     title, body = template_pr(plan, [item])
     assert "polyfill.io" in body
     assert title.startswith("Tether:")
+
+
+def test_clawdbot_test_and_source_files_are_not_edited():
+    files = {
+        "src/gateway.ts": 'fetch("https://cdn.polyfill.io/v3/polyfill.min.js");\n',
+        "test/gateway.test.ts": 'const url = "https://cdn.polyfill.io/v3/polyfill.min.js";\n',
+    }
+    item = _finding(
+        target="polyfill.io",
+        locations=[
+            {
+                "file": "src/gateway.ts",
+                "line": 1,
+                "runs_in": "server",
+                "raw": "https://cdn.polyfill.io/v3/polyfill.min.js",
+            },
+            {
+                "file": "test/gateway.test.ts",
+                "line": 1,
+                "runs_in": "test",
+                "raw": "https://cdn.polyfill.io/v3/polyfill.min.js",
+            },
+        ],
+    )
+    plan = propose_fixes([item], files)
+    assert plan.edits == []
+    assert plan.patch == ""
+
+
+def test_patch_applies_and_yaml_reparses(tmp_path: Path):
+    import subprocess
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    workflow = repo / ".github" / "workflows"
+    workflow.mkdir(parents=True)
+    before = "jobs:\n  x:\n    steps:\n      - uses: actions/checkout@v4\n"
+    (workflow / "ci.yml").write_text(before)
+    subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True)
+    subprocess.run(["git", "add", "."], cwd=repo, check=True, capture_output=True)
+    files = {".github/workflows/ci.yml": before}
+    item = _finding(
+        target="github.com/actions/checkout",
+        references=[".github/workflows/ci.yml:4"],
+        action_ref="v4",
+        action_sha_pinned=False,
+        locations=[
+            {
+                "file": ".github/workflows/ci.yml",
+                "line": 4,
+                "runs_in": "ci",
+                "raw": "actions/checkout@v4",
+                "action_owner": "actions",
+                "action_repo": "checkout",
+            }
+        ],
+    )
+    plan = propose_fixes(
+        [item], files, resolve_sha=lambda *_args: "8f4b7f84864484a7bf31766abe9204da3cbe65b3"
+    )
+    patch_path = tmp_path / "tether.patch"
+    patch_path.write_text(plan.patch)
+    check = subprocess.run(
+        ["git", "apply", "--check", str(patch_path)],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+    )
+    assert check.returncode == 0, check.stderr
+    import yaml
+
+    yaml.safe_load(plan.files[".github/workflows/ci.yml"])

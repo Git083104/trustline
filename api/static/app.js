@@ -80,8 +80,12 @@
     tabNTrace: $("tab-n-trace"),
     fixIt: $("fix-it"),
     fixPanel: $("fix-panel"),
-    fixDiff: $("fix-diff"),
-    fixDownload: $("fix-download")
+    fixItems: $("fix-items"),
+    fixAdvanced: $("fix-advanced"),
+    fixEditN: $("fix-edit-n"),
+    fixDownload: $("fix-download"),
+    skippedToggle: $("skipped-toggle"),
+    skippedList: $("skipped-list")
   };
 
   var state = {
@@ -764,6 +768,18 @@
 
   /* ---------- report helpers (all code-derived) ---------- */
 
+  function locationLines(item) {
+    var refs = item.references || [];
+    var lines = refs.map(function (ref) {
+      if (typeof ref === "string") { return ref; }
+      if (!ref || typeof ref !== "object") { return ""; }
+      if (ref.file) { return ref.file + (ref.line ? ":" + ref.line : ""); }
+      if (ref.page_url) { return ref.page_url + (ref.line ? ":" + ref.line : ""); }
+      return "";
+    }).filter(Boolean);
+    return { shown: lines.slice(0, 3).join(", "), more: Math.max(0, lines.length - 3) };
+  }
+
   function whereUsed(item) {
     var refs = item.references || [];
     return refs.map(function (ref) {
@@ -819,42 +835,43 @@
     sevcol.appendChild(sev);
     var main = make("div", "finding-main");
 
-    var top = make("div", "finding-top");
-    top.appendChild(make("span", "finding-target", item.target));
-    if (item.kind) { top.appendChild(make("span", "finding-type", item.kind)); }
+    main.appendChild(make("p", "finding-headline", item.headline || item.risk || item.target));
+    var badge = make("span", "finding-where");
     if (item.evidence_level === "proven") {
-      top.appendChild(make("span", "finding-where", "Proven"));
+      badge.textContent = "Proven";
+      badge.title = "Proven: checked directly, e.g. the registry says no one owns this domain";
+      main.appendChild(badge);
     } else if (item.evidence_level === "likely") {
-      top.appendChild(make("span", "finding-where", "Likely"));
+      badge.textContent = "Likely";
+      badge.title = "Likely: the lookups point to a problem, but a human should confirm the dates";
+      main.appendChild(badge);
+    }
+    var why = item.why || item.risk || "";
+    if (why) {
+      var whyP = make("p", "finding-why");
+      whyP.appendChild(make("span", "why-k", "Why it matters"));
+      whyP.appendChild(document.createTextNode(" " + why));
+      main.appendChild(whyP);
+    }
+    var steps = item.steps || [];
+    if (steps.length) {
+      var ol = make("ol", "finding-steps");
+      var cap = make("p", "steps-k", "What to do");
+      main.appendChild(cap);
+      steps.slice(0, 3).forEach(function (step) {
+        ol.appendChild(make("li", null, step));
+      });
+      main.appendChild(ol);
     }
     var where = whereUsed(item);
-    main.appendChild(top);
-
-    if (item.risk) { main.appendChild(make("p", "finding-risk", item.risk)); }
-
-    var fixRow = make("div", "fix-row");
-    fixRow.appendChild(make("span", "fix-k", "Fix"));
-    fixRow.appendChild(make("span", "fix-text", item.fix || ""));
-    var copy = make("button", "btn btn-secondary copy-btn");
-    copy.type = "button";
-    var copyLabel = make("span", null, "Copy");
-    copy.appendChild(copyIcon());
-    copy.appendChild(copyLabel);
-    copy.addEventListener("click", function () {
-      var value = item.fix || "";
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(value).catch(function () {});
-      }
-      copyLabel.textContent = "Copied";
-      setTimeout(function () { copyLabel.textContent = "Copy"; }, 1500);
-    });
-    fixRow.appendChild(copy);
-    main.appendChild(fixRow);
 
     var details = make("div", "finding-details");
     details.hidden = true;
+    addDetail(details, "Target", item.target, false);
     addDetail(details, "Evidence", evidenceText(item), false);
-    addDetail(details, "Found in", where, false);
+    var locs = locationLines(item);
+    addDetail(details, "Found in", locs.shown, false);
+    if (locs.more) { addDetail(details, "More", "and " + locs.more + " more", false); }
     evidenceDates(item).forEach(function (line) {
       addDetail(details, "Date", line, false);
     });
@@ -963,22 +980,18 @@
 
   function renderMeta(report) {
     var coverage = report.coverage || {};
-    var parts = [];
+    var findings = report.findings || [];
     var secs = recordedScanSeconds(report);
-    if (secs > 0) {
-      parts.push(secs + "s" + (state.demo ? " replayed" : ""));
-    } else if (state.demo) {
-      parts.push("replayed");
-    }
-    var calls = state.calls || report.agent_runs || 0;
-    if (calls > 0) { parts.push(calls + " agent calls"); }
-    parts.push(coverage.truncated
-      ? coverage.files_scanned + " of " + coverage.files_total + " files scanned"
-      : "all files scanned");
-    if (report.partial) { parts.push("partial"); }
-    var skipped = report.skipped_targets || [];
-    if (skipped.length) { parts.push("skipped " + skipped.join(", ")); }
-    el.resMeta.textContent = parts.join(" · ");
+    var files = Number(coverage.files_scanned || 0);
+    var outside = findings.length;
+    var fixN = findings.filter(function (f) {
+      return f.severity === "critical" || f.severity === "high";
+    }).length;
+    var fileBit = files === 1 ? "1 file" : files.toLocaleString() + " files";
+    var timeBit = secs > 0 ? " in " + secs + "s" : (state.demo ? " (replayed)" : "");
+    var svc = outside === 1 ? "1 outside service" : outside.toLocaleString() + " outside services";
+    var need = fixN === 1 ? "1 needs fixing today" : fixN + " need fixing today";
+    el.resMeta.textContent = "Scanned " + fileBit + timeBit + " · found " + svc + " · " + need;
   }
 
   function renderAllTargets(findings) {
@@ -1064,15 +1077,30 @@
         el.partial.hidden = false;
         el.partial.textContent = report.code_only_banner
           || "Daily AI budget reached: this scan used code rules only.";
-      } else if (report.partial && skipped.length) {
+        if (el.skippedToggle) { el.skippedToggle.hidden = true; }
+        if (el.skippedList) { el.skippedList.hidden = true; }
+      } else if (skipped.length) {
         el.partial.hidden = false;
-        el.partial.textContent = "Partial scan. Skipped: " + skipped.join(", ");
-      } else if (report.partial) {
-        el.partial.hidden = false;
-        el.partial.textContent = "Partial scan. Some targets were skipped.";
+        el.partial.textContent = "Partial scan: " + skipped.length + " targets not checked (time limit).";
+        if (el.skippedToggle && el.skippedList) {
+          el.skippedToggle.hidden = false;
+          el.skippedToggle.textContent = "Show list";
+          el.skippedList.replaceChildren();
+          skipped.slice(0, 20).forEach(function (name) {
+            el.skippedList.appendChild(make("li", null, name));
+          });
+          el.skippedList.hidden = true;
+          el.skippedToggle.onclick = function () {
+            var open = !el.skippedList.hidden;
+            el.skippedList.hidden = open;
+            el.skippedToggle.textContent = open ? "Show list" : "Hide list";
+          };
+        }
       } else {
         el.partial.hidden = true;
         el.partial.textContent = "";
+        if (el.skippedToggle) { el.skippedToggle.hidden = true; }
+        if (el.skippedList) { el.skippedList.hidden = true; }
       }
     }
     if (el.workPanel) { el.workPanel.hidden = true; }
@@ -1111,7 +1139,7 @@
   function setupFixIt(report) {
     if (!el.fixIt || !el.fixPanel) { return; }
     el.fixPanel.hidden = true;
-    el.fixDiff.textContent = "";
+    if (el.fixItems) { el.fixItems.replaceChildren(); }
     var id = state.demo ? "demo" : state.scanId;
     if (!id) {
       el.fixIt.hidden = true;
@@ -1124,13 +1152,50 @@
         .then(function (res) { return res.ok ? res.json() : {}; })
         .then(function (data) {
           el.fixPanel.hidden = false;
-          el.fixDiff.textContent = data.patch || data.body || "No edits.";
+          renderFixPlan(data);
         })
         .catch(function () {
           el.fixPanel.hidden = false;
-          el.fixDiff.textContent = "The patch could not be built.";
+          if (el.fixItems) {
+            el.fixItems.textContent = "The fix plan could not be built.";
+          }
         });
     };
+  }
+
+  function copyBtn(label, value) {
+    var btn = make("button", "btn btn-secondary copy-btn");
+    btn.type = "button";
+    btn.appendChild(copyIcon());
+    btn.appendChild(make("span", null, label));
+    btn.addEventListener("click", function () {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(value || "").catch(function () {});
+      }
+      btn.lastChild.textContent = "Copied";
+      setTimeout(function () { btn.lastChild.textContent = label; }, 1500);
+    });
+    return btn;
+  }
+
+  function renderFixPlan(data) {
+    if (!el.fixItems) { return; }
+    el.fixItems.replaceChildren();
+    (data.items || []).forEach(function (item) {
+      var card = make("div", "fix-item");
+      card.appendChild(make("p", "finding-headline", item.headline || item.target));
+      var ol = make("ol", "finding-steps");
+      (item.steps || []).forEach(function (step) { ol.appendChild(make("li", null, step)); });
+      card.appendChild(ol);
+      card.appendChild(copyBtn("Copy as GitHub issue", (item.issue_title || "") + "\n\n" + (item.issue_body || "")));
+      card.appendChild(copyBtn("Copy prompt for your coding assistant", item.prompt || ""));
+      el.fixItems.appendChild(card);
+    });
+    var n = data.edit_count || (data.edits || []).length || 0;
+    if (el.fixAdvanced) {
+      el.fixAdvanced.hidden = false;
+      if (el.fixEditN) { el.fixEditN.textContent = String(n); }
+    }
   }
 
   function selectTab(name) {
@@ -1175,8 +1240,20 @@
         if (!data) { return; }
         if (list && data.groups) {
           list.replaceChildren();
+          var ordered = [];
+          function take(index, n) {
+            var repos = ((data.groups[index] || {}).repos || []).slice(0, n);
+            repos.forEach(function (repo) { ordered.push(repo); });
+          }
+          take(0, 2);
+          take(1, 2);
+          take(3, 2);
           data.groups.forEach(function (group) {
             (group.repos || []).forEach(function (repo) {
+              if (ordered.indexOf(repo) < 0) { ordered.push(repo); }
+            });
+          });
+          ordered.forEach(function (repo) {
               var btn = make("button", "repo-chip");
               btn.type = "button";
               btn.appendChild(make("span", "repo-chip-name", repo.repo));
@@ -1187,14 +1264,14 @@
                 el.target.focus();
               });
               list.appendChild(btn);
-            });
           });
           if (more) {
-            more.hidden = list.children.length <= 8;
+            more.hidden = list.children.length <= 6;
+            more.textContent = "Show all";
             more.addEventListener("click", function () {
               var open = !list.classList.contains("is-collapsed");
               list.classList.toggle("is-collapsed", open);
-              more.textContent = open ? "More" : "Less";
+              more.textContent = open ? "Show all" : "Show fewer";
             });
           }
         }

@@ -8,9 +8,12 @@ Run against production after each deploy.
 from __future__ import annotations
 
 import json
+import os
 import sys
 import time
 from pathlib import Path
+
+from dotenv import load_dotenv
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -36,6 +39,9 @@ def _request(url: str, *, method: str = "GET", body: bytes | None = None, timeou
     req = Request(url, data=body, method=method)
     if body is not None:
         req.add_header("Content-Type", "application/json")
+    token = os.environ.get("TRUSTMAP_ADMIN_TOKEN", "").strip()
+    if token:
+        req.add_header("X-Trustmap-Token", token)
     with urlopen(req, timeout=timeout) as response:
         return response.status, response.read()
 
@@ -78,6 +84,7 @@ def main() -> int:
     if len(sys.argv) != 2:
         print("usage: python scripts/warm.py BASE_URL", file=sys.stderr)
         return 2
+    load_dotenv(ROOT / ".env", override=False)
     base = sys.argv[1].rstrip("/")
     data = json.loads(TARGETS.read_text())
     targets = _entries(data)

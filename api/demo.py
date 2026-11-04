@@ -4,7 +4,9 @@ import json
 from pathlib import Path
 from typing import Any
 
+from api.fix_api import findings_from_public
 from scanner.config import DEMO_EVENT_GAP_MS
+from scanner.events import finding_public
 
 DEMO_PATH = Path(__file__).parent / "demo_scan.json"
 
@@ -46,4 +48,7 @@ def demo_waits_ms(events: list[dict[str, Any]], speed: str | None) -> list[int]:
 
 def demo_report(payload: dict[str, Any] | None = None) -> dict[str, Any]:
     data = payload if payload is not None else load_demo()
-    return {key: data[key] for key in data if key != "events"}
+    out = {key: data[key] for key in data if key != "events"}
+    findings = findings_from_public(out.get("findings") or [])
+    out["findings"] = [finding_public(item) for item in findings]
+    return out

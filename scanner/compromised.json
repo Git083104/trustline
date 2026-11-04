@@ -15,6 +15,10 @@
     "status": "compromised",
     "source": "https://www.censys.com/blog/july-2-polyfill-io-supply-chain-attack-digging-into-the-web-of-compromised-domains"
   },
+  "cdn.bootcss.com": {
+    "status": "compromised",
+    "source": "https://www.censys.com/blog/july-2-polyfill-io-supply-chain-attack-digging-into-the-web-of-compromised-domains"
+  },
   "bootcdn.net": {
     "status": "associated",
     "source": "https://www.censys.com/blog/july-2-polyfill-io-supply-chain-attack-digging-into-the-web-of-compromised-domains"

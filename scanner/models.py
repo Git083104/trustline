@@ -214,3 +214,7 @@ class Finding(BaseModel):
     action_sha_pinned: bool | None = None
     evidence_level: Literal["proven", "likely", ""] = ""
     explained_by: Literal["model", "template"] = "model"
+    headline: str = ""
+    why: str = ""
+    steps: list[str] = Field(default_factory=list)
+    risk_type: str = ""

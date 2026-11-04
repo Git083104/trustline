@@ -189,7 +189,13 @@ def test_classify_defaults_to_actionable_only(tmp_path):
 
 def test_include_filtered_fixture_type_accuracy(tmp_path):
     refs = extract(str(FIXTURE_ROOT))
-    expected = json.loads(EXPECTED_PATH.read_text())["references"]
+    from scanner.extract import JUNK_REASONS
+
+    expected = [
+        item
+        for item in json.loads(EXPECTED_PATH.read_text())["references"]
+        if item.get("filter_reason") not in JUNK_REASONS
+    ]
     logs = []
     client = FakeModelClient(_handler_from_expected)
     got = classify(

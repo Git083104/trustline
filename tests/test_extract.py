@@ -6,6 +6,7 @@ import pytest
 
 from scanner.config import ALLOWLIST_DOMAINS, GITHUB_CLONE_TIMEOUT_S
 from scanner.extract import (
+    JUNK_REASONS,
     CloneError,
     actionable,
     extract,
@@ -19,16 +20,24 @@ EXPECTED_PATH = Path(__file__).parent / "fixtures" / "expected.json"
 
 def test_extract_finds_every_expected_reference():
     expected = json.loads(EXPECTED_PATH.read_text())["references"]
+    kept_expected = [ref for ref in expected if ref.get("filter_reason") not in JUNK_REASONS]
     found = extract(str(FIXTURE_ROOT))
     keys = {(ref.file, ref.line, ref.host_or_bucket) for ref in found}
     missing = [
         ref
-        for ref in expected
+        for ref in kept_expected
         if (ref["file"], ref["line"], ref["host_or_bucket"]) not in keys
     ]
     assert missing == [], f"missing {missing}"
+    junk = [
+        ref
+        for ref in expected
+        if ref.get("filter_reason") in JUNK_REASONS
+        and (ref["file"], ref["line"], ref["host_or_bucket"]) in keys
+    ]
+    assert junk == [], f"junk still kept {junk}"
     by_key = {(ref.file, ref.line, ref.host_or_bucket): ref for ref in found}
-    for ref in expected:
+    for ref in kept_expected:
         got = by_key[(ref["file"], ref["line"], ref["host_or_bucket"])]
         assert ref["raw"] == got.raw
         assert got.context
@@ -124,7 +133,7 @@ def test_extract_azure_and_github_owner_shapes(tmp_path: Path):
 
 
 def test_skips_node_modules_and_git(tmp_path: Path):
-    (tmp_path / "ok.py").write_text('URL = "https://kept.example.net/v1"\n')
+    (tmp_path / "ok.py").write_text('URL = "https://kept-host.dev/v1"\n')
     nested = tmp_path / "node_modules" / "pkg"
     nested.mkdir(parents=True)
     (nested / "index.js").write_text('fetch("https://hidden.example.net/x")\n')
@@ -133,12 +142,12 @@ def test_skips_node_modules_and_git(tmp_path: Path):
     (git / "config").write_text('url = "https://also-hidden.example.net/"\n')
     found = extract(str(tmp_path))
     assert {(ref.host_or_bucket, ref.file) for ref in found} == {
-        ("kept.example.net", "ok.py")
+        ("kept-host.dev", "ok.py")
     }
 
 
 def test_skips_lockfiles_minified_and_sourcemaps(tmp_path: Path):
-    (tmp_path / "app.js").write_text('fetch("https://kept.example.net/v1")\n')
+    (tmp_path / "app.js").write_text('fetch("https://kept-host.dev/v1")\n')
     (tmp_path / "package-lock.json").write_text(
         '{"resolved": "https://noise.example.net/pkg.tgz"}\n'
     )
@@ -146,7 +155,7 @@ def test_skips_lockfiles_minified_and_sourcemaps(tmp_path: Path):
     (tmp_path / "lib.js.map").write_text('{"file": "https://map.example.net/x"}\n')
     found = extract(str(tmp_path))
     assert {(ref.host_or_bucket, ref.file) for ref in found} == {
-        ("kept.example.net", "app.js")
+        ("kept-host.dev", "app.js")
     }
 
 
@@ -171,21 +180,24 @@ def test_license_schema_and_noise_hosts_get_filter_reasons(tmp_path: Path):
     assert found["opensource.org"] == "allowlisted"
     assert found["www.apache.org"] == "allowlisted"
     assert found["schemas.xmlsoap.org"] == "allowlisted"
-    assert found["kept.example.net"] == "reserved_domain"
-    assert found["127.0.0.1"] == "ip_address"
-    assert found["8.8.8.8"] == "ip_address"
-    assert found["{host}"] == "placeholder"
-    assert found["cdn.dead-host.invalid"] == "reserved_tld"
-    assert found["no-suffix-at-all"] == "no_public_suffix"
+    for junk in (
+        "kept.example.net",
+        "127.0.0.1",
+        "8.8.8.8",
+        "{host}",
+        "cdn.dead-host.invalid",
+        "no-suffix-at-all",
+    ):
+        assert junk not in found
 
 
 def test_skips_files_over_one_megabyte(tmp_path: Path):
-    (tmp_path / "ok.js").write_text('fetch("https://kept.example.net/v1")\n')
+    (tmp_path / "ok.js").write_text('fetch("https://kept-host.dev/v1")\n')
     huge = tmp_path / "huge.js"
     huge.write_bytes(b"x" * (1_000_000 + 1) + b'https://too-big.example.net/x\n')
     found = extract(str(tmp_path))
     assert {(ref.host_or_bucket, ref.file) for ref in found} == {
-        ("kept.example.net", "ok.js")
+        ("kept-host.dev", "ok.js")
     }
 
 
@@ -193,14 +205,14 @@ def test_prioritizes_html_over_docs_when_capped(tmp_path: Path, monkeypatch):
     monkeypatch.setenv("TRUSTMAP_MAX_SCAN_FILES", "1")
     (tmp_path / "README.md").write_text('See https://docs-only.example.net/x\n')
     (tmp_path / "index.html").write_text(
-        '<script src="https://app.example.net/app.js"></script>\n'
+        '<script src="https://app.kept-host.dev/app.js"></script>\n'
     )
     result = extract_scan(str(tmp_path))
     assert result.coverage.truncated is True
     assert result.coverage.reason == "file_cap"
     assert result.coverage.files_scanned == 1
     assert result.coverage.files_total == 2
-    assert {ref.host_or_bucket for ref in result.references} == {"app.example.net"}
+    assert {ref.host_or_bucket for ref in result.references} == {"app.kept-host.dev"}
 
 
 def test_byte_cap_truncates_without_error(tmp_path: Path, monkeypatch):
@@ -235,14 +247,14 @@ def test_github_clone_uses_blob_size_filter(monkeypatch, tmp_path: Path):
 def test_github_url_uses_shallow_clone(tmp_path: Path):
     repo = tmp_path / "cloned"
     repo.mkdir()
-    (repo / "main.py").write_text('API = "https://api.cloned.example.com/"\n')
+    (repo / "main.py").write_text('API = "https://api.cloned-host.dev/"\n')
 
     def fake_clone(url: str, dest_parent: Path) -> Path:
         assert "github.com/acme/widgets" in url
         return repo
 
     found = extract("https://github.com/acme/widgets", clone_github=fake_clone)
-    assert found[0].host_or_bucket == "api.cloned.example.com"
+    assert found[0].host_or_bucket == "api.cloned-host.dev"
 
 
 def test_clone_failure_reports_a_readable_reason(monkeypatch, tmp_path: Path):
@@ -294,3 +306,32 @@ def test_invalid_ipv6_url_is_skipped(tmp_path: Path):
     (tmp_path / "app.js").write_text('u = "http://[::1:80/x"\n')
     refs = extract(str(tmp_path))
     assert refs == []
+
+
+def test_clawdbot_junk_strings_are_ignored_not_skipped(tmp_path: Path):
+    # Strings of the kind clawdbot stores in config/tests, not public hosts.
+    (tmp_path / "config.ts").write_text(
+        "\n".join(
+            [
+                'const a = "https://${GATEWAY_HOST}/hook";',
+                'const b = "https://{{host}}/api";',
+                'const c = "https://<placeholder>/x";',
+                'const d = "https://%s.internal/x";',
+                "const e = `https://` + host;",
+                'const f = "https://127.0.0.1:18789/x";',
+                'const g = "https://[::1]/x";',
+                'const h = "https://localhost:3000/x";',
+                'const i = "https://other/health";',
+                'const j = "https://laptop/x";',
+                'const k = "https://example.com/docs";',
+                'const m = "https://svc.local/health";',
+                'const n = "https://box.home.arpa/x";',
+                'const o = "https://cdn-assets-trustmap-7f3k2.com/v1";',
+            ]
+        )
+        + "\n"
+    )
+    result = extract_scan(str(tmp_path))
+    hosts = {ref.host_or_bucket for ref in result.references}
+    assert hosts == {"cdn-assets-trustmap-7f3k2.com"}
+    assert result.coverage.ignored_non_hosts >= 10
