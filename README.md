@@ -96,9 +96,9 @@ Meta Muse Spark (Meta Model API), Muse Code, FastAPI, Render.
 
 ### Team
 
-- [Git083104](https://github.com/Git083104) — scanning, floors, eval, deploy
-- [benbischoff](https://github.com/benbischoff) (Benjamin Bischoff) — product copy, UI polish, README
-- twp — `<ROLE>`
+- Ben Bischoff ([@Git083104](https://github.com/Git083104)): `<ROLE>`
+- jwang ([@jwang2007](https://github.com/jwang2007)): `<ROLE>`
+- Matthew ([@matthewL687](https://github.com/matthewL687)): `<ROLE>`
 
 ### Third-party data and code
 
