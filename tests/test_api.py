@@ -276,6 +276,9 @@ def test_frontend_has_the_three_screens_and_no_design_switcher():
     assert "repo-grid" in markup
     assert "Example from the demo scan" in markup
     assert "nth-child(n+7)" in css
+    assert "Now checking" in markup
+    assert "now-check" in js.text
+    assert 'pointer-events:none' in css
     assert "Websites to try" in markup
     assert "Fix it" in markup
 

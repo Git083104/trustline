@@ -104,7 +104,11 @@
     ignoredList: $("ignored-list"),
     codeOnlySummary: $("code-only-summary"),
     codeOnlyToggle: $("code-only-toggle"),
-    codeOnlyList: $("code-only-list")
+    codeOnlyList: $("code-only-list"),
+    nowTarget: $("now-target"),
+    nowCheckName: $("now-check-name"),
+    nowResult: $("now-check-result"),
+    nowCounts: $("now-counts")
   };
 
   var state = {
@@ -445,6 +449,7 @@
       // in the feed but never counted as an agent call.
       if (event.tool !== "done") { state.calls += 1; }
       newTurn(event);
+      nowCheck(event.target, CHECK_LABEL[event.tool] || event.tool, "");
       renderPips();
       return;
     }
@@ -455,7 +460,27 @@
       turn.result = read.text;
       turn.sev = read.sev;
       setRowResult(turn.node, read.sev, read.text);
+      nowCheck(turn.target, CHECK_LABEL[event.tool] || event.tool, read.text);
     }
+  }
+
+  function nowCheck(target, check, result) {
+    if (el.nowTarget && target) { el.nowTarget.textContent = target; }
+    if (el.nowCheckName && check) { el.nowCheckName.textContent = check; }
+    if (el.nowResult && result) { el.nowResult.textContent = result; }
+    nowCounts();
+  }
+
+  function nowCounts() {
+    if (!el.nowCounts) { return; }
+    var risky = 0;
+    var safe = 0;
+    Object.keys(state.buckets).forEach(function (name) {
+      var bucket = state.buckets[name];
+      if (bucket === "claimable" || bucket === "compromised") { risky += 1; }
+      else if (bucket === "safe") { safe += 1; }
+    });
+    el.nowCounts.textContent = "checked " + (state.targetsSeen || 0) + " · risky " + risky + " · safe " + safe;
   }
 
   function applyRanked(event) {
@@ -504,6 +529,7 @@
     state.startedAt = Date.now();
     state.elapsedMs = 0;
     el.feed.replaceChildren();
+    nowCheck("—", "—", "—");
     setTargetLabels();
     setRecordedLabel(el.scanRecorded, null);
     renderLayers();
@@ -631,6 +657,7 @@
       state.buckets[event.target] = event.hard_signal ? "claimable" : "checking";
       state.counts.check += 1;
       if (state.counts.find < state.targetsSeen) { state.counts.find = state.targetsSeen; }
+      nowCheck(event.target, "code checks", event.hard_signal ? "signal found" : "looking up");
       renderFound();
       renderPips();
     }
@@ -641,6 +668,7 @@
       state.buckets[event.target] = bucketFor(event);
       state.counts.rank += 1;
       applyRanked(event);
+      nowCheck(event.target, null, SEV_LABEL[event.severity] || String(event.severity || ""));
       renderFound();
     }
     if (event.type === "error") {
