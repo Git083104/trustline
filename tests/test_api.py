@@ -274,6 +274,8 @@ def test_frontend_has_the_three_screens_and_no_design_switcher():
     assert "Inter" in markup and "IBM+Plex+Mono" in markup
     assert "home-art" in markup
     assert "repo-grid" in markup
+    assert "Example from the demo scan" in markup
+    assert "nth-child(n+7)" in css
     assert "Websites to try" in markup
     assert "Fix it" in markup
 
