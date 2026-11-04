@@ -132,6 +132,67 @@ def test_partial_scan_reports_skipped_targets(tmp_path):
     assert gone.cost_usd == 0
 
 
+def test_classify_timeout_on_schema_url_is_not_fix_today(tmp_path):
+    ref = Reference(
+        file="scanner/sarif.py",
+        line=10,
+        raw="https://json.schemastore.org/sarif-2.1.0.json",
+        host_or_bucket="json.schemastore.org",
+        domain="json.schemastore.org",
+        context='SARIF_SCHEMA = "https://json.schemastore.org/sarif-2.1.0.json"',
+    )
+
+    def hang(request):
+        time.sleep(5)
+        return {"items": []}
+
+    clock = ScanClock(
+        total_s=0.0,
+        classify_s=0.0,
+        agent_s=0.0,
+        rank_s=0.0,
+        request_cap_s=0.05,
+    )
+    got = classify(
+        [ref],
+        client=FakeModelClient(hang),
+        include_filtered=True,
+        cache=LookupCache(tmp_path / "c.db"),
+        clock=clock,
+        code_only_hosts=[],
+    )
+    assert len(got) == 1
+    assert got[0].runs_in == "docs_only"
+    assert "unknown position" in got[0].reason
+    findings = rank(
+        [
+            (
+                ref,
+                got[0],
+                _inv(
+                    ref,
+                    {
+                        "dns": {"status": "resolves", "host": "json.schemastore.org"},
+                        "rdap": {
+                            "status": "registered",
+                            "domain": "json.schemastore.org",
+                        },
+                    },
+                ),
+            )
+        ],
+        client=FakeModelClient(
+            handler=lambda request: _rank_ok(
+                severity="critical",
+                risk="A stranger could take over json.schemastore.org.",
+            )
+        ),
+        cache=LookupCache(tmp_path / "r.db"),
+    )
+    assert findings[0].target == "json.schemastore.org"
+    assert findings[0].severity not in {"critical", "high"}
+
+
 def test_unused_stage_time_flows_forward():
     clock = ScanClock(
         total_s=40.0,

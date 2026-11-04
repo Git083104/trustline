@@ -120,6 +120,7 @@ _SHARE_OPEN = re.compile(
     r"(?i)(window\.open\s*\(|location\.href\s*=|shareurl|share_url|openurl)"
 )
 SKIPPED_CLASSIFY = "not classified (deadline)"
+UNKNOWN_POSITION = "unknown position"
 log = logging.getLogger("trustmap")
 _PACKAGE_HOSTS = (
     "npmjs.com",
@@ -313,36 +314,29 @@ def _rule(
     )
 
 
-def _deadline_classification(ref: Reference) -> Classification:
+def _unknown_position(ref: Reference, reason: str) -> Classification:
     return Classification(
         id="0",
         file=ref.file,
         line=ref.line,
         host_or_bucket=ref.host_or_bucket,
         type="other",
-        runs_in="server",
-        blast_radius=2,
+        runs_in="docs_only",
+        blast_radius=0,
         confidence=0.0,
-        reason=SKIPPED_CLASSIFY,
+        reason=reason,
     )
 
 
+def _deadline_classification(ref: Reference) -> Classification:
+    return _unknown_position(ref, f"{UNKNOWN_POSITION} ({SKIPPED_CLASSIFY})")
+
+
 def _fallback_classification(ref: Reference) -> Classification:
-    context = ref.context or ""
-    raw_l = (ref.raw or "").lower()
-    if _plain_link(ref, context, raw_l):
-        return _rule(ref, "link", "server", 1, "plain link (model timeout fallback)")
-    name = Path(ref.file.replace("\\", "/")).name.lower()
-    suffix = Path(name).suffix
-    if suffix in {".js", ".mjs", ".cjs", ".ts", ".tsx", ".py", ".go", ".rb"}:
-        return _rule(ref, "api", "server", 2, "source URL (model timeout fallback)")
-    if suffix in {".json", ".yml", ".yaml", ".toml", ".env"}:
-        return _rule(ref, "api", "server", 2, "config URL (model timeout fallback)")
-    if suffix in {".html", ".htm"}:
-        if _A_HREF.search((ref.context or "")):
-            return _rule(ref, "link", "browser", 1, "html link (model timeout fallback)")
-        return _rule(ref, "script", "browser", 2, "html URL (model timeout fallback)")
-    return _deadline_classification(ref)
+    ruled = classify_by_rule(ref)
+    if ruled is not None:
+        return ruled
+    return _unknown_position(ref, f"{UNKNOWN_POSITION} (model timeout fallback)")
 
 
 def classify(

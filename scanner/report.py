@@ -8,7 +8,7 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 from scanner.agent import investigate, should_investigate, tranco_checked_safe
-from scanner.classify import classify
+from scanner.classify import UNKNOWN_POSITION, classify
 from scanner.deadline import ScanClock
 from scanner.ownership import (
     attach_changed_hands,
@@ -420,9 +420,43 @@ def executing_runs_in(rows: list[tuple[Reference, Classification, Investigation]
     from scanner.inert import is_inert_path
 
     return any(
-        cl.runs_in in EXECUTING and not is_inert_path(ref.file)
+        cl.runs_in in EXECUTING
+        and UNKNOWN_POSITION not in (cl.reason or "")
+        and not is_inert_path(ref.file)
         for ref, cl, _ in rows
     )
+
+
+def _nxdomain_apex(evidence: dict[str, Any], group: dict[str, Any] | None = None) -> bool:
+    dns = evidence.get("dns") or {}
+    if str(dns.get("status", "")).lower() != "nxdomain":
+        return False
+    host = str(dns.get("host") or (group or {}).get("target") or "").lower().rstrip(".")
+    parent = _registrable(host) if host else ""
+    if parent and host == parent:
+        return True
+    parent_dns = evidence.get("dns_parent") or {}
+    rdap = evidence.get("rdap") or {}
+    return (
+        str(parent_dns.get("status", "")).lower() == "nxdomain"
+        and str(rdap.get("status", "")).lower() != "registered"
+    )
+
+
+def fix_today_allowed(group: dict[str, Any]) -> bool:
+    """Fix-today needs a claimable-now or proven fact in an executing position."""
+    if not executing_runs_in(group.get("rows") or []):
+        return False
+    evidence = consistent_evidence(group.get("evidence") or {})
+    if is_claimable(evidence) or is_proven_ownership(evidence):
+        return True
+    if takeover_is_proven(evidence):
+        platform = evidence.get("platform_takeover") or {}
+        if str(platform.get("takeover") or "") == "vulnerable":
+            return True
+    if _group_compromised(group) == "compromised":
+        return True
+    return _nxdomain_apex(evidence, group)
 
 
 def _pages_account_exists(evidence: dict[str, Any]) -> bool:
@@ -1457,6 +1491,14 @@ def _finding_from_rank(
                 "severity": "info",
                 "final_severity": "info",
                 "ceiling_note": "popular domain without a proven takeover fact",
+            }
+        )
+    if finding.severity in FIX_TODAY and not fix_today_allowed(group):
+        finding = finding.model_copy(
+            update={
+                "severity": "low",
+                "final_severity": "low",
+                "ceiling_note": "not claimable in an executing position",
             }
         )
     return decorate(finding)
