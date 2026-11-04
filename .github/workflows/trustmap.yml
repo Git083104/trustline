@@ -3,14 +3,18 @@ name: Tether
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
+  schedule:
+    - cron: "17 13 * * 1"
 
 permissions:
   contents: read
   pull-requests: write
   security-events: write
+  issues: write
 
 jobs:
   trustmap:
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - name: Skip when MODEL_API_KEY is unavailable
@@ -164,3 +168,22 @@ jobs:
         with:
           sarif_file: ${{ runner.temp }}/tether.sarif
           category: tether
+
+  scheduled-scan:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+        with:
+          python-version: "3.12"
+      - name: Install Tether
+        run: uv sync --group dev
+      - name: Full scan and watch issue
+        env:
+          MODEL_API_KEY: ${{ secrets.MODEL_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TETHER_SLACK_WEBHOOK: ${{ secrets.TETHER_SLACK_WEBHOOK }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          TRUSTMAP_CACHE_DB: ${{ runner.temp }}/trustmap.db
+        run: uv run python -m scanner.watch --source .

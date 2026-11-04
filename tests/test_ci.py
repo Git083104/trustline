@@ -346,6 +346,11 @@ def test_workflow_file_matches_policy():
     assert "--disable-sandbox" not in Path("scanner/ci.py").read_text().split("muse_argv")[1][:800]
     assert "github/codeql-action/upload-sarif" in text
     assert "--format sarif" in text
+    assert 'cron: "17 13 * * 1"' in text
+    assert "scheduled-scan" in text
+    assert "scanner.watch" in text
+    assert "TETHER_SLACK_WEBHOOK" in text
+    assert "issues: write" in text
 
 
 def test_write_schema_and_cli_roundtrip(tmp_path: Path):

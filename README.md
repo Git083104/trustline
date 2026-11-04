@@ -73,6 +73,21 @@ Muse Code / MCP: [docs/muse-code.md](docs/muse-code.md).
 
 CI on pull requests: [.github/workflows/trustmap.yml](.github/workflows/trustmap.yml).
 
+## Monitoring for teams
+
+The same workflow runs a **scheduled scan** every Monday (`cron: "17 13 * * 1"`). It scans the default branch and opens or updates one GitHub issue titled `Tether: N takeover risks` with the Fix plan when anything is Fix-today, and closes that issue when the count is 0. The issue uses `GITHUB_TOKEN` with `issues: write`, so GitHub notifications are the default alert. If the repo secret `TETHER_SLACK_WEBHOOK` is set, a short Slack message posts the count and the issue link. There is no email path and no extra accounts.
+
+Mark names you already control in `.tether.yml`:
+
+```yaml
+owned:
+  - example.com
+  - my-bucket
+  - my-github-org
+```
+
+Severity stays the same; the headline and fix say the name is yours so you renew or re-create it in your own account before someone else does.
+
 ## Safety and ethics
 
 Detection only. Tether never registers a domain, never claims a bucket, and never writes to someone else's account. The only bucket ever claimed in a demo is one we created.
