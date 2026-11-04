@@ -9,17 +9,17 @@
   var INK = 1, BLUE = 2, RED = 3;
   var PEN = { 1: "#161513", 2: "#1D3BD1", 3: "#C4332B" };
 
-  var CENTER = { label: "your site", r: 0.78, p: [0, 0, 0], tip: "your site · what every visitor loads" };
+  var CENTER = { label: "your site", r: 0.95, p: [0, 0, 0], tip: "your site · what every visitor loads" };
   var NODES = [
-    { id: "cdn", label: "CDN", r: 0.34, p: [-0.3, 2.9, 0.3], tip: "CDN · a script on every page" },
-    { id: "bucket", label: "bucket", r: 0.3, p: [2.7, 1.5, -0.7], tip: "bucket · the deploy pulls files from it" },
-    { id: "github", label: "GitHub", r: 0.3, p: [3.0, -1.1, 0.6], tip: "GitHub · the build installs from it" },
-    { id: "api", label: "API", r: 0.28, p: [1.3, -2.8, -0.4], tip: "API · live requests go here" },
-    { id: "analytics", label: "analytics", r: 0.28, p: [-1.6, -2.7, 0.5], tip: "analytics · runs in the browser" },
-    { id: "payments", label: "payments", r: 0.3, p: [-3.0, -0.8, -0.6], tip: "payments · checkout loads it" },
-    { id: "fonts", label: "fonts", r: 0.28, p: [-2.7, 1.5, 0.7], tip: "fonts · loaded on every page" }
+    { id: "cdn", label: "CDN", r: 0.44, p: [-0.3, 2.9, 0.3], tip: "CDN · a script on every page" },
+    { id: "bucket", label: "bucket", r: 0.40, p: [2.7, 1.5, -0.7], tip: "bucket · the deploy pulls files from it" },
+    { id: "github", label: "GitHub", r: 0.40, p: [3.0, -1.1, 0.6], tip: "GitHub · the build installs from it" },
+    { id: "api", label: "API", r: 0.38, p: [1.3, -2.8, -0.4], tip: "API · live requests go here" },
+    { id: "analytics", label: "analytics", r: 0.38, p: [-1.6, -2.7, 0.5], tip: "analytics · runs in the browser" },
+    { id: "payments", label: "payments", r: 0.40, p: [-3.0, -0.8, -0.6], tip: "payments · checkout loads it" },
+    { id: "fonts", label: "fonts", r: 0.38, p: [-2.7, 1.5, 0.7], tip: "fonts · loaded on every page" }
   ];
-  var STRANGER = { id: "stranger", label: "stranger", r: 0.36, p: [2.3, 2.5, -0.9], tip: "stranger · whoever bought the domain" };
+  var STRANGER = { id: "stranger", label: "stranger", r: 0.42, p: [2.3, 2.5, -0.9], tip: "stranger · whoever bought the domain" };
   var LINKS = [["bucket", "github"], ["analytics", "payments"], ["cdn", "fonts"]];
   var BY_ID = {};
   NODES.forEach(function (n) { BY_ID[n.id] = n; });
@@ -56,12 +56,12 @@
   function layout() {
     var w = canvas.parentNode.clientWidth || 360;
     tight = w < 420;
-    cols = tight ? 48 : Math.min(96, Math.max(60, Math.round(w / 5.3)));
-    rows = tight ? 30 : 48;
+    cols = tight ? 56 : Math.min(112, Math.max(72, Math.round(w / 4.6)));
+    rows = tight ? 36 : 54;
     cellW = w / cols;
     cellH = cellW * 1.8;
     aspect = cellW / cellH;
-    k = cols / (tight ? 3.5 : 2.95);  /* a coarse grid needs more room for labels */
+    k = cols / (tight ? 3.6 : 3.05);  /* a coarse grid needs more room for labels */
     var h = Math.round(rows * cellH);
     canvas.style.width = "100%";
     canvas.style.height = h + "px";
@@ -118,6 +118,9 @@
   /* Lambert light from the upper left, towards the viewer */
   var LX = -0.52, LY = 0.6, LZ = 0.61;
 
+  /* offsets of a 3x3 sample grid inside one cell */
+  var SUB = [-1 / 3, 0, 1 / 3];
+
   function sphere(p, r, color, strength) {
     var v = project(p);
     var rc = r * v.s * k, rr = rc * aspect;
@@ -125,12 +128,26 @@
     var f = fade(v.z) * (strength === undefined ? 1 : strength);
     for (var r0 = Math.floor(v.r - rr - 1); r0 <= Math.ceil(v.r + rr + 1); r0++) {
       for (var c0 = Math.floor(v.c - rc - 1); c0 <= Math.ceil(v.c + rc + 1); c0++) {
-        var dx = (c0 - v.c) / rc, dy = -(r0 - v.r) / rr;
-        var q = dx * dx + dy * dy;
-        if (q > 1) { continue; }
-        var nz = Math.sqrt(1 - q);
-        var lam = Math.max(0, dx * LX + dy * LY + nz * LZ);
-        put(c0, r0, shadeChar((0.12 + 0.88 * lam) * f), color, v.z + r * nz);
+        /* average the light over the part of the cell the sphere actually covers,
+           so edge cells come out faint instead of full strength or nothing */
+        var lit = 0, hits9 = 0, near = -1e9;
+        for (var a = 0; a < 3; a++) {
+          for (var b = 0; b < 3; b++) {
+            var dx = (c0 + SUB[b] - v.c) / rc, dy = -(r0 + SUB[a] - v.r) / rr;
+            var q = dx * dx + dy * dy;
+            if (q > 1) { continue; }
+            var nz = Math.sqrt(1 - q);
+            lit += Math.max(0, dx * LX + dy * LY + nz * LZ);
+            hits9++;
+            if (v.z + r * nz > near) { near = v.z + r * nz; }
+          }
+        }
+        if (!hits9) { continue; }
+        var cover = hits9 / 9;
+        var val = (0.18 + 0.82 * (lit / hits9)) * f * (0.4 + 0.6 * cover);
+        /* the unlit side still has to read as part of the ball, not a bite out of it */
+        if (cover >= 0.5) { val = Math.max(val, 0.085); }
+        put(c0, r0, shadeChar(val), color, near);
       }
     }
     return { c: v.c, r: v.r, rc: rc, rr: rr, z: v.z };
@@ -147,7 +164,9 @@
   }
 
   function tether(a, b, color, from, to) {
-    var steps = Math.max(8, Math.round(cols * 0.5));
+    var ea = project(a), eb = project(b);
+    var span = Math.max(Math.abs(eb.c - ea.c), Math.abs(eb.r - ea.r));
+    var steps = Math.max(8, Math.round(span * 2.2));
     var prev = null;
     for (var i = 0; i <= steps; i++) {
       var u = i / steps;
@@ -179,7 +198,7 @@
   }
 
   function ring(center, radius, color) {
-    var n = Math.max(24, Math.round(cols * 1.2));
+    var n = Math.max(32, Math.round(radius * 6.5));  /* enough samples to keep the ring unbroken */
     for (var i = 0; i < n; i++) {
       var a = (i / n) * Math.PI * 2;
       put(center.c + Math.cos(a) * radius, center.r - Math.sin(a) * radius * aspect, i % 3 ? "·" : "-", color, 1e7);
@@ -187,7 +206,8 @@
   }
 
   function label(hit, str, color, below) {
-    var r = below ? hit.r + hit.rr + 1 : hit.r - hit.rr - 1;
+    var gap = hit.rr + (tight ? 2 : 1.6);   /* clear of the sphere's faint rim */
+    var r = below ? hit.r + gap : hit.r - gap;
     text(hit.c - str.length / 2, r, str, color);
   }
 
