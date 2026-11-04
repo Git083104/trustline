@@ -345,8 +345,12 @@ td:last-child,th:last-child{padding-right:0}
 .recent-chips{display:flex;flex-wrap:wrap;gap:6px;font:500 11px/1.2 var(--mono)}
 .recent-time{font:400 12px/1.3 var(--sans);color:var(--muted)}
 .home-art{display:flex;flex-direction:column;align-items:stretch;justify-content:center;gap:10px;min-height:240px}
-.hero-fig{margin:0;display:block}
+.hero-fig{margin:0;display:flex;flex-direction:column;align-items:stretch}
+.hero-caption{margin:0;padding:6px 8px 10px;text-align:center;color:var(--cobalt);font:500 18px/1.35 var(--display);letter-spacing:-.02em;min-height:calc(18px * 1.35 + 16px);flex:none}
 .hero-canvas{display:block;width:100%;max-width:100%;cursor:grab;touch-action:none;background:transparent}
+@media (max-width: 480px){
+  .hero-caption{font-size:15px;min-height:calc(15px * 1.35 * 2 + 16px)}
+}
 .hero-canvas.is-drag{cursor:grabbing}
 .badge-box{margin:10px 0 0;display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start}
 .badge-snippet{margin:0;flex:1 1 240px;padding:10px 12px;border:1px solid var(--rule);font:400 13px/1.4 var(--mono);word-break:break-all;white-space:pre-wrap}

@@ -96,6 +96,20 @@ HOME_ONLY_JS = """
   if ((text.match(/Control: should come back clean/g) || []).length !== 1) {
     fails.push('wikipedia control line should appear once');
   }
+  const caption = document.querySelector('#hero-caption');
+  const canvas = document.querySelector('#hero-canvas');
+  if (!caption) fails.push('missing caption band');
+  if (caption && canvas) {
+    const capBox = caption.getBoundingClientRect();
+    const canvasBox = canvas.getBoundingClientRect();
+    if (capBox.bottom > canvasBox.top + 1) {
+      fails.push('caption overlaps the network canvas');
+    }
+    const size = parseFloat(getComputedStyle(caption).fontSize);
+    if (width >= 1400 && size < 18) fails.push(`caption ${size}px < 18px at 1440`);
+    if (width <= 400 && size < 15) fails.push(`caption ${size}px < 15px at 390`);
+  }
+  if (window.heroSeek) window.heroSeek(2.2);
   const planted = document.querySelector('#sites-planted details');
   if (!planted) fails.push('missing planted details');
   else {

@@ -345,6 +345,8 @@ def test_frontend_has_the_three_screens_and_no_design_switcher():
     assert "home-example" not in markup
     hero = (STATIC / "hero.js").read_text()
     assert 'id="hero-canvas"' in markup
+    assert 'id="hero-caption"' in markup
+    assert ".hero-caption{" in css
     assert 'src="/static/hero.js"' in markup
     assert "polyfill.io" in hero
     assert "prefers-reduced-motion" in hero

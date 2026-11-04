@@ -4,6 +4,7 @@
   var canvas = document.getElementById("hero-canvas");
   if (!canvas || !canvas.getContext) { return; }
   var ctx = canvas.getContext("2d");
+  var captionEl = document.getElementById("hero-caption");
 
   var RAMP = " .:-=+*#%@";
   var INK = 1, BLUE = 2, RED = 3;
@@ -278,9 +279,9 @@
     var tip = hover && hits.filter(function (h) { return h.id === hover; })[0];
     if (tip) {
       text(tip.hit.c - tip.node.tip.length / 2, tip.hit.r + tip.hit.rr + 2, tip.node.tip, BLUE);
-    } else if (b.cap) {
-      var cap = tight && b.cap.length > cols - 2 ? b.cap.replace(" \u00b7 trusted", "\u00b7 trusted") : b.cap;
-      text(1, rows - 2, cap, b.i === 3 ? RED : (b.i >= 4 ? BLUE : INK));
+    }
+    if (captionEl) {
+      captionEl.textContent = b.cap || "\u00a0";
     }
 
     paint();
