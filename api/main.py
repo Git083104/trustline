@@ -17,7 +17,7 @@ from pydantic import BaseModel
 
 import ipaddress
 
-from api.classify_target import TargetError, classify_target
+from api.classify_target import TargetError, classify_target, is_listable_github_owner
 from api.fix_api import demo_file_texts, findings_from_public, plan_for, plan_to_dict
 from api.demo import demo_report, demo_waits_ms, load_demo
 from api.jobs import Job, JobStore
@@ -25,7 +25,7 @@ from api.limits import LimitsStore, client_ip
 from scanner.config import SCAN_COST_CAP_USD
 from scanner.ssrf import SCAN_BLOCKED, ScanBlockedError, parse_public_url, refuse_blocked_ips
 from scanner.llm import LiveModelClient, ModelClient, failure_message, redact_secrets  # noqa: F401
-from scanner.lookups import LookupCache, default_cache
+from scanner.lookups import LookupCache, default_cache, list_public_repos
 from scanner.report import ScanOutcome, is_claimable, run_scan
 from scanner.tools import ToolContext
 
@@ -137,6 +137,14 @@ def create_app(
     @app.get("/api/health")
     def health() -> dict[str, bool]:
         return {"ok": True}
+
+    @app.get("/api/github-owner-repos")
+    async def github_owner_repos(owner: str = Query(...)) -> dict[str, object]:
+        name = owner.strip()
+        if not is_listable_github_owner(name):
+            return {"owner": name, "repos": []}
+        repos = await list_public_repos(name, cache=lookup_default)
+        return {"owner": name, "repos": repos}
 
     @app.get("/api/scan/demo")
     def demo() -> dict[str, Any]:

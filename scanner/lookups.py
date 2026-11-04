@@ -747,6 +747,38 @@ async def platform_takeover(
     return result
 
 
+async def list_public_repos(
+    owner: str,
+    *,
+    cache: LookupCache | None = None,
+    limit: int = 5,
+) -> list[str]:
+    cache = cache or default_cache()
+    key = f"github_repos:{owner.lower()}:{limit}"
+    hit = cache.get_json(key)
+    if isinstance(hit, list):
+        return [str(item) for item in hit][:limit]
+    token = os.environ.get("GITHUB_TOKEN") or None
+    names: list[str] = []
+    async with httpx.AsyncClient(timeout=HTTP_TIMEOUT_S, follow_redirects=True) as client:
+        response = await client.get(
+            f"https://api.github.com/users/{owner}/repos",
+            params={"per_page": limit, "sort": "updated", "type": "public"},
+            headers=_github_headers(token),
+        )
+        if response.status_code == 200:
+            payload = response.json()
+            if isinstance(payload, list):
+                for row in payload:
+                    full = str((row or {}).get("full_name") or "").strip()
+                    if full:
+                        names.append(full)
+                    if len(names) >= limit:
+                        break
+    cache.set_json(key, names)
+    return names
+
+
 def _github_headers(token: str | None) -> dict[str, str]:
     headers = {
         "Accept": "application/vnd.github+json",

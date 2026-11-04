@@ -7,7 +7,22 @@
   var SEV_ORDER = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
   var SEV_KEY = { critical: "critical", high: "high", medium: "medium", low: "low", info: "safe" };
   var SEV_LABEL = { critical: "Critical", high: "High", medium: "Medium", low: "Low", info: "Safe" };
-  var KIND_LABEL = { repo: "GitHub repo", website: "Website", path: "Local path" };
+  var KIND_LABEL = {
+    repo: "GitHub repo",
+    website: "Website",
+    path: "Local path",
+    github_profile: "GitHub profile, needs a repo"
+  };
+  var GITHUB_RESERVED = {
+    about:1, account:1, apps:1, blog:1, collections:1, contact:1, dashboard:1,
+    enterprise:1, events:1, explore:1, features:1, github:1, issues:1, join:1,
+    login:1, logout:1, marketplace:1, new:1, notifications:1, orgs:1,
+    organizations:1, pricing:1, pulls:1, readme:1, search:1, security:1,
+    settings:1, site:1, sponsors:1, team:1, topics:1, trending:1, codespaces:1,
+    copilot:1, solutions:1, resources:1, advisories:1, home:1, users:1, repos:1,
+    watching:1, stars:1, discussions:1, signup:1
+  };
+  var PROFILE_MSG = "That's a GitHub profile. Paste a repository, e.g. github.com/<owner>/<repo>.";
   var PLAN_QUESTION = {
     rdap: "Who owns this domain now?",
     dns: "Does this host still resolve?",
@@ -58,6 +73,7 @@
     scanning: $("screen-scanning"),
     results: $("screen-results"),
     homeError: $("home-error"),
+    githubSuggestions: $("github-suggestions"),
     appError: $("app-error"),
     nav: $("top-nav"),
     hero: $("hero"),
@@ -329,18 +345,81 @@
     return value;
   }
 
+  function githubPath(raw) {
+    var value = normalize(raw);
+    var match = value.match(/^https?:\/\/(?:www\.)?github\.com(?:\/(.*))?$/i);
+    if (!match) { return null; }
+    var path = (match[1] || "").split(/[?#]/)[0].replace(/\/+$/, "");
+    return path ? path.split("/") : [];
+  }
+
   function detectKind(raw) {
     var value = normalize(raw);
+    var segs = githubPath(value);
+    if (segs) {
+      var owner = (segs[0] || "").toLowerCase();
+      if (segs.length >= 2 && segs[1] && !GITHUB_RESERVED[owner]) { return "repo"; }
+      return "github_profile";
+    }
     if (/^https?:\/\/(www\.)?github\.com\/[^/]+\/[^/#?]+/i.test(value)) { return "repo"; }
     if (/^https?:\/\/[\w-]+(\.[\w-]+)+/i.test(value)) { return "website"; }
     return "";
+  }
+
+  function clearGithubSuggestions() {
+    if (!el.githubSuggestions) { return; }
+    el.githubSuggestions.hidden = true;
+    el.githubSuggestions.replaceChildren();
+  }
+
+  function showProfileHint(owner) {
+    if (el.homeError) {
+      el.homeError.hidden = false;
+      el.homeError.textContent = PROFILE_MSG;
+    }
+    if (!el.githubSuggestions || !owner || GITHUB_RESERVED[owner.toLowerCase()]) {
+      clearGithubSuggestions();
+      return;
+    }
+    var seq = (showProfileHint.seq || 0) + 1;
+    showProfileHint.seq = seq;
+    fetch("/api/github-owner-repos?owner=" + encodeURIComponent(owner))
+      .then(function (res) { return res.ok ? res.json() : { repos: [] }; })
+      .then(function (data) {
+        if (seq !== showProfileHint.seq) { return; }
+        var repos = data.repos || [];
+        el.githubSuggestions.replaceChildren();
+        repos.slice(0, 5).forEach(function (name) {
+          var btn = make("button", "repo-chip");
+          btn.type = "button";
+          btn.textContent = name;
+          btn.addEventListener("click", function () {
+            el.target.value = "https://github.com/" + name;
+            syncInput();
+            el.target.focus();
+          });
+          el.githubSuggestions.appendChild(btn);
+        });
+        el.githubSuggestions.hidden = repos.length === 0;
+      })
+      .catch(function () { clearGithubSuggestions(); });
   }
 
   function syncInput() {
     var kind = detectKind(el.target.value);
     el.chip.hidden = !kind;
     if (kind) { el.chip.textContent = KIND_LABEL[kind]; }
-    el.scanBtn.disabled = !kind;
+    el.scanBtn.disabled = !kind || kind === "github_profile";
+    if (kind === "github_profile") {
+      var segs = githubPath(normalize(el.target.value)) || [];
+      showProfileHint(segs.length === 1 ? segs[0] : "");
+    } else {
+      if (el.homeError && el.homeError.textContent === PROFILE_MSG) {
+        el.homeError.hidden = true;
+        el.homeError.textContent = "";
+      }
+      clearGithubSuggestions();
+    }
   }
 
   /* ---------- clock ---------- */
@@ -812,7 +891,13 @@
 
   function startScan(raw) {
     var target = normalize(raw);
-    if (!detectKind(target)) {
+    var kind = detectKind(target);
+    if (kind === "github_profile") {
+      var segs = githubPath(target) || [];
+      showProfileHint(segs.length === 1 ? segs[0] : "");
+      return;
+    }
+    if (!kind) {
       showError("Paste a GitHub repository or website URL.");
       return;
     }

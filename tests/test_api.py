@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from api.classify_target import classify_target, infer_kind
+from api.classify_target import PROFILE_MSG, TargetError, classify_target, github_url_kind, infer_kind
 from api.demo import DEMO_GAP_CAP_MS, demo_gap_ms, demo_report, demo_waits_ms, load_demo
 from api.jobs import Job
 from scanner.extract import CloneError
@@ -113,6 +113,42 @@ def test_infer_kind_and_website_accepted():
     assert infer_kind(str(FIXTURE_ROOT)) == "path"
     assert infer_kind("https://example.com") == "website"
     assert classify_target("https://example.com") == ("website", "https://example.com")
+
+
+def test_github_profile_urls_are_not_websites():
+    profiles = [
+        "https://github.com/acme",
+        "https://github.com/acme/",
+        "https://www.github.com/acme",
+        "https://github.com/settings",
+        "https://github.com/orgs/acme",
+        "https://github.com/marketplace",
+        "https://github.com/features/actions",
+    ]
+    for url in profiles:
+        assert github_url_kind(url) == "profile", url
+        with pytest.raises(TargetError) as caught:
+            classify_target(url)
+        assert caught.value.status_code == 400
+        assert caught.value.body["error"] == PROFILE_MSG
+        assert infer_kind(url) != "repo"
+    assert github_url_kind("https://github.com/acme/widgets") == "repo"
+    assert github_url_kind("https://github.com/acme/widgets.git") == "repo"
+    assert github_url_kind("https://github.com/acme/widgets/tree/main") == "repo"
+    assert classify_target("https://github.com/acme/widgets") == (
+        "repo",
+        "https://github.com/acme/widgets",
+    )
+    assert classify_target("https://github.com/acme/widgets.git")[0] == "repo"
+    assert classify_target("https://github.com/acme/widgets/tree/main")[0] == "repo"
+
+
+def test_post_github_profile_is_rejected():
+    app = create_app(model_client=FakeModelClient(handler=lambda r: {}))
+    with TestClient(app) as client:
+        response = client.post("/api/scan", json={"target": "https://github.com/acme"})
+        assert response.status_code == 400
+        assert response.json()["error"] == PROFILE_MSG
 
 
 def test_post_website_starts_job():
@@ -285,6 +321,9 @@ def test_frontend_has_the_three_screens_and_no_design_switcher():
     assert "No safe automatic edits; follow the steps above." in markup
     assert "fix-no-edits" in markup
     assert "scrollIntoView" in js
+    assert "GitHub profile, needs a repo" in js
+    assert PROFILE_MSG in js
+    assert 'id="github-suggestions"' in markup
     assert 'item.severity === "critical" || item.severity === "high"' in js
     assert "el.fixIt.hidden = true" in js
     assert "Skip to report" not in markup

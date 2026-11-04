@@ -371,6 +371,8 @@ td:last-child,th:last-child{padding-right:0}
 .fix-diff{white-space:pre-wrap;overflow:auto;max-height:360px;font:400 12px/1.45 var(--mono);border:1px solid var(--rule);padding:12px;background:var(--paper)}
 .kind-chip{font:500 12px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--cobalt)}
 .inline-error{margin:8px 0 0;color:var(--cobalt);font:500 14px/1.4 var(--sans);display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.github-suggestions{margin:8px 0 0;display:flex;flex-wrap:wrap;gap:6px}
+.github-suggestions .repo-chip{padding:6px 10px}
 .app-bar{display:flex;gap:8px;align-items:center}
 .scan-top{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center}
 .feed{display:flex;flex-direction:column}
