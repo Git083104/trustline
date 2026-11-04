@@ -51,7 +51,7 @@ from scanner.extract import (
     is_website_source,
     website_coverage,
 )
-from scanner.tools.platform_takeover import matching_platform
+from scanner.tools.platform_takeover import matching_platform, takeover_is_proven
 from scanner.tranco import tranco_rank
 from scanner.website import extract_website_scan
 from scanner.llm import CallLog, ModelClient, OverloadError, call_json, muse_overloaded
@@ -149,6 +149,12 @@ STATIC_SUFFIXES = (
     ".otf",
 )
 DOWNLOAD_TYPES = frozenset({"script", "api"})
+LINK_CLICK_RISK = (
+    "Anyone who registers {domain} could receive your users' clicks (phishing risk)"
+)
+HOST_SCOPED_FACTS = frozenset(
+    {"dns", "platform_takeover", "live_fetch", "bucket_probe"}
+)
 UNKNOWN_STATUSES = frozenset({"unavailable", "error", "timeout", "unknown"})
 BANNED_FIELD_NAMES = ("rdap", "runs_in", "blast_radius", "status")
 RUNS_IN_PHRASE = {
@@ -256,11 +262,20 @@ RANK_JSON_SCHEMA = {
 }
 
 
-def target_key(ref: Reference, cl: Classification) -> tuple[str, str]:
+def target_key(
+    ref: Reference,
+    cl: Classification,
+    inv: Investigation | None = None,
+) -> tuple[str, str]:
     if cl.type == "bucket" or is_bucket_ref(ref):
         return ref.host_or_bucket, "bucket"
-    if matching_platform(ref.host_or_bucket):
-        return ref.host_or_bucket, "domain"
+    dns = ((inv.evidence if inv is not None else None) or {}).get("dns") or {}
+    if matching_platform(
+        ref.host_or_bucket,
+        list(dns.get("cnames") or []),
+        list(dns.get("addresses") or []),
+    ):
+        return ref.host_or_bucket.lower().rstrip("."), "domain"
     return (ref.domain or ref.host_or_bucket), "domain"
 
 
@@ -270,7 +285,7 @@ def group_by_target(
     groups: dict[str, dict[str, Any]] = {}
     order: list[str] = []
     for ref, cl, inv in rows:
-        key, kind = target_key(ref, cl)
+        key, kind = target_key(ref, cl, inv)
         if key not in groups:
             groups[key] = {
                 "target": key,
@@ -280,7 +295,23 @@ def group_by_target(
             }
             order.append(key)
         groups[key]["rows"].append((ref, cl, inv))
+        target = str(key).lower().rstrip(".")
+        row_host = str(ref.host_or_bucket or "").lower().rstrip(".")
         for name, value in inv.evidence.items():
+            if name in HOST_SCOPED_FACTS and isinstance(value, dict):
+                fact_host = str(
+                    value.get("host") or value.get("name") or ""
+                ).lower().rstrip(".")
+                if name in {"platform_takeover", "live_fetch", "bucket_probe"}:
+                    if fact_host and fact_host != target:
+                        continue
+                elif name == "dns":
+                    if (
+                        fact_host
+                        and fact_host != target
+                        and fact_host != row_host
+                    ):
+                        continue
             groups[key]["evidence"][name] = value
         groups[key]["evidence"] = consistent_evidence(groups[key]["evidence"])
         if ref.csp_blocks_external_scripts:
@@ -437,10 +468,11 @@ def is_claimable(evidence: dict[str, Any]) -> bool:
         if is_github_pages_host(host):
             return False
         return True
-    return (
-        str(platform.get("status", "")).lower() == "unclaimed"
-        and str(platform.get("takeover") or "") == "vulnerable"
-    )
+    if takeover_is_proven(evidence) and str(platform.get("takeover") or "") == "vulnerable":
+        if pages_plat or is_github_pages_host(plat_host):
+            return False
+        return True
+    return False
 
 
 def skip_model_rank(group: dict[str, Any]) -> bool:
@@ -451,6 +483,8 @@ def skip_model_rank(group: dict[str, Any]) -> bool:
         owner = evidence.get("github_owner") or {}
         if str(owner.get("status", "")).lower() in {"exists", "ok"}:
             return True
+    if cl0.runs_in == "docs_only" or _all_plain_links(group):
+        return True
     if (
         is_claimable(evidence)
         or is_proven_ownership(evidence)
@@ -461,12 +495,10 @@ def skip_model_rank(group: dict[str, Any]) -> bool:
         return False
     if tranco_checked_safe(ref0, evidence):
         return True
-    if cl0.runs_in == "docs_only":
-        return True
     repo = evidence.get("github_repo") or {}
     if str(repo.get("status", "")).lower() == "exists" and is_github_action_ref(ref0):
         return True
-    return False
+    return True
 
 
 def template_risk(group: dict[str, Any]) -> str:
@@ -521,7 +553,7 @@ def has_risk_signal(evidence: dict[str, Any]) -> bool:
     platform = usable.get("platform_takeover") or {}
     if str(dns.get("status", "")).lower() == "nxdomain":
         return True
-    if str(platform.get("status", "")).lower() == "unclaimed":
+    if takeover_is_proven(usable):
         return True
     repo = usable.get("github_repo") or {}
     if str(repo.get("status", "")).lower() in {"missing", "disabled"}:
@@ -574,6 +606,8 @@ def _is_static_asset(ref: Reference, cl: Classification) -> bool:
 def _has_download_ref(group: dict[str, Any]) -> bool:
     for ref, cl, _inv in group.get("rows") or []:
         if cl.runs_in not in EXECUTING:
+            continue
+        if cl.type == "link" or ref.tag in {"a", "markdown"}:
             continue
         if _is_static_asset(ref, cl):
             continue
@@ -716,10 +750,14 @@ def evidence_line(group: dict[str, Any], *, include_runs_in: bool = True) -> str
     elif str(repo.get("status", "")).lower() == "exists":
         parts.append("GitHub repo exists")
     platform = usable.get("platform_takeover") or {}
-    if str(platform.get("status", "")).lower() == "unclaimed":
+    if takeover_is_proven(usable):
         plat_name = platform.get("platform") or "platform"
         takeover = platform.get("takeover") or "edge case"
-        parts.append(f"{plat_name} unclaimed ({takeover})")
+        plat_host = str(platform.get("host") or "").rstrip(".")
+        named = f"{plat_name} unclaimed ({takeover})"
+        if plat_host:
+            named = f"{named} on {plat_host}"
+        parts.append(named)
     status = _group_compromised(group)
     if status == "compromised":
         parts.append("compromised domain")
@@ -845,10 +883,29 @@ def _mention_floor(group: dict[str, Any]) -> tuple[str | None, str]:
     return "low", f"{signal}, but only named in docs, tests or comments, so it is low"
 
 
+def _all_plain_links(group: dict[str, Any]) -> bool:
+    rows = [
+        (ref, cl)
+        for ref, cl, _inv in group.get("rows") or []
+        if cl.runs_in in EXECUTING
+    ]
+    if not rows:
+        return False
+    return all(
+        cl.type == "link" or ref.tag in {"a", "markdown"}
+        for ref, cl in rows
+    )
+
+
 def floor_decision(group: dict[str, Any]) -> tuple[str | None, str]:
     if not executing_runs_in(group["rows"]):
         return _mention_floor(group)
     evidence = consistent_evidence(group["evidence"])
+    if _all_plain_links(group):
+        domain = str(group.get("target") or "")
+        if is_claimable(evidence) or takeover_is_proven(evidence):
+            return "medium", LINK_CLICK_RISK.format(domain=domain)
+        return _mention_floor(group)
     runs = sorted(
         {cl.runs_in for _, cl, _ in group["rows"] if cl.runs_in in EXECUTING}
     )
@@ -903,17 +960,17 @@ def floor_decision(group: dict[str, Any]) -> tuple[str | None, str]:
             f"({where}) is at least medium",
         )
     platform = evidence.get("platform_takeover") or {}
-    if str(platform.get("status", "")).lower() == "unclaimed":
+    if takeover_is_proven(evidence):
         plat_name = platform.get("platform") or "platform"
         takeover = str(platform.get("takeover") or "edge case")
-        if takeover == "vulnerable":
-            return _claimable_now_floor(
-                group, f"{plat_name} unclaimed ({takeover})", where
+        plat_host = str(platform.get("host") or group.get("target") or "")
+        if takeover != "vulnerable":
+            return (
+                "low",
+                f"{plat_name} unclaimed ({takeover}) on {plat_host} is review",
             )
-        return (
-            "high",
-            f"{plat_name} unclaimed ({takeover}) in executing position ({where}) "
-            "is at least high",
+        return _claimable_now_floor(
+            group, f"{plat_name} unclaimed ({takeover}) on {plat_host}", where
         )
     if str(rdap.get("status", "")).lower() == "unregistered":
         return _claimable_now_floor(group, "RDAP unregistered", where)
@@ -941,6 +998,12 @@ def floor_decision(group: dict[str, Any]) -> tuple[str | None, str]:
         )
         return "high", note
     if str(dns.get("status", "")).lower() == "nxdomain":
+        if (
+            _has_static_asset(group)
+            and not _has_download_ref(group)
+            and not is_claimable(evidence)
+        ):
+            return None, ""
         return _nxdomain_floor(group, evidence, dns, where)
     parent_dns = evidence.get("dns_parent") or {}
     if (
@@ -961,7 +1024,7 @@ def _nxdomain_floor(
     parent = _registrable(host) if host else ""
     rdap = evidence.get("rdap") or {}
     platform = evidence.get("platform_takeover") or {}
-    dangling = str(platform.get("status", "")).lower() == "unclaimed"
+    dangling = takeover_is_proven(evidence)
     parent_unregistered = str(rdap.get("status", "")).lower() in {
         "unregistered",
         "nxdomain",
@@ -1358,6 +1421,44 @@ def _finding_from_rank(
             finding = finding.model_copy(
                 update={"severity": "info", "final_severity": "info", "ceiling_note": "inert file"}
             )
+    platform = evidence.get("platform_takeover") or {}
+    if (
+        takeover_is_proven(evidence)
+        and str(platform.get("takeover") or "") != "vulnerable"
+        and SEVERITY_ORDER[finding.severity] < SEVERITY_ORDER["low"]
+    ):
+        finding = finding.model_copy(
+            update={
+                "severity": "low",
+                "final_severity": "low",
+                "ceiling_note": "edge-case platform takeover is review",
+            }
+        )
+    if _all_plain_links(group) and SEVERITY_ORDER[finding.severity] < SEVERITY_ORDER["medium"]:
+        domain = str(group.get("target") or finding.target)
+        finding = finding.model_copy(
+            update={
+                "severity": "medium",
+                "final_severity": "medium",
+                "risk": LINK_CLICK_RISK.format(domain=domain),
+                "ceiling_note": "plain link",
+            }
+        )
+    from scanner.sanity import has_proven_fact, unexplained_tranco_fix_today
+
+    names = [str(finding.target), str(group.get("target") or "")]
+    for ref, _cl, _inv in group.get("rows") or []:
+        names.extend([ref.host_or_bucket, ref.domain])
+    if unexplained_tranco_fix_today([finding]) and not has_proven_fact(
+        evidence, names
+    ):
+        finding = finding.model_copy(
+            update={
+                "severity": "info",
+                "final_severity": "info",
+                "ceiling_note": "popular domain without a proven takeover fact",
+            }
+        )
     return decorate(finding)
 
 

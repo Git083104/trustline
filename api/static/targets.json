@@ -35,7 +35,7 @@
         {
           "repo": "TryKickoff/kickoff",
           "about": "Front-end starter kit · last commit May 2017",
-          "expect": "Expect: 1 critical · 1 high · polyfill.io, imgur.com",
+          "expect": "Expect: 1 critical · polyfill.io",
           "finding": "index.html loads https://cdn.polyfill.io/v2/polyfill.min.js with no integrity hash.",
           "where": "index.html:38",
           "checked": "Production warm 4 Nov 2026.",
@@ -45,7 +45,7 @@
         {
           "repo": "debois/elm-mdl",
           "about": "Material Design Lite for Elm · last commit August 2018",
-          "expect": "Expect: 2 critical · elm-lang.org, polyfill.io",
+          "expect": "Expect: 1 critical · polyfill.io",
           "finding": "The demo page loads polyfill.js from cdn.polyfill.io.",
           "where": "demo/page.html:32",
           "checked": "Production warm 4 Nov 2026.",
@@ -65,21 +65,11 @@
         {
           "repo": "blinkfox/hexo-theme-matery",
           "about": "Hexo blog theme · last commit May 2023",
-          "expect": "Expect: 2 critical · bootcss.com, disqus.com",
+          "expect": "Expect: 1 critical · bootcss.com",
           "finding": "Loads Vue and MathJax from cdn.bootcss.com.",
           "where": "layout/bb.ejs:28",
           "checked": "Production warm 4 Nov 2026.",
           "targets": 64,
-          "run": "long run"
-        },
-        {
-          "repo": "lbryio/lbry-desktop",
-          "about": "LBRY desktop app · 3.5k stars · LBRY shut down in 2023",
-          "expect": "Expect: 1 critical · lbryshare.com",
-          "finding": "lbryshare.com is claimable. forum.lbry.tech no longer resolves, but only the owner of lbry.tech can recreate that subdomain.",
-          "where": "ui/page/report/view.jsx:116",
-          "checked": "Production warm 4 Nov 2026.",
-          "targets": 63,
           "run": "long run"
         }
       ]

@@ -58,6 +58,7 @@ class PlatformTakeoverResult(BaseModel):
     takeover: str = ""
     signal: str | None = None
     http_status: int | None = None
+    dns_proof: bool = False
 
 
 class LiveFetchResult(BaseModel):
@@ -110,7 +111,7 @@ class WaybackResult(BaseModel):
     last_digest: str | None = None
 
 
-RefType = Literal["script", "api", "asset", "bucket", "docs_link", "other"]
+RefType = Literal["script", "api", "asset", "bucket", "docs_link", "link", "other"]
 RunsIn = Literal["browser", "server", "build", "deploy", "ci", "test", "docs_only"]
 
 

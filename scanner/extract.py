@@ -464,6 +464,7 @@ def _scan_text(rel: str, text: str, found: dict[tuple[str, str, int], Reference]
                 domain=domain,
                 context=context,
                 filter_reason=reason,
+                tag=_line_tag(line, raw),
             )
         if _is_workflow_or_action_file(rel):
             action = _action_from_uses(line)
@@ -492,6 +493,21 @@ def _context(lines: list[str], index: int) -> str:
     end = min(len(lines), start + CONTEXT_LINES)
     start = max(0, end - CONTEXT_LINES)
     return "\n".join(lines[start:end])
+
+
+def _line_tag(line: str, raw: str) -> str:
+    lowered = line.lower()
+    if re.search(r"<a\b[^>]*\bhref\s*=", line, re.IGNORECASE):
+        return "a"
+    if re.search(r"\[[^\]]*\]\(\s*" + re.escape(raw), line):
+        return "markdown"
+    if "<script" in lowered and "src" in lowered:
+        return "script"
+    if "<img" in lowered:
+        return "img"
+    if "<link" in lowered:
+        return "link"
+    return ""
 
 
 def _find_on_line(

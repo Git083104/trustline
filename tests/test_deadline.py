@@ -122,7 +122,9 @@ def test_partial_scan_reports_skipped_targets(tmp_path):
         "vendor.example.net",
     }
     assert rank_skipped == []
-    assert "vendor.example.net" in rank_fallbacks
+    assert "vendor.example.net" not in rank_fallbacks
+    live = next(item for item in findings if item.target == "vendor.example.net")
+    assert live.severity == "info"
     gone = next(item for item in findings if item.target == "missing-deadline")
     assert gone.severity == "critical"
     assert gone.floor_applied == "critical"

@@ -13,6 +13,18 @@ PLATFORMS = [
             "There isn't a GitHub Pages site here",
             "isn&#39;t a GitHub Pages site here",
         ],
+        "a_records": [
+            "185.199.108.153",
+            "185.199.109.153",
+            "185.199.110.153",
+            "185.199.111.153",
+        ],
+        "aaaa_records": [
+            "2606:50c0:8000::153",
+            "2606:50c0:8001::153",
+            "2606:50c0:8002::153",
+            "2606:50c0:8003::153",
+        ],
         "takeover": "vulnerable",
     },
     {
@@ -129,7 +141,11 @@ def platform_for(host: str) -> dict[str, Any] | None:
     return None
 
 
-def matching_platform(host: str, cnames: list[str] | None = None) -> dict[str, Any] | None:
+def matching_platform(
+    host: str,
+    cnames: list[str] | None = None,
+    addresses: list[str] | None = None,
+) -> dict[str, Any] | None:
     found = platform_for(host)
     if found:
         return found
@@ -137,7 +153,63 @@ def matching_platform(host: str, cnames: list[str] | None = None) -> dict[str, A
         found = platform_for(cname)
         if found:
             return found
+    addrs = {(item or "").lower().rstrip(".") for item in (addresses or [])}
+    if not addrs:
+        return None
+    for platform in PLATFORMS:
+        documented = {
+            item.lower()
+            for item in list(platform.get("a_records") or [])
+            + list(platform.get("aaaa_records") or [])
+        }
+        if addrs & documented:
+            return platform
     return None
+
+
+def dns_points_to_platform(
+    platform: dict[str, Any],
+    host: str,
+    cnames: list[str] | None = None,
+    addresses: list[str] | None = None,
+) -> bool:
+    """Hostname, CNAME chain, or documented A/AAAA records must point at the platform."""
+    if (platform_for(host) or {}).get("name") == platform.get("name"):
+        return True
+    for cname in cnames or []:
+        hit = platform_for(cname)
+        if hit and hit.get("name") == platform.get("name"):
+            return True
+    addrs = {(item or "").lower().rstrip(".") for item in (addresses or [])}
+    documented = {
+        item.lower()
+        for item in list(platform.get("a_records") or [])
+        + list(platform.get("aaaa_records") or [])
+    }
+    return bool(addrs & documented)
+
+
+def takeover_is_proven(evidence: dict[str, Any]) -> bool:
+    platform = evidence.get("platform_takeover") or {}
+    if str(platform.get("status", "")).lower() != "unclaimed":
+        return False
+    if platform.get("dns_proof"):
+        return True
+    host = str(platform.get("host") or "")
+    dns = evidence.get("dns") or {}
+    hit = matching_platform(
+        host or str(dns.get("host") or ""),
+        list(dns.get("cnames") or []),
+        list(dns.get("addresses") or []),
+    )
+    if not hit:
+        return False
+    return dns_points_to_platform(
+        hit,
+        host or str(dns.get("host") or ""),
+        cnames=list(dns.get("cnames") or []),
+        addresses=list(dns.get("addresses") or []),
+    )
 
 
 def definition() -> dict[str, Any]:
@@ -159,6 +231,10 @@ def definition() -> dict[str, Any]:
                         "items": {"type": "string"},
                     },
                     "dns_status": {"type": "string"},
+                    "addresses": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                    },
                 },
                 "required": ["host"],
                 "additionalProperties": False,
@@ -172,6 +248,7 @@ async def run(args: dict[str, Any], ctx: Any) -> dict[str, Any]:
         args["host"],
         cnames=list(args.get("cnames") or []),
         dns_status=args.get("dns_status"),
+        addresses=list(args.get("addresses") or []),
         cache=ctx.cache,
     )
     return result.model_dump(mode="json")

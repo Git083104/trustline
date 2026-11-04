@@ -71,6 +71,7 @@ def _ctx(tmp_path, **impls) -> ToolContext:
                 takeover="vulnerable",
                 signal="There isn't a GitHub Pages site here",
                 http_status=404,
+                dns_proof=True,
             )
         return PlatformTakeoverResult(host=host, status="skipped")
 

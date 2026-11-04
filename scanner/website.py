@@ -224,6 +224,9 @@ class _PageParser(HTMLParser):
                     bool(adict.get("integrity")),
                 )
             return
+        if tag == "a" and adict.get("href"):
+            self._add(line, "a", "href", adict["href"], None)
+            return
         attr = {
             "iframe": "src",
             "form": "action",

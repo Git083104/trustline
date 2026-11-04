@@ -38,6 +38,8 @@ CLASSIFY_SYSTEM_PROMPT = (
     "type is what the URL points to, not which file it sits in: "
     "script = downloaded and executed (JS, shell, Python). Example: "
     "<script src=\"https://cdn.example/app.js\"> or curl https://ci.example/tool.sh | sh; "
+    "link = opened or shared as a hyperlink, not downloaded. Example: "
+    "<a href=\"https://example.com\"> or a markdown [text](https://example.com) link; "
     "api = HTTP API base or endpoint. Example: const API = \"https://api.example.com/v1\"; "
     "asset = static file that is not executed (css, image, font). Example: "
     "<link href=\"https://cdn.example/app.css\">; "
@@ -62,7 +64,7 @@ _ITEM_SCHEMA = {
         "id": {"type": "string"},
         "type": {
             "type": "string",
-            "enum": ["script", "api", "asset", "bucket", "docs_link", "other"],
+            "enum": ["script", "api", "asset", "bucket", "docs_link", "link", "other"],
         },
         "runs_in": {
             "type": "string",
@@ -112,6 +114,11 @@ _ASSET_SUFFIXES = (
 _DOCKER_INSTR = re.compile(r"(?i)\b(FROM|ADD|COPY|curl|wget)\b")
 _SCRIPT_TAG = re.compile(r"(?i)<script\b")
 _LINK_TAG = re.compile(r"(?i)<link\b")
+_A_HREF = re.compile(r"(?i)<a\b[^>]*\bhref\s*=")
+_MD_LINK = re.compile(r"\[[^\]]*\]\(\s*https?://", re.IGNORECASE)
+_SHARE_OPEN = re.compile(
+    r"(?i)(window\.open\s*\(|location\.href\s*=|shareurl|share_url|openurl)"
+)
 SKIPPED_CLASSIFY = "not classified (deadline)"
 log = logging.getLogger("trustmap")
 _PACKAGE_HOSTS = (
@@ -198,6 +205,19 @@ def _config_source(name: str) -> bool:
     }
 
 
+def _plain_link(ref: Reference, context: str, raw_l: str) -> bool:
+    if ref.tag in {"script", "link", "img", "source", "iframe"}:
+        return False
+    if ref.tag in {"a", "markdown"}:
+        return True
+    blob = context or ""
+    if _A_HREF.search(blob) or _MD_LINK.search(blob):
+        return True
+    if _SHARE_OPEN.search(blob):
+        return True
+    return False
+
+
 def classify_by_rule(ref: Reference) -> Classification | None:
     path = ref.file.replace("\\", "/")
     lowered = path.lower()
@@ -232,6 +252,9 @@ def classify_by_rule(ref: Reference) -> Classification | None:
         } else "docs_only"
         return _rule(ref, "other", runs, 0 if runs == "docs_only" else 1, "package registry")
     html = name.endswith(".html") or name.endswith(".htm")
+    if _plain_link(ref, context, raw_l):
+        runs = "browser" if html or ref.tag in {"a", "markdown"} else "server"
+        return _rule(ref, "link", runs, 1, "plain link")
     if is_github_owner_ref(ref) or "raw.githubusercontent.com" in raw_l:
         if ".github/workflows/" in lowered:
             return _rule(ref, "script", "ci", 2, "GitHub URL")
@@ -267,6 +290,10 @@ def classify_by_rule(ref: Reference) -> Classification | None:
         if any(url_path.endswith(suffix) for suffix in _ASSET_SUFFIXES):
             return _rule(ref, "asset", "server", 1, "config asset URL")
         return _rule(ref, "api", "server", 2, "config URL")
+    if html or name.endswith(".ejs") or name.endswith(".jsx") or name.endswith(".tsx"):
+        if ref.tag not in {"script", "link", "img", "source", "iframe"}:
+            if not _SCRIPT_TAG.search(context):
+                return _rule(ref, "link", "browser", 1, "markup URL")
     return None
 
 
@@ -301,6 +328,10 @@ def _deadline_classification(ref: Reference) -> Classification:
 
 
 def _fallback_classification(ref: Reference) -> Classification:
+    context = ref.context or ""
+    raw_l = (ref.raw or "").lower()
+    if _plain_link(ref, context, raw_l):
+        return _rule(ref, "link", "server", 1, "plain link (model timeout fallback)")
     name = Path(ref.file.replace("\\", "/")).name.lower()
     suffix = Path(name).suffix
     if suffix in {".js", ".mjs", ".cjs", ".ts", ".tsx", ".py", ".go", ".rb"}:
@@ -308,6 +339,8 @@ def _fallback_classification(ref: Reference) -> Classification:
     if suffix in {".json", ".yml", ".yaml", ".toml", ".env"}:
         return _rule(ref, "api", "server", 2, "config URL (model timeout fallback)")
     if suffix in {".html", ".htm"}:
+        if _A_HREF.search((ref.context or "")):
+            return _rule(ref, "link", "browser", 1, "html link (model timeout fallback)")
         return _rule(ref, "script", "browser", 2, "html URL (model timeout fallback)")
     return _deadline_classification(ref)
 

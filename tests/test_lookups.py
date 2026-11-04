@@ -284,6 +284,7 @@ async def test_platform_takeover_skips_and_matches_fingerprint(tmp_path):
     assert hit.status == "unclaimed"
     assert hit.takeover == "vulnerable"
     assert hit.platform == "GitHub Pages"
+    assert hit.dns_proof is True
     nx = await platform_takeover(
         "missing.azurewebsites.net",
         dns_status="nxdomain",
@@ -292,6 +293,63 @@ async def test_platform_takeover_skips_and_matches_fingerprint(tmp_path):
     assert nx.status == "unclaimed"
     assert nx.takeover == "vulnerable"
     assert nx.signal == "NXDOMAIN"
+    assert nx.dns_proof is True
+
+
+@pytest.mark.asyncio
+async def test_platform_takeover_skips_body_without_dns_proof(tmp_path):
+    methods: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        methods.append(request.method)
+        return httpx.Response(404, text="There isn't a GitHub Pages site here. No such app")
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        disqus = await platform_takeover(
+            "disqus.com", client=client, cache=LookupCache(tmp_path / "d.db")
+        )
+        imgur = await platform_takeover(
+            "i.imgur.com", client=client, cache=LookupCache(tmp_path / "i.db")
+        )
+        elm = await platform_takeover(
+            "elm-lang.org",
+            cnames=["package.elm-lang.org"],
+            client=client,
+            cache=LookupCache(tmp_path / "e.db"),
+        )
+    assert methods == []
+    assert disqus.status == "skipped"
+    assert disqus.dns_proof is False
+    assert imgur.status == "skipped"
+    assert elm.status == "skipped"
+
+
+@pytest.mark.asyncio
+async def test_platform_takeover_custom_domain_with_pages_cname(tmp_path):
+    methods: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        methods.append(request.method)
+        return httpx.Response(404, text="There isn't a GitHub Pages site here")
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        hit = await platform_takeover(
+            "docs.example.net",
+            cnames=["alice.github.io"],
+            client=client,
+            cache=LookupCache(tmp_path / "c.db"),
+        )
+        via_a = await platform_takeover(
+            "pages.example.net",
+            addresses=["185.199.108.153"],
+            client=client,
+            cache=LookupCache(tmp_path / "a.db"),
+        )
+    assert methods == ["GET", "GET"]
+    assert hit.status == "unclaimed"
+    assert hit.dns_proof is True
+    assert via_a.status == "unclaimed"
+    assert via_a.dns_proof is True
 
 
 @pytest.mark.asyncio

@@ -27,7 +27,7 @@ FILTER_REASONS = {
     "reserved_domain",
     "allowlisted",
 }
-TYPES = {"script", "api", "asset", "bucket", "docs_link", "other"}
+TYPES = {"script", "api", "asset", "bucket", "docs_link", "link", "other"}
 RUNS_IN = {"browser", "server", "build", "deploy", "ci", "test", "docs_only"}
 
 

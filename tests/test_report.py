@@ -100,7 +100,8 @@ def test_group_by_target_merges_two_bucket_refs():
     assert len(groups[0]["rows"]) == 2
 
 
-def test_unavailable_lookup_is_unknown_not_evidence(tmp_path):
+def test_unavailable_lookup_is_unknown_not_evidence(tmp_path, monkeypatch):
+    monkeypatch.setattr("scanner.report.skip_model_rank", lambda group: False)
     gone = "missing"
     ref = Reference(
         file="deploy/infra.yaml",
@@ -299,6 +300,8 @@ def test_floor_claimable_is_critical_other_hard_is_high():
                 "platform": "GitHub Pages",
                 "takeover": "vulnerable",
                 "signal": "There isn't a GitHub Pages site here",
+                "host": "gone.github.io",
+                "dns_proof": True,
             }
         },
     }
@@ -314,13 +317,16 @@ def test_floor_claimable_is_critical_other_hard_is_high():
                 "platform": "Heroku",
                 "takeover": "edge case",
                 "signal": "No such app",
+                "host": "gone.herokuapp.com",
+                "dns_proof": True,
             }
         },
     }
     level, reason = floor_decision(edge)
-    assert level == "high"
+    assert level == "low"
     assert "edge case" in reason
     assert "Heroku" in reason
+    assert "review" in reason
     docs = {
         "target": "missing",
         "rows": [(gone, _cl(gone, runs_in="docs_only"), _inv(gone, {}))],
@@ -571,7 +577,8 @@ def test_rank_overrides_blast_and_applies_floor(tmp_path):
     assert "Evidence:" in table
 
 
-def test_no_override_line_when_blast_unchanged(tmp_path):
+def test_no_override_line_when_blast_unchanged(tmp_path, monkeypatch):
+    monkeypatch.setattr("scanner.report.skip_model_rank", lambda group: False)
     ref = Reference(
         file="deploy/infra.yaml",
         line=4,
@@ -602,7 +609,8 @@ def test_no_override_line_when_blast_unchanged(tmp_path):
     assert "override:" not in format_table(findings)
 
 
-def test_self_check_retries_then_needs_review(tmp_path):
+def test_self_check_retries_then_needs_review(tmp_path, monkeypatch):
+    monkeypatch.setattr("scanner.report.skip_model_rank", lambda group: False)
     ref = Reference(
         file="deploy/infra.yaml",
         line=4,
@@ -788,7 +796,8 @@ def test_filtered_hosts_are_not_extracted_as_ranked_targets():
     assert all(ref.filter_reason not in {"reserved_tld", "reserved_domain", "ip_address"} for ref in result.references)
 
 
-def test_rank_runs_targets_in_parallel_and_streams_each_one(tmp_path):
+def test_rank_runs_targets_in_parallel_and_streams_each_one(tmp_path, monkeypatch):
+    monkeypatch.setattr("scanner.report.skip_model_rank", lambda group: False)
     # rank was a serial loop that emitted only after every target was done:
     # 79% of a real scan's wall time with nothing on screen
     import time
@@ -839,7 +848,8 @@ def test_rank_runs_targets_in_parallel_and_streams_each_one(tmp_path):
     assert RANK_CONCURRENCY > 1
 
 
-def test_rank_returns_findings_sorted_whatever_order_they_finish(tmp_path):
+def test_rank_returns_findings_sorted_whatever_order_they_finish(tmp_path, monkeypatch):
+    monkeypatch.setattr("scanner.report.skip_model_rank", lambda group: False)
     order = ["info", "critical", "low", "high"]
     rows = []
     for index, severity in enumerate(order):
@@ -1073,6 +1083,7 @@ def test_pages_existing_account_is_safe():
             "platform": "GitHub Pages",
             "takeover": "vulnerable",
             "host": "git083104.github.io",
+            "dns_proof": True,
         },
     }
     group = {
@@ -1113,6 +1124,7 @@ def test_pages_missing_account_is_claimable():
             "platform": "GitHub Pages",
             "takeover": "vulnerable",
             "host": "trustline-demo-chat.github.io",
+            "dns_proof": True,
         },
     }
     group = {

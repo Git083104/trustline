@@ -17,7 +17,7 @@ precision@10 ranks labeled targets only and is capped by the few gold critical/h
 |---|---|---|---|---|---|---|---|
 | baseline (original) | 0.056 | 0.102 | 49 | 5 | 44 | 1.000 | 0.00000000 |
 | baseline (revised) | 0.033 | 0.231 | 13 | 3 | 10 | 0.600 | 0.00000000 |
-| trustmap | 0.044 | 0.750 | 4 | 3 | 1 | 0.600 | 0.93641200 |
+| trustmap | 0.044 | 1.000 | 3 | 3 | 0 | 0.600 | 0.29141950 |
 
 #### Confusion (baseline original, gold \ predicted)
 | gold \ pred | critical | high | medium | low | info |
@@ -42,9 +42,9 @@ precision@10 ranks labeled targets only and is capped by the few gold critical/h
 |---|---|---|---|---|---|
 | critical | 1 | 0 | 0 | 0 | 0 |
 | high | 2 | 0 | 0 | 1 | 1 |
-| medium | 1 | 0 | 0 | 0 | 0 |
+| medium | 0 | 0 | 1 | 0 | 0 |
 | low | 0 | 0 | 0 | 13 | 0 |
-| info | 0 | 0 | 0 | 7 | 122 |
+| info | 0 | 0 | 0 | 6 | 123 |
 
 ### Human-labeled only
 
@@ -54,7 +54,7 @@ precision@10 ranks labeled targets only and is capped by the few gold critical/h
 |---|---|---|---|---|---|---|
 | baseline (original) | 0.472 | 0.500 | 10 | 5 | 5 | 1.000 |
 | baseline (revised) | 0.472 | 0.600 | 5 | 3 | 2 | 0.600 |
-| trustmap | 0.472 | 0.750 | 4 | 3 | 1 | 0.600 |
+| trustmap | 0.472 | 1.000 | 3 | 3 | 0 | 0.600 |
 
 #### Confusion (baseline original, gold \ predicted)
 | gold \ pred | critical | high | medium | low | info |
@@ -79,9 +79,9 @@ precision@10 ranks labeled targets only and is capped by the few gold critical/h
 |---|---|---|---|---|---|
 | critical | 1 | 0 | 0 | 0 | 0 |
 | high | 2 | 0 | 0 | 1 | 1 |
-| medium | 1 | 0 | 0 | 0 | 0 |
+| medium | 0 | 0 | 1 | 0 | 0 |
 | low | 0 | 0 | 0 | 2 | 0 |
-| info | 0 | 0 | 0 | 1 | 3 |
+| info | 0 | 0 | 0 | 0 | 4 |
 
 ## Revised rubric
 
@@ -93,7 +93,7 @@ precision@10 ranks labeled targets only and is capped by the few gold critical/h
 |---|---|---|---|---|---|---|---|
 | baseline (original) | 0.033 | 0.061 | 49 | 3 | 46 | 1.000 | 0.00000000 |
 | baseline (revised) | 0.033 | 0.231 | 13 | 3 | 10 | 1.000 | 0.00000000 |
-| trustmap | 0.033 | 0.750 | 4 | 3 | 1 | 1.000 | 0.93641200 |
+| trustmap | 0.033 | 1.000 | 3 | 3 | 0 | 1.000 | 0.29141950 |
 
 #### Confusion (baseline original, gold \ predicted)
 | gold \ pred | critical | high | medium | low | info |
@@ -118,9 +118,9 @@ precision@10 ranks labeled targets only and is capped by the few gold critical/h
 |---|---|---|---|---|---|
 | critical | 1 | 0 | 0 | 0 | 0 |
 | high | 2 | 0 | 0 | 0 | 0 |
-| medium | 1 | 0 | 0 | 0 | 0 |
+| medium | 0 | 0 | 1 | 0 | 0 |
 | low | 0 | 0 | 0 | 14 | 0 |
-| info | 0 | 0 | 0 | 7 | 123 |
+| info | 0 | 0 | 0 | 6 | 124 |
 
 ### Human-labeled only
 
@@ -130,7 +130,7 @@ precision@10 ranks labeled targets only and is capped by the few gold critical/h
 |---|---|---|---|---|---|---|
 | baseline (original) | 0.361 | 0.300 | 10 | 3 | 7 | 1.000 |
 | baseline (revised) | 0.361 | 0.600 | 5 | 3 | 2 | 1.000 |
-| trustmap | 0.361 | 0.750 | 4 | 3 | 1 | 1.000 |
+| trustmap | 0.361 | 1.000 | 3 | 3 | 0 | 1.000 |
 
 #### Confusion (baseline original, gold \ predicted)
 | gold \ pred | critical | high | medium | low | info |
@@ -155,9 +155,9 @@ precision@10 ranks labeled targets only and is capped by the few gold critical/h
 |---|---|---|---|---|---|
 | critical | 1 | 0 | 0 | 0 | 0 |
 | high | 2 | 0 | 0 | 0 | 0 |
-| medium | 1 | 0 | 0 | 0 | 0 |
+| medium | 0 | 0 | 1 | 0 | 0 |
 | low | 0 | 0 | 0 | 3 | 0 |
-| info | 0 | 0 | 0 | 1 | 4 |
+| info | 0 | 0 | 0 | 0 | 5 |
 
 ## Gold critical/high debug (original labels)
 
@@ -178,7 +178,7 @@ finding_evidence: {"dns": {"status": "nxdomain", "host": "forum.lbry.tech"}, "tr
 
 ### https://github.com/debois/elm-mdl `polyfill.io` gold=high
 label_evidence: {"dns": {"status": "nxdomain", "host": "cdn.polyfill.io"}, "rdap": {"status": "unknown", "domain": "polyfill.io", "days_to_expiry": null}}
-trustmap: target=polyfill.io model_severity=high final_severity=critical floor_reason=compromised domain in a browser script without SRI (browser) is at least critical
+trustmap: target=polyfill.io model_severity=medium final_severity=critical floor_reason=compromised domain in a browser script without SRI (browser) is at least critical
 finding_evidence: {"dns": {"status": "nxdomain", "host": "cdn.polyfill.io"}, "tranco_rank": 53571, "rdap": {"status": "unknown", "domain": "polyfill.io", "days_to_expiry": null}, "cert_history": {"status": "unavailable", "domain": "polyfill.io"}, "wayback": {"status": "ok"}, "changed_hands": {"status": "ok"}}
 
 ### https://github.com/TryKickoff/kickoff `polyfill.io` gold=high
@@ -195,7 +195,7 @@ finding_evidence: {"bucket_probe": {"status": "NoSuchBucket", "name": "quantopia
 
 ### https://github.com/debois/elm-mdl `polyfill.io` gold=high
 label_evidence: {"dns": {"status": "nxdomain", "host": "cdn.polyfill.io"}, "rdap": {"status": "unknown", "domain": "polyfill.io", "days_to_expiry": null}}
-trustmap: target=polyfill.io model_severity=high final_severity=critical floor_reason=compromised domain in a browser script without SRI (browser) is at least critical
+trustmap: target=polyfill.io model_severity=medium final_severity=critical floor_reason=compromised domain in a browser script without SRI (browser) is at least critical
 finding_evidence: {"dns": {"status": "nxdomain", "host": "cdn.polyfill.io"}, "tranco_rank": 53571, "rdap": {"status": "unknown", "domain": "polyfill.io", "days_to_expiry": null}, "cert_history": {"status": "unavailable", "domain": "polyfill.io"}, "wayback": {"status": "ok"}, "changed_hands": {"status": "ok"}}
 
 ### https://github.com/TryKickoff/kickoff `polyfill.io` gold=high

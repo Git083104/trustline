@@ -634,20 +634,36 @@ async def platform_takeover(
     *,
     cnames: list[str] | None = None,
     dns_status: str | None = None,
+    addresses: list[str] | None = None,
     client: httpx.AsyncClient | None = None,
     cache: LookupCache | None = None,
 ) -> PlatformTakeoverResult:
-    from scanner.tools.platform_takeover import matching_platform
+    from scanner.tools.platform_takeover import (
+        dns_points_to_platform,
+        matching_platform,
+    )
 
     cache = cache or default_cache()
     key = f"platform:{host.lower()}"
     hit = cache.get_json(key)
     if hit is not None:
-        return PlatformTakeoverResult.model_validate(hit)
+        cached = PlatformTakeoverResult.model_validate(hit)
+        if not (
+            cached.status == "skipped"
+            and matching_platform(host, cnames, addresses)
+        ):
+            return cached
 
-    platform = matching_platform(host, cnames)
+    platform = matching_platform(host, cnames, addresses)
     if platform is None:
         return PlatformTakeoverResult(host=host, status="skipped")
+    dns_proof = dns_points_to_platform(
+        platform, host, cnames=cnames, addresses=addresses
+    )
+    if not dns_proof:
+        return PlatformTakeoverResult(
+            host=host, status="skipped", platform=str(platform["name"]), dns_proof=False
+        )
 
     takeover = str(platform.get("takeover") or "edge case")
     name = str(platform["name"])
@@ -664,6 +680,7 @@ async def platform_takeover(
                 status="error",
                 platform=name,
                 takeover=takeover,
+                dns_proof=dns_proof,
             )
         else:
             result = PlatformTakeoverResult(
@@ -672,6 +689,7 @@ async def platform_takeover(
                 platform=name,
                 takeover=takeover,
                 signal="NXDOMAIN" if nx else None,
+                dns_proof=dns_proof,
             )
         cache.set_json(key, result.model_dump(mode="json"))
         return result
@@ -679,7 +697,7 @@ async def platform_takeover(
     own_client = client is None
     client = client or _client()
     result = PlatformTakeoverResult(
-        host=host, status="error", platform=name, takeover=takeover
+        host=host, status="error", platform=name, takeover=takeover, dns_proof=dns_proof
     )
     try:
         for scheme in ("https", "http"):
@@ -709,6 +727,7 @@ async def platform_takeover(
                 takeover=takeover,
                 signal=match,
                 http_status=response.status_code,
+                dns_proof=dns_proof,
             )
             cache.set_json(key, result.model_dump(mode="json"))
             return result
@@ -719,6 +738,7 @@ async def platform_takeover(
                 platform=name,
                 takeover=takeover,
                 signal="NXDOMAIN",
+                dns_proof=dns_proof,
             )
     finally:
         if own_client:

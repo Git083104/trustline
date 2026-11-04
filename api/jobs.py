@@ -73,6 +73,8 @@ class Job:
             "stage_seconds": outcome.stage_seconds,
             "coverage": outcome.coverage,
             "agent_runs": outcome.agent_runs,
+            "classify_rule_n": outcome.classify_rule_n,
+            "classify_model_n": outcome.classify_model_n,
             "rank_fallbacks": outcome.rank_fallbacks,
             "code_only": self.code_only or outcome.code_only or outcome.muse_overloaded,
             "code_only_banner": (

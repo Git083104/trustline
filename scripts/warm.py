@@ -17,6 +17,8 @@ from dotenv import load_dotenv
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
+from scanner.sanity import unexplained_tranco_fix_today
+
 ROOT = Path(__file__).resolve().parents[1]
 TARGETS = ROOT / "api" / "static" / "targets.json"
 
@@ -81,7 +83,7 @@ def expect_line(findings: list[dict]) -> str:
     return f"Expect: {' · '.join(bits)}"
 
 
-def _scan(base: str, target: str) -> tuple[float, str]:
+def _scan(base: str, target: str) -> tuple[float, str, dict | None]:
     payload = json.dumps({"target": target}).encode()
     started = time.perf_counter()
     try:
@@ -93,17 +95,17 @@ def _scan(base: str, target: str) -> tuple[float, str]:
         )
     except (HTTPError, URLError, TimeoutError, json.JSONDecodeError) as exc:
         elapsed = time.perf_counter() - started
-        return elapsed, f"FAIL {elapsed:.1f}s  {target}  {exc}"
+        return elapsed, f"FAIL {elapsed:.1f}s  {target}  {exc}", None
     try:
         started_body = json.loads(raw.decode("utf-8", "replace"))
     except json.JSONDecodeError:
         elapsed = time.perf_counter() - started
-        return elapsed, f"FAIL {elapsed:.1f}s  {target}  status={status}"
+        return elapsed, f"FAIL {elapsed:.1f}s  {target}  status={status}", None
     scan_id = started_body.get("scan_id")
     if status != 200 or not scan_id:
         elapsed = time.perf_counter() - started
         err = started_body.get("error") or started_body
-        return elapsed, f"FAIL {elapsed:.1f}s  {target}  status={status} {err}"
+        return elapsed, f"FAIL {elapsed:.1f}s  {target}  status={status} {err}", None
     report = None
     for _ in range(36):
         time.sleep(4)
@@ -113,23 +115,35 @@ def _scan(base: str, target: str) -> tuple[float, str]:
             if exc.code == 409:
                 continue
             elapsed = time.perf_counter() - started
-            return elapsed, f"FAIL {elapsed:.1f}s  {target}  {exc}"
+            return elapsed, f"FAIL {elapsed:.1f}s  {target}  {exc}", None
         if st == 409:
             continue
         if st != 200:
             elapsed = time.perf_counter() - started
-            return elapsed, f"FAIL {elapsed:.1f}s  {target}  status={st}"
+            return elapsed, f"FAIL {elapsed:.1f}s  {target}  status={st}", None
         report = json.loads(body.decode("utf-8", "replace"))
         break
     elapsed = time.perf_counter() - started
     if report is None:
-        return elapsed, f"FAIL {elapsed:.1f}s  {target}  timeout"
+        return elapsed, f"FAIL {elapsed:.1f}s  {target}  timeout", None
     if report.get("status") == "error":
-        return elapsed, f"FAIL {elapsed:.1f}s  {target}  {report.get('error')}"
+        return elapsed, f"FAIL {elapsed:.1f}s  {target}  {report.get('error')}", report
     findings = report.get("findings") or []
     n = len(findings)
+    cost = float(report.get("cost_usd") or 0)
+    classify_cost = float(report.get("classify_cost_usd") or 0)
+    fallbacks = int(report.get("rank_fallbacks") or 0)
+    skipped = report.get("skipped_targets") or []
+    model_n = int(report.get("classify_model_n") or 0)
+    rule_n = int(report.get("classify_rule_n") or 0)
+    denom = max(1, n)
     line = expect_line(findings)
-    return elapsed, f"{elapsed:.1f}s  {target}  findings={n}  {line}"
+    extra = (
+        f"cost=${cost:.2f} classify=${classify_cost:.2f} "
+        f"rules={rule_n} model={model_n} "
+        f"rank_fallbacks={fallbacks}/{denom} skipped={len(skipped)}"
+    )
+    return elapsed, f"{elapsed:.1f}s  {target}  findings={n}  {line}  {extra}", report
 
 
 def main() -> int:
@@ -140,15 +154,28 @@ def main() -> int:
     base = sys.argv[1].rstrip("/")
     data = json.loads(TARGETS.read_text())
     targets = _entries(data)
-    print(f"warm {base}  {len(targets)} targets")
+    print(f"warm {base}  {len(targets)} targets", flush=True)
     failed = 0
     for target in targets:
-        elapsed, line = _scan(base, target)
-        print(line)
+        elapsed, line, report = _scan(base, target)
+        print(line, flush=True)
         if line.startswith("FAIL"):
             failed += 1
+            continue
+        findings = (report or {}).get("findings") or []
+        for item in findings:
+            if item.get("severity") in {"critical", "high"}:
+                print(
+                    f"  Fix-today {item.get('target')} {item.get('severity')}  "
+                    f"{item.get('evidence_line')}",
+                    flush=True,
+                )
+        bad = unexplained_tranco_fix_today(findings)
+        if bad:
+            failed += 1
+            print(f"FAIL sanity {target}: " + "; ".join(bad), flush=True)
         _ = elapsed
-    print(f"{len(targets) - failed} scanned, {failed} failed")
+    print(f"{len(targets) - failed} scanned, {failed} failed", flush=True)
     return 1 if failed else 0
 
 

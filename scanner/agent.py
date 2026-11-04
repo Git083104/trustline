@@ -33,7 +33,7 @@ from scanner.extract import (
     is_github_action_ref,
     is_github_owner_ref,
 )
-from scanner.tools.platform_takeover import matching_platform
+from scanner.tools.platform_takeover import matching_platform, takeover_is_proven
 from scanner.tools import ToolContext, definitions, run as run_tool
 from scanner.tranco import TOP_SAFE_RANK, tranco_rank
 
@@ -75,8 +75,7 @@ def has_hard_signal(evidence: dict[str, Any]) -> bool:
     repo = evidence.get("github_repo") or {}
     if str(repo.get("status", "")).lower() == "missing":
         return True
-    platform = evidence.get("platform_takeover") or {}
-    if str(platform.get("status", "")).lower() == "unclaimed":
+    if takeover_is_proven(evidence):
         return True
     dns = evidence.get("dns") or {}
     if str(dns.get("status", "")).lower() == "nxdomain":
@@ -106,8 +105,7 @@ def precheck_conclusive(ref: Reference, evidence: dict[str, Any]) -> bool:
     repo = evidence.get("github_repo") or {}
     if str(repo.get("status", "")).lower() == "missing":
         return True
-    platform = evidence.get("platform_takeover") or {}
-    if str(platform.get("status", "")).lower() == "unclaimed":
+    if takeover_is_proven(evidence):
         return True
     dns = evidence.get("dns") or {}
     if str(dns.get("status", "")).lower() == "nxdomain":
@@ -224,13 +222,15 @@ async def precheck(
         evidence["rdap"] = await _timed_tool("rdap", {"domain": domain}, ctx)
     dns = evidence.get("dns") or {}
     cnames = list(dns.get("cnames") or [])
-    if matching_platform(ref.host_or_bucket, cnames):
+    addresses = list(dns.get("addresses") or [])
+    if matching_platform(ref.host_or_bucket, cnames, addresses):
         evidence["platform_takeover"] = await _timed_tool(
             "platform_takeover",
             {
                 "host": ref.host_or_bucket,
                 "cnames": cnames,
                 "dns_status": dns.get("status"),
+                "addresses": addresses,
             },
             ctx,
         )
@@ -248,6 +248,10 @@ def should_investigate(ref: Reference, cl: Classification, evidence: dict[str, A
     if tranco_checked_safe(ref, evidence) and not precheck_conclusive(ref, evidence):
         return False
     if cl.runs_in == "docs_only" and not precheck_conclusive(ref, evidence):
+        return False
+    if cl.type in {"link", "asset", "docs_link"} and not precheck_conclusive(
+        ref, evidence
+    ):
         return False
     if cl.blast_radius == 0 and not precheck_conclusive(ref, evidence):
         hands = evidence.get("changed_hands") or {}

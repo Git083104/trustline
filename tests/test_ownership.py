@@ -231,7 +231,8 @@ def test_github_owner_reregistered_wording():
     )
 
 
-def test_model_cannot_claim_ownership_change_without_fact(tmp_path):
+def test_model_cannot_claim_ownership_change_without_fact(tmp_path, monkeypatch):
+    monkeypatch.setattr("scanner.report.skip_model_rank", lambda group: False)
     ref = _ref()
     client = FakeModelClient(
         handler=lambda request: _rank_ok(

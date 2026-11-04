@@ -80,6 +80,45 @@ def test_classify_by_rule_covers_obvious_shapes():
     assert classify_by_rule(uses).runs_in == "ci"
     assert classify_by_rule(docker).runs_in == "build"
     assert classify_by_rule(script).type == "script"
+    href = Reference(
+        file="layout/post.ejs",
+        line=12,
+        raw="https://disqus.com/embed.js",
+        host_or_bucket="disqus.com",
+        domain="disqus.com",
+        context='<a href="https://disqus.com/embed.js">comments</a>',
+        tag="a",
+    )
+    md = Reference(
+        file="ui/Help.jsx",
+        line=4,
+        raw="https://example.net/help",
+        host_or_bucket="example.net",
+        domain="example.net",
+        context="See [help](https://example.net/help) for details.",
+        tag="markdown",
+    )
+    share = Reference(
+        file="ui/component/settingShareUrl/view.jsx",
+        line=59,
+        raw="https://lbryshare.com",
+        host_or_bucket="lbryshare.com",
+        domain="lbryshare.com",
+        context='const shareUrl = "https://lbryshare.com"; window.open(shareUrl);',
+    )
+    pages_link = Reference(
+        file="index.html",
+        line=3,
+        raw="https://gone.github.io/widget.js",
+        host_or_bucket="gone.github.io",
+        domain="gone.github.io",
+        context='<a href="https://gone.github.io/widget.js">open</a>',
+        tag="a",
+    )
+    assert classify_by_rule(href).type == "link"
+    assert classify_by_rule(md).type == "link"
+    assert classify_by_rule(share).type == "link"
+    assert classify_by_rule(pages_link).type == "link"
     ambiguous = Reference(
         file="backend/settings.py",
         line=2,
@@ -131,7 +170,7 @@ def test_classify_by_rule_covers_obvious_shapes():
     assert classify_by_rule(s3_url).type == "bucket"
 
 
-def test_classify_model_batches_are_at_most_five(tmp_path):
+def test_classify_model_batches_match_config(tmp_path):
     refs = [
         Reference(
             file="app.py",
@@ -168,8 +207,9 @@ def test_classify_model_batches_are_at_most_five(tmp_path):
     )
     assert len(got) == 12
     assert sizes
-    assert max(sizes) <= 5
-    assert len(sizes) >= 3
+    assert max(sizes) <= CLASSIFY_BATCH_SIZE
+    assert CLASSIFY_BATCH_SIZE >= 16
+    assert len(sizes) >= math.ceil(12 / CLASSIFY_BATCH_SIZE)
 
 
 def test_classify_defaults_to_actionable_only(tmp_path):
