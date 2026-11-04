@@ -264,6 +264,8 @@ STATIC = Path(__file__).resolve().parents[1] / "api" / "static"
 
 def test_frontend_has_the_three_screens_and_no_design_switcher():
     markup = (STATIC / "index.html").read_text()
+    css = (STATIC / "app.css").read_text()
+    js = (STATIC / "app.js").read_text()
     for anchor in ('id="page-home"', 'id="screen-scanning"', 'id="screen-results"'):
         assert anchor in markup
     # the floating Home/Scanning/Results control is a design-tool affordance
@@ -277,8 +279,8 @@ def test_frontend_has_the_three_screens_and_no_design_switcher():
     assert "Example from the demo scan" in markup
     assert "nth-child(n+7)" in css
     assert "Now checking" in markup
-    assert "now-check" in js.text
-    assert 'pointer-events:none' in css
+    assert "now-check" in js
+    assert "pointer-events:none" in css
     assert "Websites to try" in markup
     assert "Fix it" in markup
 
