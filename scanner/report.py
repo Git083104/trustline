@@ -1509,6 +1509,8 @@ async def run_scan(
     file_texts: dict[str, str] = {}
     source_html = ""
     clock.begin_stage("extract")
+    from scanner.copy import set_owned_names
+
     if is_website_source(source):
         extracted_web = await extract_website_scan(source)
         refs = extracted_web.references
@@ -1517,6 +1519,7 @@ async def run_scan(
         web_cov = website_coverage()
         web_cov.ignored_non_hosts = extracted_web.ignored_non_hosts
         coverage = web_cov.as_dict()
+        set_owned_names([])
     else:
         # Cloning and reading a repository blocks; keep it off the event loop so
         # the scan's own SSE stream keeps flowing while it runs.
@@ -1526,6 +1529,7 @@ async def run_scan(
         origin_owner = extracted.github_owner
         origin_repo = extracted.github_repo
         file_texts = dict(extracted.file_texts)
+        set_owned_names(extracted.owned_names)
     actionable = sum(1 for item in refs if item.filter_reason is None)
     emit(
         on_event,

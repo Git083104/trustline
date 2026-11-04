@@ -1,7 +1,13 @@
 from pathlib import Path
 
 from scanner.extract import extract, extract_scan
-from scanner.inert import is_inert_path, is_source_code, load_ignore_globs
+from scanner.inert import (
+    is_inert_path,
+    is_source_code,
+    load_ignore_globs,
+    load_owned_names,
+    name_is_owned,
+)
 from scanner.models import Classification, Finding, Investigation, Reference
 from scanner.report import executing_runs_in, floor_decision
 
@@ -36,7 +42,10 @@ def test_inert_paths():
 
 
 def test_tether_yml_ignore(tmp_path: Path):
-    (tmp_path / ".tether.yml").write_text("ignore:\n  - design/reference/**\n  - api/demo_scan.json\n")
+    (tmp_path / ".tether.yml").write_text(
+        "ignore:\n  - design/reference/**\n  - api/demo_scan.json\n"
+        "owned:\n  - gone-bucket\n  - old.example\n"
+    )
     (tmp_path / "design" / "reference").mkdir(parents=True)
     (tmp_path / "design" / "reference" / "note.html").write_text(
         '<script src="https://cdn.polyfill.io/v3/x.js"></script>\n'
@@ -49,6 +58,9 @@ def test_tether_yml_ignore(tmp_path: Path):
     assert "cdn.polyfill.io" not in hosts
     assert "cdn-assets-trustmap-7f3k2.com" in hosts
     assert load_ignore_globs(tmp_path)
+    assert load_owned_names(tmp_path) == ["gone-bucket", "old.example"]
+    assert name_is_owned("gone-bucket", load_owned_names(tmp_path))
+    assert name_is_owned("cdn.old.example", load_owned_names(tmp_path))
     cov = extract_scan(str(tmp_path)).coverage
     assert len(cov.ignored_files) >= 2
     assert "api/demo_scan.json" in cov.ignored_files

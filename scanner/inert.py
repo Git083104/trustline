@@ -139,6 +139,51 @@ def is_source_code(path: str) -> bool:
     return suffix in SOURCE_SUFFIXES
 
 
+def load_owned_names(root: Path) -> list[str]:
+    path = root / ".tether.yml"
+    if not path.is_file():
+        return []
+    try:
+        data = yaml.safe_load(path.read_text()) or {}
+    except Exception:
+        return []
+    raw = data.get("owned") or []
+    return [str(item).strip() for item in raw if str(item).strip()]
+
+
+def name_is_owned(target: str, owned: list[str]) -> bool:
+    needle = _owned_key(target)
+    if not needle:
+        return False
+    for item in owned:
+        key = _owned_key(item)
+        if not key:
+            continue
+        if needle == key:
+            return True
+        if needle.endswith("." + key):
+            return True
+        if needle == "github.com/" + key or needle.startswith("github.com/" + key + "/"):
+            return True
+        if key.startswith("github.com/") and (
+            needle == key or needle.startswith(key + "/")
+        ):
+            return True
+    return False
+
+
+def _owned_key(value: str) -> str:
+    text = (value or "").strip().lower().rstrip(".")
+    text = text.removeprefix("https://").removeprefix("http://")
+    text = text.split("?")[0]
+    if text.startswith("s3://"):
+        return text[5:].split("/")[0]
+    if text.startswith("github.com/"):
+        parts = [part for part in text.split("/") if part]
+        return "/".join(parts[:2])
+    return text.split("/")[0].rstrip("/")
+
+
 def load_ignore_globs(root: Path) -> list[str]:
     path = root / ".tether.yml"
     if not path.is_file():

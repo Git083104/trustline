@@ -24,7 +24,7 @@ from scanner.config import (
     SKIP_FILE_NAMES,
     SKIP_NAME_SUFFIXES,
 )
-from scanner.inert import ignored_by_globs, load_ignore_globs
+from scanner.inert import ignored_by_globs, load_ignore_globs, load_owned_names
 from scanner.models import Reference
 from scanner.tools.github_owner import GITHUB_RESERVED
 
@@ -187,6 +187,7 @@ class ExtractResult:
     github_owner: str = ""
     github_repo: str = ""
     file_texts: dict[str, str] = field(default_factory=dict)
+    owned_names: list[str] = field(default_factory=list)
 
 
 def _scan_file_cap() -> int:
@@ -374,6 +375,7 @@ def _extract_dir(root: Path) -> ExtractResult:
             ignored_files=ignored_files,
         ),
         file_texts={name: texts[name] for name in needed if name in texts},
+        owned_names=load_owned_names(root),
     )
 
 

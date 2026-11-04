@@ -5,8 +5,19 @@ from __future__ import annotations
 from typing import Any
 
 from scanner.compromised import compromised_status
-from scanner.inert import is_inert_path
+from scanner.inert import is_inert_path, name_is_owned
 from scanner.models import Finding
+
+OWNED_COPY = (
+    "This is yours: renew the domain / re-create the bucket or account in your own "
+    "cloud account before someone else does."
+)
+_owned_names: list[str] = []
+
+
+def set_owned_names(names: list[str] | None) -> None:
+    global _owned_names
+    _owned_names = [str(item) for item in (names or []) if str(item).strip()]
 
 PROVEN_TIP = (
     "Proven: checked directly, e.g. the registry says no one owns this domain"
@@ -146,6 +157,8 @@ def steps_for(item: Finding) -> list[str]:
 
 
 def headline_for(item: Finding) -> str:
+    if name_is_owned(item.target, _owned_names):
+        return OWNED_COPY
     return HEADLINES.get(risk_type(item), HEADLINES["unregistered_host"])
 
 
@@ -159,14 +172,16 @@ def why_for(item: Finding) -> str:
 
 def decorate(item: Finding) -> Finding:
     kind = risk_type(item)
-    return item.model_copy(
-        update={
-            "headline": headline_for(item),
-            "why": why_for(item),
-            "steps": steps_for(item),
-            "risk_type": kind,
-        }
-    )
+    update = {
+        "headline": headline_for(item),
+        "why": why_for(item),
+        "steps": steps_for(item),
+        "risk_type": kind,
+    }
+    if name_is_owned(item.target, _owned_names):
+        update["headline"] = OWNED_COPY
+        update["fix"] = OWNED_COPY
+    return item.model_copy(update=update)
 
 
 def issue_markdown(item: Finding) -> tuple[str, str]:
