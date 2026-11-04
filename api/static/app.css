@@ -369,6 +369,7 @@ td:last-child,th:last-child{padding-right:0}
   .story .cap-1,.story .cap-2,.story .cap-3{opacity:0}
 }
 .home-example-label{margin:0;font:500 12px/1.3 var(--mono);letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+.badge-snippet{margin:10px 0 0;font:400 13px/1.4 var(--mono);word-break:break-all}
 .home-stack{width:min(100%,280px);height:auto;overflow:visible}
 .home-stack .tex{fill:url(#home-dots)}
 .repos-title{font:500 21px/1.2 var(--display);letter-spacing:-.02em;margin:0 0 12px}

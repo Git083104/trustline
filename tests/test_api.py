@@ -536,6 +536,52 @@ def test_live_job_fix_patch(tmp_path):
         assert "cdnjs.cloudflare.com/polyfill" in patch.text
 
 
+def test_badge_reads_latest_cached_scan_only():
+    calls = {"n": 0}
+
+    async def runner(*args, **kwargs):
+        calls["n"] += 1
+        from scanner.models import Finding
+
+        finding = Finding(
+            target="gone-bucket",
+            kind="bucket",
+            references=["deploy.yml:1"],
+            severity="critical",
+            model_severity="critical",
+            final_severity="critical",
+            classified_blast_radius=3,
+            ranked_blast_radius=3,
+            risk="NoSuchBucket",
+            fix="re-register what you abandoned",
+            evidence={"bucket_probe": {"status": "NoSuchBucket", "name": "gone-bucket"}},
+        )
+        return ScanOutcome(findings=[finding])
+
+    app = create_app(
+        model_client=FakeModelClient(handler=lambda r: {}),
+        runner=runner,
+    )
+    with TestClient(app) as client:
+        empty = client.get("/api/badge", params={"repo": "https://github.com/acme/shop"})
+        assert empty.status_code == 200
+        assert empty.headers["content-type"].startswith("image/svg+xml")
+        assert "no scan" in empty.text
+        assert calls["n"] == 0
+        started = client.post(
+            "/api/scan", json={"target": "https://github.com/acme/shop"}
+        ).json()
+        client.get(f"/api/scan/{started['scan_id']}/events")
+        assert calls["n"] == 1
+        badge = client.get("/api/badge", params={"repo": "https://github.com/acme/shop"})
+        assert "1 claimable" in badge.text
+        assert calls["n"] == 1
+        same = client.get("/api/badge", params={"repo": "acme/shop"})
+        assert same.status_code == 200
+        assert "1 claimable" in same.text
+        assert calls["n"] == 1
+
+
 def test_demo_waits_cap_gaps():
     events = [{"ts": 1.0}, {"ts": 10.0}, {"ts": 10.2}]
     waits = demo_waits_ms(events, None)

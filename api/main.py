@@ -11,7 +11,7 @@ from typing import Any, Literal
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -26,7 +26,7 @@ from scanner.config import SCAN_COST_CAP_USD
 from scanner.ssrf import SCAN_BLOCKED, ScanBlockedError, parse_public_url, refuse_blocked_ips
 from scanner.llm import LiveModelClient, ModelClient, failure_message, redact_secrets  # noqa: F401
 from scanner.lookups import LookupCache, default_cache
-from scanner.report import ScanOutcome, run_scan
+from scanner.report import ScanOutcome, is_claimable, run_scan
 from scanner.tools import ToolContext
 
 ScanRunner = Callable[..., Awaitable[ScanOutcome]]
@@ -254,6 +254,7 @@ def create_app(
             )
             actual = 0.0 if job.code_only else outcome.cost_usd
             job.finish(outcome)
+            store.remember(job)
         except Exception as exc:
             job.fail(failure_message(exc))
         finally:
@@ -308,6 +309,39 @@ def create_app(
             payload.get("patch") or "",
             media_type="text/x-diff",
             headers={"Content-Disposition": 'attachment; filename="tether.patch"'},
+        )
+
+    @app.get("/api/badge")
+    def badge(repo: str = Query(...)) -> Response:
+        report = store.latest(repo)
+        if report is None:
+            label, color = "no scan", "#6B6B6B"
+        else:
+            n = sum(
+                1
+                for item in report.get("findings") or []
+                if is_claimable(item.get("evidence") or {})
+            )
+            if n:
+                label, color = f"{n} claimable", "#B42318"
+            else:
+                label, color = "0 claimable", "#1B7F3A"
+        text = f"Tether | {label}"
+        width = max(110, 12 + 7 * len(text))
+        split = 54
+        svg = (
+            f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="20" role="img">'
+            f'<title>{text}</title>'
+            f'<rect width="{split}" height="20" fill="#111"/>'
+            f'<rect x="{split}" width="{width - split}" height="20" fill="{color}"/>'
+            f'<text x="6" y="14" fill="#fff" font-family="Verdana,sans-serif" font-size="11">Tether</text>'
+            f'<text x="{split + 6}" y="14" fill="#fff" font-family="Verdana,sans-serif" font-size="11">{label}</text>'
+            f"</svg>"
+        )
+        return Response(
+            svg,
+            media_type="image/svg+xml",
+            headers={"Cache-Control": "no-store"},
         )
 
     return app

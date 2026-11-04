@@ -8,7 +8,20 @@ from typing import Any, AsyncIterator
 
 from api.limits import CODE_ONLY_BANNER, OVERLOAD_BANNER
 from scanner.events import finding_public
+from scanner.extract import GITHUB_RE
 from scanner.report import ScanOutcome
+
+
+def badge_key(target: str) -> str | None:
+    raw = (target or "").strip()
+    match = GITHUB_RE.match(raw)
+    if match:
+        owner = match.group(1).lower()
+        repo = match.group(2).lower().removesuffix(".git")
+        return f"{owner}/{repo}"
+    if raw:
+        return raw.rstrip("/").lower()
+    return None
 
 
 def _running_loop() -> asyncio.AbstractEventLoop | None:
@@ -141,9 +154,23 @@ class Job:
 class JobStore:
     def __init__(self) -> None:
         self._jobs: dict[str, Job] = {}
+        self._latest: dict[str, dict[str, Any]] = {}
 
     def add(self, job: Job) -> None:
         self._jobs[job.scan_id] = job
 
     def get(self, scan_id: str) -> Job | None:
         return self._jobs.get(scan_id)
+
+    def remember(self, job: Job) -> None:
+        if job.status != "done" or not job.report:
+            return
+        key = badge_key(job.target)
+        if key:
+            self._latest[key] = job.report
+
+    def latest(self, target: str) -> dict[str, Any] | None:
+        key = badge_key(target)
+        if not key:
+            return None
+        return self._latest.get(key)

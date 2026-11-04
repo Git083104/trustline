@@ -105,6 +105,7 @@
     codeOnlySummary: $("code-only-summary"),
     codeOnlyToggle: $("code-only-toggle"),
     codeOnlyList: $("code-only-list"),
+    badgeSnippet: $("badge-snippet"),
     nowTarget: $("now-target"),
     nowCheckName: $("now-check-name"),
     nowResult: $("now-check-result"),
@@ -1211,6 +1212,17 @@
       : fix.length + (fix.length === 1 ? " thing to fix today" : " things to fix today");
     renderChips(findings);
     renderMeta(report);
+    if (el.badgeSnippet) {
+      var target = report.target || state.target || "";
+      if ((report.kind || state.kind) === "repo" && target) {
+        var badgeUrl = location.origin + "/api/badge?repo=" + encodeURIComponent(target);
+        el.badgeSnippet.hidden = false;
+        el.badgeSnippet.textContent = "[![Tether](" + badgeUrl + ")](" + location.origin + ")";
+      } else {
+        el.badgeSnippet.hidden = true;
+        el.badgeSnippet.textContent = "";
+      }
+    }
     setRecordedLabel(el.resRecorded, report);
     var ignored = ((report.coverage || {}).ignored_files) || [];
     if (el.ignoredSummary) {
