@@ -15,7 +15,20 @@
     github_owner: "Is this GitHub account still there?",
     github_repo: "Does this repository still exist?",
     live_fetch: "What does this URL serve now?",
+    platform_takeover: "Is this hosting platform still claimed?",
     tranco: "How widely used is this host?"
+  };
+  var CHECK_LABEL = {
+    dns: "DNS",
+    rdap: "registry",
+    bucket_probe: "bucket",
+    github_owner: "GitHub",
+    github_repo: "GitHub",
+    live_fetch: "live fetch",
+    platform_takeover: "GitHub",
+    wayback: "archive",
+    cert_history: "certificates",
+    done: "done"
   };
   var STATUS_WORDS = {
     blocked: "doesn't resolve",
@@ -395,16 +408,15 @@
     var body = make("div", "feed-body");
 
     var planLine = make("div", "feed-line");
-    planLine.appendChild(make("span", "feed-k", "Plan"));
+    planLine.appendChild(make("span", "feed-k", "Question"));
     planLine.appendChild(make("span", "feed-plan", turn.plan));
     body.appendChild(planLine);
 
     var callLine = make("div", "feed-line");
-    callLine.appendChild(make("span", "feed-k", "Call"));
-    var code = make("code", "feed-call");
-    code.appendChild(make("span", "accent", turn.tool));
-    code.appendChild(document.createTextNode('("' + turn.arg + '")'));
-    callLine.appendChild(code);
+    callLine.appendChild(make("span", "feed-k", "Check"));
+    var check = make("span", "feed-call");
+    check.textContent = call.tool === "done" ? "lookups already in" : (CHECK_LABEL[call.tool] || call.tool);
+    callLine.appendChild(check);
     body.appendChild(callLine);
 
     var resultLine = make("div", "feed-line feed-line-result");
@@ -641,6 +653,7 @@
       closeSource();
       state.elapsedMs = Date.now() - state.startedAt;
       state.counts.report = 1;
+      finishTurns();
       renderLayers();
       loadReport();
     }
@@ -1067,8 +1080,22 @@
     el.tabAll.replaceChildren(wrap);
   }
 
+  function finishTurns() {
+    state.turns.forEach(function (turn) {
+      if (turn.tool === "done" && (turn.sev === "checking" || turn.result === "running…")) {
+        turn.sev = "neutral";
+        turn.result = turn.plan || "lookups already answered this";
+      } else if (turn.sev === "checking" || turn.result === "running…") {
+        turn.sev = "neutral";
+        turn.result = "no answer in time";
+      }
+      if (turn.node) { setRowResult(turn.node, turn.sev, turn.result); }
+    });
+  }
+
   function renderTrace() {
     el.tabTrace.replaceChildren();
+    if (state.finished) { finishTurns(); }
     if (!state.turns.length) {
       el.tabTrace.appendChild(make("div", "empty-note",
         "The agent trace is only available while a scan is streaming."));
@@ -1079,15 +1106,18 @@
       var row = make("div", "trace-row");
       row.appendChild(make("span", "feed-n", String(index + 1).padStart(2, "0")));
       var body = make("div", "trace-body");
-      body.appendChild(make("span", "trace-plan", turn.plan));
-      var line = make("div", "trace-call-line");
-      var call = make("span", "trace-call");
-      call.appendChild(make("span", "accent", turn.tool));
-      call.appendChild(document.createTextNode('("' + turn.arg + '")'));
-      line.appendChild(call);
-      line.appendChild(make("span", "dim", "→"));
-      line.appendChild(make("span", "sev-fg-" + turn.sev, turn.result));
-      body.appendChild(line);
+      body.appendChild(make("div", "feed-line")).appendChild(make("span", "feed-k", "Question"));
+      body.lastChild.appendChild(make("span", "feed-plan", turn.plan));
+      if (turn.tool !== "done") {
+        var checkLine = make("div", "feed-line");
+        checkLine.appendChild(make("span", "feed-k", "Check"));
+        checkLine.appendChild(make("span", "feed-call", CHECK_LABEL[turn.tool] || turn.tool));
+        body.appendChild(checkLine);
+      }
+      var resultLine = make("div", "feed-line");
+      resultLine.appendChild(make("span", "feed-k", "Result"));
+      resultLine.appendChild(make("span", "sev-fg-" + turn.sev, turn.result));
+      body.appendChild(resultLine);
       row.appendChild(body);
       card.appendChild(row);
     });

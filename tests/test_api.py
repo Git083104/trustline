@@ -72,6 +72,8 @@ def test_placeholder_home_and_demo_button():
         assert js.status_code == 200
         assert "EventSource" in js.text
         assert "locRank" in js.text
+        assert "no answer in time" in js.text
+        assert 'feed-k", "Question"' in js.text or "Question" in js.text
         demo = client.get("/api/scan/demo/events", params={"speed": "0"})
         assert demo.status_code == 200
         types = [item.get("type") for item in _parse_sse(demo.text)]
