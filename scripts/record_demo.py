@@ -198,6 +198,9 @@ def record_remote(base: str, target: str) -> dict:
     report["recorded_with"] = "live"
     report["recorded_at"] = stamp
     report["target"] = target
+    repo = target.rstrip("/").split("github.com/")[-1].removesuffix(".git")
+    report["recorded_label"] = f"Recorded live scan · {repo} · {stamp}"
+    events[0]["recorded_label"] = report["recorded_label"]
     return {**report, "events": events}
 
 
@@ -207,7 +210,7 @@ def main() -> None:
     parser.add_argument("--from-url", metavar="BASE", help="record a live scan from a running Tether")
     parser.add_argument(
         "--target",
-        default="https://github.com/Git083104/tether-demo-shop",
+        default="https://github.com/LeaVerou/bliss",
         help="repository to scan when --from-url is set",
     )
     args = parser.parse_args()

@@ -90,7 +90,9 @@ HOME_ONLY_JS = """
   if (!text.includes('prium.github.io/Shape')) fails.push('missing Shape title');
   if (!text.includes('bootcdn.cn')) fails.push('missing bootcdn title');
   if (!text.includes('wikipedia.org')) fails.push('missing wikipedia title');
-  if (!text.includes('Planted examples (ours)')) fails.push('missing planted group');
+  if ((text.match(/Planted examples \\(ours\\)/g) || []).length < 2) {
+    fails.push('missing planted groups');
+  }
   if ((text.match(/Control: should come back clean/g) || []).length !== 1) {
     fails.push('wikipedia control line should appear once');
   }

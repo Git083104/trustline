@@ -49,7 +49,9 @@ Some repos withheld pending maintainer notification.
 
 On the home page, **Repos to try** and **Websites to try** are public examples with an expected result from the last production warm run.
 
-The demo storefront is ours: [Git083104/tether-demo-shop](https://github.com/Git083104/tether-demo-shop) and [git083104.github.io/tether-demo-shop](https://git083104.github.io/tether-demo-shop/). Its risky names are planted on purpose and blocked by Content-Security-Policy, so they do not run in a visitor's browser.
+**Watch the demo** replays a recorded live scan of [LeaVerou/bliss](https://github.com/LeaVerou/bliss), whose pages still load `polyfill.io`.
+
+Our planted storefront is under **Planted examples (ours)**: [Git083104/tether-demo-shop](https://github.com/Git083104/tether-demo-shop) and [git083104.github.io/tether-demo-shop](https://git083104.github.io/tether-demo-shop/). Those risky names are planted on purpose and blocked by Content-Security-Policy, so they do not run in a visitor's browser.
 
 ## Run locally
 

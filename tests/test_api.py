@@ -281,6 +281,9 @@ def test_demo_report_and_events_offline():
         assert "events" not in body
         assert body["status"] == "done"
         assert body["findings"]
+        assert body["target"] == "https://github.com/LeaVerou/bliss"
+        assert "Recorded live scan · LeaVerou/bliss ·" in (body.get("recorded_label") or "")
+        assert body.get("rank_fallbacks") == 0
         stream = client.get("/api/scan/demo/events?speed=0")
         assert stream.status_code == 200
         events = _parse_sse(stream.text)
@@ -346,17 +349,38 @@ def test_frontend_has_the_three_screens_and_no_design_switcher():
 
 def test_home_try_cards_have_expect_lines_and_drop_zipline():
     data = json.loads((STATIC / "targets.json").read_text())
-    repos = [repo["repo"] for group in data["groups"] for repo in group["repos"]]
-    assert "quantopian/zipline" not in repos
-    assert repos[:5] == [
-        "Git083104/tether-demo-shop",
+    main_repos = [
+        repo["repo"]
+        for group in data["groups"]
+        if not group.get("planted")
+        for repo in group["repos"]
+    ]
+    planted_repos = [
+        repo["repo"]
+        for group in data["groups"]
+        if group.get("planted")
+        for repo in group["repos"]
+    ]
+    assert "quantopian/zipline" not in main_repos
+    assert main_repos[:4] == [
         "TryKickoff/kickoff",
         "debois/elm-mdl",
         "LeaVerou/bliss",
         "blinkfox/hexo-theme-matery",
     ]
-    assert "lbryio/lbry-desktop" not in repos
-    assert repos[5:8] == ["expressjs/express", "pallets/click", "psf/requests"]
+    assert planted_repos == ["Git083104/tether-demo-shop"]
+    assert "lbryio/lbry-desktop" not in main_repos
+    assert main_repos[4:7] == ["expressjs/express", "pallets/click", "psf/requests"]
+    shop_card = next(
+        repo
+        for group in data["groups"] if group.get("planted")
+        for repo in group["repos"]
+        if repo["repo"] == "Git083104/tether-demo-shop"
+    )
+    assert shop_card["about"] == "Planted on purpose to show every kind of finding"
+    assert shop_card["expect"] == "Expect: 6 critical · 2 high"
+    assert "polyfill.io" in shop_card["expect_names"]
+    assert 'id="repos-planted"' in (STATIC / "index.html").read_text()
     assert "quantopian/zipline" not in json.dumps(data)
     sites = {site["url"]: site for site in data["websites"]}
     shown = [site["url"] for site in data["websites"] if not site.get("planted")]
@@ -375,7 +399,7 @@ def test_home_try_cards_have_expect_lines_and_drop_zipline():
     assert wiki["about"] == "Control: should come back clean"
     assert wiki["about"].count("should come back clean") == 1
     js = (STATIC / "app.js").read_text()
-    assert "Planted examples (ours)" in js
+    assert js.count("Planted examples (ours)") >= 1
     assert "plantedGroup" in js
     assert "repo-chip-expect" in js
     for item in data["websites"] + [repo for group in data["groups"] for repo in group["repos"]]:

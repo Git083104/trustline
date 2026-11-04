@@ -1589,7 +1589,7 @@
     if (!stamp && state.demo) { stamp = demoRecordedAt(); }
     if (!stamp) { node.hidden = true; node.textContent = ""; return; }
     node.hidden = false;
-    node.textContent = "Recorded live scan · " + stamp;
+    node.textContent = report.recorded_label || ("Recorded live scan · " + stamp);
   }
 
   function demoRecordedAt() {
@@ -1601,22 +1601,30 @@
   function onScroll() {}
   function syncHeroClearance() {}
 
-  function siteChip(site) {
+  function tryChip(name, about, expect, expectNames, fillValue) {
     var btn = make("button", "repo-chip");
     btn.type = "button";
-    btn.appendChild(make("span", "repo-chip-name", site.name || site.url));
-    if (site.about) {
-      btn.appendChild(make("span", "repo-chip-about", site.about));
+    btn.appendChild(make("span", "repo-chip-name", name));
+    if (about) {
+      btn.appendChild(make("span", "repo-chip-about", about));
     }
-    var expect = make("span", "repo-chip-expect", site.expect || "");
-    if (site.expect_names) { expect.title = site.expect_names; }
-    btn.appendChild(expect);
+    var expectEl = make("span", "repo-chip-expect", expect || "");
+    if (expectNames) { expectEl.title = expectNames; }
+    btn.appendChild(expectEl);
     btn.addEventListener("click", function () {
-      el.target.value = site.url;
+      el.target.value = fillValue;
       syncInput();
       el.target.focus();
     });
     return btn;
+  }
+
+  function siteChip(site) {
+    return tryChip(site.name || site.url, site.about, site.expect, site.expect_names, site.url);
+  }
+
+  function repoChip(repo) {
+    return tryChip(repo.repo, repo.about, repo.expect, repo.expect_names, "https://github.com/" + repo.repo);
   }
 
   function plantedGroup(title, chips) {
@@ -1638,21 +1646,14 @@
         if (!data) { return; }
         if (list && data.groups) {
           list.replaceChildren();
+          var plantedRepos = [];
           data.groups.forEach(function (group) {
+            if (group.planted) {
+              plantedRepos = plantedRepos.concat(group.repos || []);
+              return;
+            }
             (group.repos || []).forEach(function (repo) {
-              var btn = make("button", "repo-chip");
-              btn.type = "button";
-              btn.appendChild(make("span", "repo-chip-name", repo.repo));
-              if (repo.about) {
-                btn.appendChild(make("span", "repo-chip-about", repo.about));
-              }
-              btn.appendChild(make("span", "repo-chip-expect", repo.expect || ""));
-              btn.addEventListener("click", function () {
-                el.target.value = "https://github.com/" + repo.repo;
-                syncInput();
-                el.target.focus();
-              });
-              list.appendChild(btn);
+              list.appendChild(repoChip(repo));
             });
           });
           if (more) {
@@ -1663,6 +1664,16 @@
               list.classList.toggle("is-collapsed", open);
               more.textContent = open ? "Show all" : "Show fewer";
             });
+          }
+          var plantedHost = $("repos-planted");
+          if (plantedHost) {
+            plantedHost.replaceChildren();
+            if (plantedRepos.length) {
+              plantedHost.appendChild(plantedGroup(
+                "Planted examples (ours)",
+                plantedRepos.map(repoChip)
+              ));
+            }
           }
         }
         if (sites && data.websites) {

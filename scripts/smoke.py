@@ -77,7 +77,7 @@ def check_demo(base: str) -> bool:
 
 def check_live_stream(base: str) -> bool:
     payload = json.dumps(
-        {"target": "https://github.com/Git083104/tether-demo-shop"}
+        {"target": "https://github.com/LeaVerou/bliss"}
     ).encode()
     started = time.perf_counter()
     try:
@@ -85,10 +85,10 @@ def check_live_stream(base: str) -> bool:
             f"{base}/api/scan/stream",
             method="POST",
             body=payload,
-            timeout=90,
+            timeout=120,
         )
     except URLError as exc:
-        _print(False, "POST /api/scan/stream tether-demo-shop", str(exc), (time.perf_counter() - started) * 1000)
+        _print(False, "POST /api/scan/stream LeaVerou/bliss", str(exc), (time.perf_counter() - started) * 1000)
         return False
     elapsed = time.perf_counter() - started
     events = _parse_sse(raw.decode("utf-8", "replace")) if raw else []
@@ -96,7 +96,7 @@ def check_live_stream(base: str) -> bool:
     ok = (
         status == 200
         and done is not None
-        and elapsed <= 90
+        and elapsed <= 120
         and done.get("partial") is False
         and len(done.get("skipped_targets") or []) == 0
     )
@@ -105,19 +105,19 @@ def check_live_stream(base: str) -> bool:
         f"cost={done.get('cost_usd') if done else None} agent_runs={done.get('agent_runs') if done else None} "
         f"partial={done.get('partial') if done else None} skipped={done.get('skipped_targets') if done else None}"
     )
-    _print(ok, "POST /api/scan/stream tether-demo-shop", detail, elapsed * 1000)
+    _print(ok, "POST /api/scan/stream LeaVerou/bliss", detail, elapsed * 1000)
     return ok
 
 
 def check_website_demo(base: str) -> bool:
-    payload = json.dumps({"target": "https://git083104.github.io/tether-demo-shop/"}).encode()
+    payload = json.dumps({"target": "https://blissfuljs.com"}).encode()
     started = time.perf_counter()
     try:
         status, raw, _ms = _request(
             f"{base}/api/scan/stream",
             method="POST",
             body=payload,
-            timeout=90,
+            timeout=120,
         )
     except URLError as exc:
         _print(False, "POST /api/scan/stream website", str(exc), (time.perf_counter() - started) * 1000)

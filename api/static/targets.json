@@ -54,19 +54,10 @@
       "blurb": "Public repos whose latest production scan still has something to fix today.",
       "repos": [
         {
-          "repo": "Git083104/tether-demo-shop",
-          "about": "Demo storefront · planted unclaimed names",
-          "expect": "Expect: 6 critical · 2 high · polyfill.io, tether-demo-bootstrap, tether-demo-ship-artifacts, tether-demo-runtime.net, tether-demo-storefront.com, tether-demo-widgets.github.io, tetherdemoshopcdn, tether-demo-checkout.com",
-          "finding": "Planted polyfill.io, unclaimed domains, a missing S3 bucket, a deleted GitHub owner, Pages, and Azure storage. Fixture-only tether-demo-orders.dev stays in Review.",
-          "where": "index.html, Dockerfile, workflows, src/config.js",
-          "checked": "Production demo recording 4 Nov 2026.",
-          "targets": 13,
-          "run": "quick run"
-        },
-        {
           "repo": "TryKickoff/kickoff",
           "about": "Front-end starter kit · last commit May 2017",
-          "expect": "Expect: 1 critical · polyfill.io",
+          "expect": "Expect: 1 critical",
+          "expect_names": "polyfill.io",
           "finding": "index.html loads https://cdn.polyfill.io/v2/polyfill.min.js with no integrity hash.",
           "where": "index.html:38",
           "checked": "Production warm 4 Nov 2026.",
@@ -76,7 +67,8 @@
         {
           "repo": "debois/elm-mdl",
           "about": "Material Design Lite for Elm · last commit August 2018",
-          "expect": "Expect: 1 critical · polyfill.io",
+          "expect": "Expect: 1 critical",
+          "expect_names": "polyfill.io",
           "finding": "The demo page loads polyfill.js from cdn.polyfill.io.",
           "where": "demo/page.html:32",
           "checked": "Production warm 4 Nov 2026.",
@@ -86,7 +78,8 @@
         {
           "repo": "LeaVerou/bliss",
           "about": "Tiny JS helper library · last commit 2024",
-          "expect": "Expect: 1 critical · polyfill.io",
+          "expect": "Expect: 1 critical",
+          "expect_names": "polyfill.io",
           "finding": "The demo page loads polyfill.min.js from polyfill.io with no integrity hash.",
           "where": "index.html:282",
           "checked": "Production warm 4 Nov 2026.",
@@ -96,12 +89,31 @@
         {
           "repo": "blinkfox/hexo-theme-matery",
           "about": "Hexo blog theme · last commit May 2023",
-          "expect": "Expect: 1 critical · bootcss.com",
+          "expect": "Expect: 1 critical",
+          "expect_names": "bootcss.com",
           "finding": "Loads Vue and MathJax from cdn.bootcss.com.",
           "where": "layout/bb.ejs:28",
           "checked": "Production warm 4 Nov 2026.",
           "targets": 64,
           "run": "long run"
+        }
+      ]
+    },
+    {
+      "title": "Planted examples (ours)",
+      "planted": true,
+      "blurb": "Planted on purpose to show every kind of finding",
+      "repos": [
+        {
+          "repo": "Git083104/tether-demo-shop",
+          "about": "Planted on purpose to show every kind of finding",
+          "expect": "Expect: 6 critical · 2 high",
+          "expect_names": "polyfill.io, tether-demo-bootstrap, tether-demo-ship-artifacts, tether-demo-runtime.net, tether-demo-storefront.com, tether-demo-widgets.github.io, tetherdemoshopcdn, tether-demo-checkout.com",
+          "finding": "Planted polyfill.io, unclaimed domains, a missing S3 bucket, a deleted GitHub owner, Pages, and Azure storage. Fixture-only tether-demo-orders.dev stays in Review.",
+          "where": "index.html, Dockerfile, workflows, src/config.js",
+          "checked": "Production demo recording 4 Nov 2026.",
+          "targets": 13,
+          "run": "quick run"
         }
       ]
     },
