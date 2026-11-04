@@ -276,7 +276,6 @@ def test_frontend_has_the_three_screens_and_no_design_switcher():
     assert "Inter" in markup and "IBM+Plex+Mono" in markup
     assert "home-art" in markup
     assert "repo-grid" in markup
-    assert "Example from the demo scan" in markup
     assert "nth-child(n+7)" in css
     assert "Now checking" in markup
     assert "now-check" in js
@@ -284,9 +283,16 @@ def test_frontend_has_the_three_screens_and_no_design_switcher():
     assert "Websites to try" in markup
     assert "Fix it" in markup
     assert 'role="img"' in markup
-    assert "2019: polyfill.io trusted by 100,000 sites" in markup
-    assert "bucket deleted → anyone can create it" in markup
-    assert "story-replay" in markup
+    # the hero is the animated ASCII network; the old story SVG and its Replay are gone
+    assert "story-replay" not in markup
+    assert "home-example" not in markup
+    hero = (STATIC / "hero.js").read_text()
+    assert 'id="hero-canvas"' in markup
+    assert 'src="/static/hero.js"' in markup
+    assert "polyfill.io" in hero
+    assert "prefers-reduced-motion" in hero
+    assert "IntersectionObserver" in hero
+    assert "hero-canvas{" in css
 
 
 def test_home_try_cards_have_expect_lines_and_drop_zipline():

@@ -39,6 +39,7 @@ packages = ["scanner", "api"]
 "api/static/favicon-32.png" = "api/static/favicon-32.png"
 "api/static/apple-touch-icon.png" = "api/static/apple-touch-icon.png"
 "api/static/figure.js" = "api/static/figure.js"
+"api/static/hero.js" = "api/static/hero.js"
 "api/static/vendor/tray.js" = "api/static/vendor/tray.js"
 "api/static/vendor/hairline-LICENSE.txt" = "api/static/vendor/hairline-LICENSE.txt"
 "api/static/vendor/hairline-riffle.js" = "api/static/vendor/hairline-riffle.js"

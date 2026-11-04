@@ -1511,24 +1511,6 @@
   window.addEventListener("scroll", onScroll, { passive: true });
   window.addEventListener("resize", syncHeroClearance);
 
-  var story = $("home-story");
-  var replay = $("story-replay");
-  if (story && replay) {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      story.classList.remove("story-play");
-      story.classList.add("story-final");
-    }
-    replay.addEventListener("click", function () {
-      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-        story.classList.add("story-final");
-        return;
-      }
-      story.classList.remove("story-play");
-      void story.offsetWidth;
-      story.classList.add("story-play");
-    });
-  }
-
   syncInput();
   loadRepos();
 
