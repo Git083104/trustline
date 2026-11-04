@@ -246,6 +246,31 @@ async def test_fixture_gone_bucket_and_unregistered_host(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_skips_inert_file_refs(tmp_path):
+    from scanner.agent import should_investigate
+
+    ref = Reference(
+        file="README.md",
+        line=4,
+        raw="https://cdn.polyfill.io/v3/polyfill.min.js",
+        host_or_bucket="cdn.polyfill.io",
+        domain="polyfill.io",
+    )
+    cl = _classification(ref, type="script", runs_in="docs_only", blast_radius=2)
+    evidence = await precheck(ref, cl, _ctx(tmp_path))
+    assert should_investigate(ref, cl, evidence) is False
+    results = await investigate(
+        [(ref, cl)],
+        client=_scripted_client(),
+        ctx=_ctx(tmp_path),
+    )
+    assert results[0].trace == []
+    assert results[0].summary in {"code rules", "code rules only"} or "Tranco" in (
+        results[0].summary or ""
+    )
+
+
+@pytest.mark.asyncio
 async def test_skips_filtered_and_low_blast(tmp_path):
     ref = Reference(
         file="a.py",
@@ -438,7 +463,7 @@ async def test_targets_with_different_context_are_investigated_apart(tmp_path):
         host_or_bucket="cdn.vendor.example.net",
         domain="vendor.example.net",
     )
-    second = first.model_copy(update={"file": "docs/page.html", "line": 9})
+    second = first.model_copy(update={"file": "src/page.html", "line": 9})
     pairs = [
         (first, _classification(first, blast_radius=2)),
         (second, _classification(second, blast_radius=1)),

@@ -33,6 +33,7 @@ from scanner.extract import (
     is_github_action_ref,
     is_github_owner_ref,
 )
+from scanner.inert import is_inert_path
 from scanner.tools.platform_takeover import matching_platform, takeover_is_proven
 from scanner.tools import ToolContext, definitions, run as run_tool
 from scanner.tranco import TOP_SAFE_RANK, tranco_rank
@@ -244,6 +245,8 @@ async def precheck(
 
 def should_investigate(ref: Reference, cl: Classification, evidence: dict[str, Any]) -> bool:
     if ref.filter_reason is not None:
+        return False
+    if is_inert_path(ref.file):
         return False
     if tranco_checked_safe(ref, evidence) and not precheck_conclusive(ref, evidence):
         return False
