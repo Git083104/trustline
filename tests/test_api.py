@@ -282,6 +282,11 @@ def test_frontend_has_the_three_screens_and_no_design_switcher():
     assert "pointer-events:none" in css
     assert "Websites to try" in markup
     assert "Fix it" in markup
+    assert "No safe automatic edits; follow the steps above." in markup
+    assert "fix-no-edits" in markup
+    assert "scrollIntoView" in js
+    assert 'item.severity === "critical" || item.severity === "high"' in js
+    assert "el.fixIt.hidden = true" in js
     assert "Skip to report" not in markup
     assert "skip-report" not in markup
     assert "Copy badge" in markup

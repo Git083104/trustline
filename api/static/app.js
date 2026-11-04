@@ -98,6 +98,7 @@
     fixItems: $("fix-items"),
     fixAdvanced: $("fix-advanced"),
     fixEditN: $("fix-edit-n"),
+    fixNoEdits: $("fix-no-edits"),
     fixDownload: $("fix-download"),
     skippedToggle: $("skipped-toggle"),
     skippedList: $("skipped-list"),
@@ -1413,22 +1414,32 @@
     if (!el.fixIt || !el.fixPanel) { return; }
     el.fixPanel.hidden = true;
     if (el.fixItems) { el.fixItems.replaceChildren(); }
+    if (el.fixDownload) { el.fixDownload.hidden = true; }
+    if (el.fixNoEdits) { el.fixNoEdits.hidden = true; }
+    if (el.fixAdvanced) { el.fixAdvanced.hidden = true; }
     var id = state.demo ? "demo" : state.scanId;
-    if (!id) {
+    var fixN = (report.findings || []).filter(function (item) {
+      return item.severity === "critical" || item.severity === "high";
+    }).length;
+    if (!id || !fixN) {
       el.fixIt.hidden = true;
       return;
     }
     el.fixIt.hidden = false;
-    el.fixDownload.href = "/api/scan/" + encodeURIComponent(id) + "/fix.patch";
+    if (el.fixDownload) {
+      el.fixDownload.href = "/api/scan/" + encodeURIComponent(id) + "/fix.patch";
+    }
     el.fixIt.onclick = function () {
+      el.fixPanel.hidden = false;
+      if (el.fixPanel.scrollIntoView) {
+        el.fixPanel.scrollIntoView({ block: "nearest" });
+      }
       fetch("/api/scan/" + encodeURIComponent(id) + "/fix")
         .then(function (res) { return res.ok ? res.json() : {}; })
         .then(function (data) {
-          el.fixPanel.hidden = false;
           renderFixPlan(data);
         })
         .catch(function () {
-          el.fixPanel.hidden = false;
           if (el.fixItems) {
             el.fixItems.textContent = "The fix plan could not be built.";
           }
@@ -1466,9 +1477,11 @@
     });
     var n = data.edit_count || (data.edits || []).length || 0;
     if (el.fixAdvanced) {
-      el.fixAdvanced.hidden = false;
+      el.fixAdvanced.hidden = n === 0;
       if (el.fixEditN) { el.fixEditN.textContent = String(n); }
     }
+    if (el.fixDownload) { el.fixDownload.hidden = n === 0; }
+    if (el.fixNoEdits) { el.fixNoEdits.hidden = n !== 0; }
   }
 
   function selectTab(name) {
