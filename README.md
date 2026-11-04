@@ -96,7 +96,9 @@ Website scans refuse private and link-local targets (SSRF protection). The demo 
 
 ## Where this goes next
 
-Continuous monitoring and alerts; a GitHub App for whole orgs; an "is this ours?" allowlist; expiry warnings; website script inventory (PCI DSS 6.4.3); SARIF / code scanning; npm and PyPI maintainer-domain checks.
+**Now in the repo:** SARIF upload to GitHub code scanning, a weekly watch issue (and optional Slack ping), and `.tether.yml` `owned:` names so you can mark infrastructure that is yours.
+
+**Still future:** a hosted org dashboard, email digests, a GitHub App for whole orgs, expiry warnings, website script inventory (PCI DSS 6.4.3), and npm / PyPI maintainer-domain checks.
 
 ## Built with
 
