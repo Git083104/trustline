@@ -282,6 +282,8 @@ def test_frontend_has_the_three_screens_and_no_design_switcher():
     assert "pointer-events:none" in css
     assert "Websites to try" in markup
     assert "Fix it" in markup
+    assert "Copy badge" in markup
+    assert 'id="badge-snippet"' in markup
     assert 'role="img"' in markup
     # the hero is the animated ASCII network; the old story SVG and its Replay are gone
     assert "story-replay" not in markup

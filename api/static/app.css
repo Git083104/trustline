@@ -343,7 +343,8 @@ td:last-child,th:last-child{padding-right:0}
 .hero-fig{margin:0;display:block}
 .hero-canvas{display:block;width:100%;max-width:100%;cursor:grab;touch-action:none;background:transparent}
 .hero-canvas.is-drag{cursor:grabbing}
-.badge-snippet{margin:10px 0 0;font:400 13px/1.4 var(--mono);word-break:break-all}
+.badge-box{margin:10px 0 0;display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start}
+.badge-snippet{margin:0;flex:1 1 240px;padding:10px 12px;border:1px solid var(--rule);font:400 13px/1.4 var(--mono);word-break:break-all;white-space:pre-wrap}
 .home-stack{width:min(100%,280px);height:auto;overflow:visible}
 .home-stack .tex{fill:url(#home-dots)}
 .repos-title{font:500 21px/1.2 var(--display);letter-spacing:-.02em;margin:0 0 12px}

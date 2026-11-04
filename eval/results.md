@@ -1,5 +1,21 @@
 # Eval results
 
+## 2026-11-04 (revised rubric)
+
+Scored with the [revised rubric](rubric.md).
+
+| system | real threats caught | false alarms |
+|---|---|---|
+| baseline (original labels) | 3/3 | 46 |
+| baseline (revised labels) | 3/3 | 10 |
+| Tether | **3/3** | **0** |
+
+Human-labeled only: Tether 3/3 real threats, 0 false alarms; revised baseline 3/3 with 2 false alarms.
+
+## Earlier runs
+
+The sections below are earlier eval dumps. Use **2026-11-04 (revised rubric)** as the current numbers.
+
 ## Labels remapped under the revised rubric
 
 Expiry-only targets mapped to info; NXDOMAIN subdomains of a registered parent mapped to low. `eval/labels.jsonl` was not edited.

@@ -33,7 +33,7 @@ extract → code checks (DNS, RDAP, bucket probes, GitHub, Pages with DNS proof,
 
 Scored with the **revised rubric** (3 Nov 2026): expiry-only names are not Fix-today, and an NXDOMAIN subdomain of a registered parent is not a stranger takeover. Labels were not rewritten; scoring remaps them. See `eval/rubric.md`.
 
-Latest eval (`eval/results.md`, revised rubric, all labels):
+Latest eval (`eval/results.md`, **2026-11-04 (revised rubric)**):
 
 | system | real threats caught | false alarms |
 |---|---|---|

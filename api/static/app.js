@@ -106,6 +106,8 @@
     codeOnlyToggle: $("code-only-toggle"),
     codeOnlyList: $("code-only-list"),
     badgeSnippet: $("badge-snippet"),
+    badgeBox: $("badge-box"),
+    badgeCopy: $("badge-copy"),
     nowTarget: $("now-target"),
     nowCheckName: $("now-check-name"),
     nowResult: $("now-check-result"),
@@ -1216,11 +1218,11 @@
       var target = report.target || state.target || "";
       if ((report.kind || state.kind) === "repo" && target) {
         var badgeUrl = location.origin + "/api/badge?repo=" + encodeURIComponent(target);
-        el.badgeSnippet.hidden = false;
         el.badgeSnippet.textContent = "[![Tether](" + badgeUrl + ")](" + location.origin + ")";
+        if (el.badgeBox) { el.badgeBox.hidden = false; }
       } else {
-        el.badgeSnippet.hidden = true;
         el.badgeSnippet.textContent = "";
+        if (el.badgeBox) { el.badgeBox.hidden = true; }
       }
     }
     setRecordedLabel(el.resRecorded, report);
@@ -1507,6 +1509,16 @@
   el.skip.addEventListener("click", function () {
     if (state.report) { showResults(state.report); }
   });
+  if (el.badgeCopy) {
+    el.badgeCopy.addEventListener("click", function () {
+      var value = el.badgeSnippet ? el.badgeSnippet.textContent : "";
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(value || "").catch(function () {});
+      }
+      el.badgeCopy.textContent = "Copied";
+      setTimeout(function () { el.badgeCopy.textContent = "Copy badge"; }, 1500);
+    });
+  }
 
   window.addEventListener("scroll", onScroll, { passive: true });
   window.addEventListener("resize", syncHeroClearance);
