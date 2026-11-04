@@ -1601,6 +1601,33 @@
   function onScroll() {}
   function syncHeroClearance() {}
 
+  function siteChip(site) {
+    var btn = make("button", "repo-chip");
+    btn.type = "button";
+    btn.appendChild(make("span", "repo-chip-name", site.name || site.url));
+    if (site.about) {
+      btn.appendChild(make("span", "repo-chip-about", site.about));
+    }
+    var expect = make("span", "repo-chip-expect", site.expect || "");
+    if (site.expect_names) { expect.title = site.expect_names; }
+    btn.appendChild(expect);
+    btn.addEventListener("click", function () {
+      el.target.value = site.url;
+      syncInput();
+      el.target.focus();
+    });
+    return btn;
+  }
+
+  function plantedGroup(title, chips) {
+    var wrap = make("details", "planted-group");
+    wrap.appendChild(make("summary", null, title));
+    var grid = make("div", "repo-grid");
+    chips.forEach(function (chip) { grid.appendChild(chip); });
+    wrap.appendChild(grid);
+    return wrap;
+  }
+
   function loadRepos() {
     var list = $("repos-list");
     var more = $("repos-more");
@@ -1640,21 +1667,21 @@
         }
         if (sites && data.websites) {
           sites.replaceChildren();
+          var planted = [];
           data.websites.forEach(function (site) {
-            var btn = make("button", "repo-chip");
-            btn.type = "button";
-            btn.appendChild(make("span", "repo-chip-name", site.name || site.url));
-            if (site.about) {
-              btn.appendChild(make("span", "repo-chip-about", site.about));
+            if (site.planted) {
+              planted.push(site);
+              return;
             }
-            btn.appendChild(make("span", "repo-chip-expect", site.expect || ""));
-            btn.addEventListener("click", function () {
-              el.target.value = site.url;
-              syncInput();
-              el.target.focus();
-            });
-            sites.appendChild(btn);
+            sites.appendChild(siteChip(site));
           });
+          var plantedHost = $("sites-planted");
+          if (plantedHost) {
+            plantedHost.replaceChildren();
+            if (planted.length) {
+              plantedHost.appendChild(plantedGroup("Planted examples (ours)", planted.map(siteChip)));
+            }
+          }
         }
       })
       .catch(function () {});

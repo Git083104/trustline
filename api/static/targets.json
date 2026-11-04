@@ -3,28 +3,49 @@
   "note": "Expect lines from the 4 Nov 2026 production warm run. Owners can fix things or let more lapse at any time, so the live scan is the final word.",
   "websites": [
     {
-      "url": "https://git083104.github.io/tether-demo-shop/",
-      "name": "Demo storefront (ours)",
-      "about": "4 problems planted on purpose",
-      "expect": "Expect: 3 critical · 1 high · polyfill.io, tether-demo-storefront.com, tether-demo-widgets.github.io, tetherdemoshopcdn"
+      "url": "https://blissfuljs.com",
+      "name": "blissfuljs.com",
+      "about": "Bliss homepage · still loads polyfill.io",
+      "expect": "Expect: 1 critical · polyfill.io (known compromised CDN)"
     },
     {
-      "url": "https://git083104.github.io/tether-demo-shop/abandoned/",
-      "name": "Abandoned widget",
-      "about": "loads a script from a deleted GitHub Pages account",
-      "expect": "Expect: 1 critical · tether-demo-widgets.github.io"
+      "url": "https://prium.github.io/Shape/",
+      "name": "prium.github.io/Shape",
+      "about": "Public theme demo · still loads cdn.polyfill.io",
+      "expect": "Expect: 1 critical · polyfill.io (known compromised CDN)"
     },
     {
-      "url": "https://git083104.github.io/tether-demo-shop/old-cdn/",
-      "name": "Old CDN",
-      "about": "loads from cdn.bootcss.com plus a script without an integrity hash",
-      "expect": "Expect: 1 critical · bootcss.com"
+      "url": "https://www.bootcdn.cn/",
+      "name": "bootcdn.cn",
+      "about": "Public CDN catalog · still loads bootcss.com",
+      "expect": "Expect: 1 critical · bootcss.com (known compromised CDN)"
     },
     {
       "url": "https://www.wikipedia.org",
       "name": "wikipedia.org",
       "about": "Control: should come back clean",
       "expect": "Expect: clean"
+    },
+    {
+      "planted": true,
+      "url": "https://git083104.github.io/tether-demo-shop/",
+      "name": "Demo storefront (ours)",
+      "about": "4 problems planted on purpose",
+      "expect": "Expect: 3 critical · 1 high · polyfill.io, tether-demo-storefront.com, tether-demo-widgets.github.io, tetherdemoshopcdn"
+    },
+    {
+      "planted": true,
+      "url": "https://git083104.github.io/tether-demo-shop/abandoned/",
+      "name": "Abandoned widget",
+      "about": "loads a script from a deleted GitHub Pages account",
+      "expect": "Expect: 1 critical · tether-demo-widgets.github.io"
+    },
+    {
+      "planted": true,
+      "url": "https://git083104.github.io/tether-demo-shop/old-cdn/",
+      "name": "Old CDN",
+      "about": "loads from cdn.bootcss.com plus a script without an integrity hash",
+      "expect": "Expect: 1 critical · bootcss.com"
     }
   ],
   "groups": [

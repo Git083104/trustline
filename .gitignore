@@ -1,4 +1,5 @@
 .env
+disclosure/
 eval/labels.jsonl
 .venv/
 __pycache__/

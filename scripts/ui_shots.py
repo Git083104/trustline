@@ -86,11 +86,21 @@ HOME_ONLY_JS = """
     }
   }
   const text = document.body.innerText;
-  if (!text.includes('Demo storefront (ours)')) fails.push('missing storefront title');
-  if (!text.includes('4 problems planted on purpose')) fails.push('missing storefront line');
+  if (!text.includes('blissfuljs.com')) fails.push('missing blissfuljs title');
+  if (!text.includes('prium.github.io/Shape')) fails.push('missing Shape title');
+  if (!text.includes('bootcdn.cn')) fails.push('missing bootcdn title');
   if (!text.includes('wikipedia.org')) fails.push('missing wikipedia title');
+  if (!text.includes('Planted examples (ours)')) fails.push('missing planted group');
   if ((text.match(/Control: should come back clean/g) || []).length !== 1) {
     fails.push('wikipedia control line should appear once');
+  }
+  const planted = document.querySelector('#sites-planted details');
+  if (!planted) fails.push('missing planted details');
+  else {
+    planted.open = true;
+    const plantedText = planted.innerText || '';
+    if (!plantedText.includes('Demo storefront (ours)')) fails.push('missing storefront title');
+    if (!plantedText.includes('4 problems planted on purpose')) fails.push('missing storefront line');
   }
   if (document.documentElement.scrollWidth > width + 1) {
     fails.push(`document scrollWidth ${document.documentElement.scrollWidth} > ${width}`);
