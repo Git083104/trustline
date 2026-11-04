@@ -344,6 +344,8 @@ def test_workflow_file_matches_policy():
     assert "redacted muse.out" in text
     assert "HOME: ${{ runner.temp }}/muse-home" not in text
     assert "--disable-sandbox" not in Path("scanner/ci.py").read_text().split("muse_argv")[1][:800]
+    assert "github/codeql-action/upload-sarif" in text
+    assert "--format sarif" in text
 
 
 def test_write_schema_and_cli_roundtrip(tmp_path: Path):

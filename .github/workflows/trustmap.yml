@@ -7,6 +7,7 @@ on:
 permissions:
   contents: read
   pull-requests: write
+  security-events: write
 
 jobs:
   trustmap:
@@ -148,3 +149,18 @@ jobs:
         env:
           TRUSTMAP_CACHE_DB: ${{ runner.temp }}/trustmap.db
         run: uv run python -m scanner.ci gate --diff-file "$RUNNER_TEMP/pr.diff"
+
+      - name: SARIF from this checkout
+        if: steps.access.outputs.skip == 'false'
+        env:
+          MODEL_API_KEY: ${{ secrets.MODEL_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TRUSTMAP_CACHE_DB: ${{ runner.temp }}/trustmap.db
+        run: uv run trustmap scan . --format sarif --json "$RUNNER_TEMP/tether.sarif"
+
+      - name: Upload SARIF
+        if: steps.access.outputs.skip == 'false'
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: ${{ runner.temp }}/tether.sarif
+          category: tether
